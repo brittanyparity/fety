@@ -1,4 +1,5 @@
 import { useState, useRef, useEffect, useCallback } from "react";
+import { FetyLogo } from "./FetyLogo";
 import {
   AreaChart, Area, BarChart, Bar,
   XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer,
@@ -221,12 +222,7 @@ function TopNav({ page, setPage }: { page: Page; setPage: (p: Page) => void }) {
   const activeNav = page;
   return (
     <nav style={{ display: "flex", alignItems: "center", height: 56, background: "var(--surface)", borderBottom: "1px solid var(--border)", padding: "0 24px", flexShrink: 0, zIndex: 20 }}>
-      <div style={{ display: "flex", alignItems: "center", gap: 10, marginRight: 36 }}>
-        <div style={{ width: 32, height: 32, borderRadius: "var(--radius-inner)", background: "var(--amber)", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
-          <span className="fety-mark" style={{ fontSize: 26, color: "var(--ink)", marginTop: 4 }}>F</span>
-        </div>
-        <span style={{ fontSize: 15, fontWeight: 600, color: "var(--ink)", letterSpacing: "-0.02em", whiteSpace: "nowrap" }}>Fety</span>
-      </div>
+      <FetyLogo />
       <div style={{ display: "flex", alignItems: "center", gap: 4, flex: 1 }}>
         {NAV_ITEMS.map(item => {
           const active = activeNav === item.id;
@@ -723,12 +719,7 @@ function ChatPanel({ messages, onSend, onCollapse }: { messages: ChatMessage[]; 
     <div style={{ width: 300, flexShrink: 0, display: "flex", flexDirection: "column", background: "var(--surface)", borderRight: "1px solid var(--border)", height: "100%", overflow: "hidden" }}>
       {/* Chat header with collapse button */}
       <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "12px 14px", borderBottom: "1px solid var(--border)", flexShrink: 0 }}>
-        <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-          <div style={{ width: 22, height: 22, borderRadius: "var(--radius-inner)", background: "var(--amber)", display: "flex", alignItems: "center", justifyContent: "center" }}>
-            <span className="fety-mark" style={{ fontSize: 16, color: "var(--ink)", marginTop: 2 }}>F</span>
-          </div>
-          <span style={{ fontSize: 12, fontWeight: 600, color: "var(--ink)" }}>Assistant</span>
-        </div>
+        <span style={{ fontSize: 12, fontWeight: 600, color: "var(--ink)" }}>Assistant</span>
         <button onClick={onCollapse} title="Collapse chat" style={{ width: 24, height: 24, borderRadius: 7, border: "1px solid var(--border)", background: "var(--bg)", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center" }}>
           <svg width="11" height="11" viewBox="0 0 11 11" fill="none"><path d="M7 2L4 5.5L7 9" stroke="var(--ink-3)" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/></svg>
         </button>
@@ -1615,7 +1606,7 @@ export default function App() {
   };
 
   return (
-    <div style={{ display: "flex", flexDirection: "column", height: "100%", background: "var(--bg)", position: "relative", zIndex: 1 }}>
+    <div style={{ display: "flex", flexDirection: "column", height: "100%", background: "var(--bg)" }}>
       <TopNav page={page} setPage={setPage} />
 
       <div style={{ flex: 1, display: "flex", overflow: "hidden" }}>

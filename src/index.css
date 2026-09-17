@@ -104,54 +104,45 @@ html, body, #root {
   line-height: 1;
 }
 
-/* Logo watermark — “mark as field”, product UI only */
-.fety-watermark {
-  position: fixed;
-  inset: 0;
-  pointer-events: none;
-  z-index: 0;
-  overflow: hidden;
-}
-
-.fety-watermark-field {
-  position: absolute;
-  right: -4%;
-  bottom: -6%;
-  font-family: var(--font-mark);
-  font-size: clamp(72px, 11vw, 128px);
-  line-height: 0.88;
-  letter-spacing: 0.06em;
-  color: var(--ink);
-  opacity: 0.1;
-  white-space: nowrap;
+.fety-logo {
+  display: flex;
+  align-items: center;
+  flex-shrink: 0;
+  margin-right: 36px;
   user-select: none;
-  transform: rotate(-6deg);
+  color: var(--ink);
 }
 
-.fety-watermark-solid {
-  position: absolute;
-  right: 8%;
-  bottom: 10%;
+.fety-logo-mark,
+.fety-logo-word {
   font-family: var(--font-mark);
-  font-size: clamp(96px, 16vw, 180px);
+  font-weight: 400;
   line-height: 1;
   color: var(--ink);
-  opacity: 0.14;
-  user-select: none;
-  transform: rotate(-4deg);
 }
 
-@media (max-width: 900px) {
-  .fety-watermark-field {
-    font-size: clamp(56px, 18vw, 96px);
-    right: -12%;
-    bottom: -4%;
+.fety-logo-word {
+  font-size: clamp(36px, 4vw, 44px);
+  letter-spacing: 0.02em;
+}
+
+.fety-logo-mark {
+  display: none;
+  font-size: 34px;
+  padding-bottom: 2px;
+}
+
+@media (max-width: 768px) {
+  .fety-logo {
+    margin-right: 16px;
   }
 
-  .fety-watermark-solid {
-    right: 4%;
-    bottom: 8%;
-    font-size: clamp(72px, 22vw, 120px);
+  .fety-logo-word {
+    display: none;
+  }
+
+  .fety-logo-mark {
+    display: block;
   }
 }
 
