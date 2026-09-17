@@ -1,45 +1,160 @@
-@import url('https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,300;0,9..40,400;0,9..40,500;0,9..40,600;0,9..40,700;0,9..40,800;0,9..40,900;1,9..40,400&family=DM+Mono:wght@400;500&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=Instrument+Sans:ital,wght@0,400;0,500;0,600;1,400&family=Mrs+Sheppards&display=swap');
 @import 'tailwindcss';
 
 :root {
-  --bg:        #EFEFEC;
+  /* Surfaces */
+  --bg:        #FAFAF9;
   --surface:   #FFFFFF;
   --sidebar:   #FFFFFF;
-  --ink:       #0C0C0B;
-  --ink-2:     #5A5A55;
-  --ink-3:     #9A9A92;
-  --border:    #E2E2DC;
+  --paper:     #F5F4F2;
 
-  /* Spending Power pill colors — the signature palette */
-  --lime:      #6FEF6F;
-  --lime-dk:   #2A9E2A;
-  --chart:     #D3F045;
-  --chart-dk:  #7A9010;
-  --lavender:  #D5ACFC;
-  --lav-dk:    #7020C8;
-  --peach:     #FFB8A0;
-  --peach-dk:  #C04820;
-  --mint:      #A2EDCE;
-  --mint-dk:   #147050;
-  --sky:       #A2D4F8;
-  --sky-dk:    #1050A0;
+  /* Ink */
+  --ink:       #111111;
+  --ink-2:     #3A3A3A;
+  --ink-3:     #6B6B6B;
+  --border:    #E6E6E6;
+  --border-soft: #EDEDED;
 
-  --radius-pill: 24px;
-  --radius-card: 18px;
-  --radius-sm:   10px;
+  /* State — how a number is doing */
+  --clear:     #91D8B6;
+  --clear-dk:  #2E8F66;
+  --amber:     #FFB020;
+  --amber-dk:  #B07000;
+  --trouble:   #FF6F5E;
+  --trouble-dk:#D14A34;
+
+  /* Category — panels & markers, not state */
+  --later:     #B8A6FF;
+  --later-dk:  #7B63E8;
+  --scheduled: #E4FF3F;
+  --scheduled-dk: #6E7C00;
+
+  /* Legacy aliases (widgets still reference these) */
+  --lime:      var(--clear);
+  --lime-dk:   var(--clear-dk);
+  --chart:     var(--scheduled);
+  --chart-dk:  var(--scheduled-dk);
+  --lavender:  var(--later);
+  --lav-dk:    var(--later-dk);
+  --mint:      var(--clear);
+  --mint-dk:   var(--clear-dk);
+  --sky:       var(--paper);
+  --sky-dk:    var(--ink-3);
+  --peach:     var(--trouble);
+  --peach-dk:  var(--trouble-dk);
+
+  --radius-frame: 12px;
+  --radius-card:  10px;
+  --radius-inner: 8px;
+  --radius-ctrl:  7px;
+  --radius-track: 99px;
+  --radius-marker: 2px;
+
+  --font-sans: 'Instrument Sans', system-ui, -apple-system, sans-serif;
+  --font-mono: 'IBM Plex Mono', ui-monospace, monospace;
+  --font-mark: 'Mrs Sheppards', Georgia, 'Times New Roman', serif;
 }
 
 html, body, #root {
   height: 100%;
-  font-family: 'DM Sans', system-ui, -apple-system, sans-serif;
+  font-family: var(--font-sans);
   -webkit-font-smoothing: antialiased;
+  color: var(--ink);
+  background: var(--bg);
 }
 
 * { box-sizing: border-box; }
 
-.font-mono { font-family: 'DM Mono', monospace; }
+.fety-label {
+  font-family: var(--font-mono);
+  font-size: 10px;
+  font-weight: 400;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: var(--ink-3);
+}
 
-/* Custom scrollbar */
+.fety-label-strong {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  font-weight: 400;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: var(--ink-3);
+}
+
+.fety-figure {
+  font-family: var(--font-sans);
+  font-weight: 400;
+  letter-spacing: -0.03em;
+  color: var(--ink);
+  line-height: 1.05;
+}
+
+.fety-mono-amt {
+  font-family: var(--font-mono);
+  font-weight: 500;
+  letter-spacing: -0.02em;
+}
+
+.fety-mark {
+  font-family: var(--font-mark);
+  font-style: normal;
+  font-weight: 400;
+  line-height: 1;
+}
+
+/* Logo watermark — “mark as field”, product UI only */
+.fety-watermark {
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  z-index: 0;
+  overflow: hidden;
+}
+
+.fety-watermark-field {
+  position: absolute;
+  right: -4%;
+  bottom: -6%;
+  font-family: var(--font-mark);
+  font-size: clamp(72px, 11vw, 128px);
+  line-height: 0.88;
+  letter-spacing: 0.06em;
+  color: var(--ink);
+  opacity: 0.1;
+  white-space: nowrap;
+  user-select: none;
+  transform: rotate(-6deg);
+}
+
+.fety-watermark-solid {
+  position: absolute;
+  right: 8%;
+  bottom: 10%;
+  font-family: var(--font-mark);
+  font-size: clamp(96px, 16vw, 180px);
+  line-height: 1;
+  color: var(--ink);
+  opacity: 0.14;
+  user-select: none;
+  transform: rotate(-4deg);
+}
+
+@media (max-width: 900px) {
+  .fety-watermark-field {
+    font-size: clamp(56px, 18vw, 96px);
+    right: -12%;
+    bottom: -4%;
+  }
+
+  .fety-watermark-solid {
+    right: 4%;
+    bottom: 8%;
+    font-size: clamp(72px, 22vw, 120px);
+  }
+}
+
 ::-webkit-scrollbar { width: 4px; height: 4px; }
 ::-webkit-scrollbar-track { background: transparent; }
-::-webkit-scrollbar-thumb { background: #d0d0c8; border-radius: 99px; }
+::-webkit-scrollbar-thumb { background: var(--border); border-radius: var(--radius-track); }
