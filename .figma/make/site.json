@@ -1,0 +1,11 @@
+{
+  "title": "BudgetingOS",
+  "description": "Streamline your budgeting process with an intuitive spreadsheet tool designed for personal finance management, helping users track expenses and savings effortlessly.",
+  "robots": {
+    "index": true
+  },
+  "accessibility": {
+    "addBypassLinks": false,
+    "ignoreReducedMotion": false
+  }
+}

@@ -1,0 +1,45 @@
+@import url('https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,300;0,9..40,400;0,9..40,500;0,9..40,600;0,9..40,700;0,9..40,800;0,9..40,900;1,9..40,400&family=DM+Mono:wght@400;500&display=swap');
+@import 'tailwindcss';
+
+:root {
+  --bg:        #EFEFEC;
+  --surface:   #FFFFFF;
+  --sidebar:   #FFFFFF;
+  --ink:       #0C0C0B;
+  --ink-2:     #5A5A55;
+  --ink-3:     #9A9A92;
+  --border:    #E2E2DC;
+
+  /* Spending Power pill colors — the signature palette */
+  --lime:      #6FEF6F;
+  --lime-dk:   #2A9E2A;
+  --chart:     #D3F045;
+  --chart-dk:  #7A9010;
+  --lavender:  #D5ACFC;
+  --lav-dk:    #7020C8;
+  --peach:     #FFB8A0;
+  --peach-dk:  #C04820;
+  --mint:      #A2EDCE;
+  --mint-dk:   #147050;
+  --sky:       #A2D4F8;
+  --sky-dk:    #1050A0;
+
+  --radius-pill: 24px;
+  --radius-card: 18px;
+  --radius-sm:   10px;
+}
+
+html, body, #root {
+  height: 100%;
+  font-family: 'DM Sans', system-ui, -apple-system, sans-serif;
+  -webkit-font-smoothing: antialiased;
+}
+
+* { box-sizing: border-box; }
+
+.font-mono { font-family: 'DM Mono', monospace; }
+
+/* Custom scrollbar */
+::-webkit-scrollbar { width: 4px; height: 4px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: #d0d0c8; border-radius: 99px; }
