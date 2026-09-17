@@ -91,9 +91,16 @@ html, body, #root {
   line-height: 1.05;
 }
 
+.fety-num {
+  font-family: var(--font-sans);
+  font-weight: 400;
+  letter-spacing: -0.02em;
+}
+
+/* @deprecated alias */
 .fety-mono-amt {
-  font-family: var(--font-mono);
-  font-weight: 500;
+  font-family: var(--font-sans);
+  font-weight: 400;
   letter-spacing: -0.02em;
 }
 

@@ -234,7 +234,7 @@ function TopNav({ page, setPage }: { page: Page; setPage: (p: Page) => void }) {
         })}
       </div>
       <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-        <div style={{ fontFamily: "var(--font-mono)", fontSize: 10, letterSpacing: "0.12em", textTransform: "uppercase", color: "var(--ink-3)", background: "var(--bg)", border: "1px solid var(--border)", borderRadius: "var(--radius-ctrl)", padding: "5px 10px" }}>Sep 16, 2026</div>
+        <div style={{ fontFamily: "var(--font-sans)", fontSize: 10, letterSpacing: "0.12em", textTransform: "uppercase", color: "var(--ink-3)", background: "var(--bg)", border: "1px solid var(--border)", borderRadius: "var(--radius-ctrl)", padding: "5px 10px" }}>Sep 16, 2026</div>
         <div style={{ width: 30, height: 30, borderRadius: "var(--radius-ctrl)", background: "var(--paper)", border: "1px solid var(--border)", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 11, fontWeight: 600, color: "var(--ink)", cursor: "pointer" }}>A</div>
       </div>
     </nav>
@@ -257,7 +257,7 @@ const statPreview = (dot: string, label: string, value: string, sub?: string): R
     <div style={{ width: 9, height: 9, borderRadius: "var(--radius-marker)", background: dot, flexShrink: 0 }} />
     <div style={{ flex: 1, minWidth: 0 }}>
       <p style={{ fontSize: 10, fontWeight: 400, color: "var(--ink-3)", fontFamily: "var(--font-mono)", textTransform: "uppercase", letterSpacing: "0.16em", marginBottom: 2 }}>{label}</p>
-      <p style={{ fontSize: 16, fontWeight: 400, color: "var(--ink)", letterSpacing: "-0.5px", fontFamily: "var(--font-mono)", lineHeight: 1 }}>{value}</p>
+      <p style={{ fontSize: 16, fontWeight: 400, color: "var(--ink)", letterSpacing: "-0.5px", fontFamily: "var(--font-sans)", lineHeight: 1 }}>{value}</p>
       {sub && <p style={{ fontSize: 9, color: "var(--ink-3)", marginTop: 2 }}>{sub}</p>}
     </div>
   </div>
@@ -273,7 +273,7 @@ const ALL_WIDGETS: WidgetDef[] = [
         <div style={{ width: 9, height: 9, borderRadius: "var(--radius-marker)", background: "var(--clear)", flexShrink: 0 }} />
         <div style={{ flex: 1, minWidth: 0 }}>
           <p style={{ fontSize: 10, fontWeight: 400, color: "var(--ink-3)", fontFamily: "var(--font-mono)", textTransform: "uppercase", letterSpacing: "0.16em", marginBottom: 4 }}>Today's Balance</p>
-          <p style={{ fontSize: 22, fontWeight: 400, color: "var(--ink)", letterSpacing: "-0.8px", fontFamily: "var(--font-mono)", lineHeight: 1 }}>$2,612</p>
+          <p style={{ fontSize: 22, fontWeight: 400, color: "var(--ink)", letterSpacing: "-0.8px", fontFamily: "var(--font-sans)", lineHeight: 1 }}>$2,612</p>
         </div>
       </div>
     ),
@@ -286,7 +286,7 @@ const ALL_WIDGETS: WidgetDef[] = [
         <div style={{ width: 9, height: 9, borderRadius: "var(--radius-marker)", background: "var(--clear)", flexShrink: 0 }} />
         <div style={{ flex: 1, minWidth: 0 }}>
           <p style={{ fontSize: 10, fontWeight: 400, color: "var(--ink-3)", fontFamily: "var(--font-mono)", textTransform: "uppercase", letterSpacing: "0.16em", marginBottom: 4 }}>Money In Today</p>
-          <p style={{ fontSize: 22, fontWeight: 400, color: "var(--lime-dk)", letterSpacing: "-0.8px", fontFamily: "var(--font-mono)", lineHeight: 1 }}>+$350</p>
+          <p style={{ fontSize: 22, fontWeight: 400, color: "var(--lime-dk)", letterSpacing: "-0.8px", fontFamily: "var(--font-sans)", lineHeight: 1 }}>+$350</p>
         </div>
       </div>
     ),
@@ -299,7 +299,7 @@ const ALL_WIDGETS: WidgetDef[] = [
         <div style={{ width: 9, height: 9, borderRadius: "var(--radius-marker)", background: "var(--trouble)", flexShrink: 0 }} />
         <div style={{ flex: 1, minWidth: 0 }}>
           <p style={{ fontSize: 10, fontWeight: 400, color: "var(--ink-3)", fontFamily: "var(--font-mono)", textTransform: "uppercase", letterSpacing: "0.16em", marginBottom: 4 }}>Money Out Today</p>
-          <p style={{ fontSize: 22, fontWeight: 400, color: "var(--peach-dk)", letterSpacing: "-0.8px", fontFamily: "var(--font-mono)", lineHeight: 1 }}>-$52</p>
+          <p style={{ fontSize: 22, fontWeight: 400, color: "var(--peach-dk)", letterSpacing: "-0.8px", fontFamily: "var(--font-sans)", lineHeight: 1 }}>-$52</p>
         </div>
       </div>
     ),
@@ -312,7 +312,7 @@ const ALL_WIDGETS: WidgetDef[] = [
         <div style={{ width: 9, height: 9, borderRadius: "var(--radius-marker)", background: "var(--clear)", flexShrink: 0 }} />
         <div style={{ flex: 1, minWidth: 0 }}>
           <p style={{ fontSize: 10, fontWeight: 400, color: "var(--ink-3)", fontFamily: "var(--font-mono)", textTransform: "uppercase", letterSpacing: "0.16em", marginBottom: 4 }}>Monthly Net</p>
-          <p style={{ fontSize: 22, fontWeight: 400, color: "var(--lime-dk)", letterSpacing: "-0.8px", fontFamily: "var(--font-mono)", lineHeight: 1 }}>+$2,450</p>
+          <p style={{ fontSize: 22, fontWeight: 400, color: "var(--lime-dk)", letterSpacing: "-0.8px", fontFamily: "var(--font-sans)", lineHeight: 1 }}>+$2,450</p>
         </div>
       </div>
     ),
@@ -325,7 +325,7 @@ const ALL_WIDGETS: WidgetDef[] = [
         <div style={{ width: 9, height: 9, borderRadius: "var(--radius-marker)", background: "var(--ink)", flexShrink: 0 }} />
         <div style={{ flex: 1, minWidth: 0 }}>
           <p style={{ fontSize: 10, fontWeight: 400, color: "var(--ink-3)", fontFamily: "var(--font-mono)", textTransform: "uppercase", letterSpacing: "0.16em", marginBottom: 4 }}>Weekly Spend</p>
-          <p style={{ fontSize: 22, fontWeight: 400, color: "var(--ink)", letterSpacing: "-0.8px", fontFamily: "var(--font-mono)", lineHeight: 1 }}>$634</p>
+          <p style={{ fontSize: 22, fontWeight: 400, color: "var(--ink)", letterSpacing: "-0.8px", fontFamily: "var(--font-sans)", lineHeight: 1 }}>$634</p>
         </div>
       </div>
     ),
@@ -338,7 +338,7 @@ const ALL_WIDGETS: WidgetDef[] = [
         <div style={{ width: 9, height: 9, borderRadius: "var(--radius-marker)", background: "var(--ink-3)", flexShrink: 0 }} />
         <div style={{ flex: 1, minWidth: 0 }}>
           <p style={{ fontSize: 10, fontWeight: 400, color: "var(--ink-3)", fontFamily: "var(--font-mono)", textTransform: "uppercase", letterSpacing: "0.16em", marginBottom: 4 }}>Budget Remaining</p>
-          <p style={{ fontSize: 22, fontWeight: 400, color: "var(--ink)", letterSpacing: "-0.8px", fontFamily: "var(--font-mono)", lineHeight: 1 }}>$2,028</p>
+          <p style={{ fontSize: 22, fontWeight: 400, color: "var(--ink)", letterSpacing: "-0.8px", fontFamily: "var(--font-sans)", lineHeight: 1 }}>$2,028</p>
         </div>
       </div>
     ),
@@ -357,8 +357,8 @@ const ALL_WIDGETS: WidgetDef[] = [
           <div style={{ width: "22%", height: "100%", background: "var(--amber-dk)", borderRadius: "var(--radius-track)" }} />
         </div>
         <div style={{ display: "flex", justifyContent: "space-between", marginTop: 6 }}>
-          <span style={{ fontSize: 10, fontFamily: "var(--font-mono)", color: "var(--ink-3)" }}>$140 of $640 weekly budget</span>
-          <span style={{ fontSize: 10, fontFamily: "var(--font-mono)", color: "var(--ink-2)" }}>22%</span>
+          <span style={{ fontSize: 10, fontFamily: "var(--font-sans)", color: "var(--ink-3)" }}>$140 of $640 weekly budget</span>
+          <span style={{ fontSize: 10, fontFamily: "var(--font-sans)", color: "var(--ink-2)" }}>22%</span>
         </div>
       </div>
     ),
@@ -392,15 +392,15 @@ const ALL_WIDGETS: WidgetDef[] = [
             <p style={{ fontSize: 12, fontWeight: 600, color: "var(--ink)" }}>Balance This Week</p>
             <p style={{ fontSize: 11, color: "var(--ink-3)", marginTop: 2 }}>Daily ending balance · Sep 7–13</p>
           </div>
-          <p style={{ fontSize: 22, fontWeight: 400, color: "var(--ink)", letterSpacing: "-0.8px", fontFamily: "var(--font-mono)" }}>$2,612</p>
+          <p style={{ fontSize: 22, fontWeight: 400, color: "var(--ink)", letterSpacing: "-0.8px", fontFamily: "var(--font-sans)" }}>$2,612</p>
         </div>
         <ResponsiveContainer width="100%" height={160}>
           <AreaChart data={cashFlow}>
             <defs><linearGradient id="wg1" x1="0" y1="0" x2="0" y2="1"><stop offset="5%" stopColor="var(--clear)" stopOpacity={0.45}/><stop offset="95%" stopColor="var(--clear)" stopOpacity={0}/></linearGradient></defs>
             <CartesianGrid strokeDasharray="3 3" stroke="var(--border-soft)" vertical={false}/>
-            <XAxis dataKey="d" tick={{ fontSize: 10, fill: "var(--ink-3)" }} axisLine={false} tickLine={false}/>
-            <YAxis tick={{ fontSize: 10, fill: "var(--ink-3)" }} axisLine={false} tickLine={false} tickFormatter={v => `$${Number(v)/1000}k`} width={36}/>
-            <Tooltip formatter={(v: unknown) => [usdF(Number(v)), "Balance"]} contentStyle={{ fontSize: 11, borderRadius: 8, border: "1px solid var(--border)", fontFamily: "var(--font-mono)" }}/>
+            <XAxis dataKey="d" tick={{ fontSize: 10, fill: "var(--ink-3)", fontFamily: "var(--font-sans)" }} axisLine={false} tickLine={false}/>
+            <YAxis tick={{ fontSize: 10, fill: "var(--ink-3)", fontFamily: "var(--font-sans)" }} axisLine={false} tickLine={false} tickFormatter={v => `$${Number(v)/1000}k`} width={36}/>
+            <Tooltip formatter={(v: unknown) => [usdF(Number(v)), "Balance"]} contentStyle={{ fontSize: 11, borderRadius: 8, border: "1px solid var(--border)", fontFamily: "var(--font-sans)" }}/>
             <Area type="monotone" dataKey="bal" stroke="var(--clear-dk)" strokeWidth={2.5} fill="url(#wg1)" dot={false}/>
           </AreaChart>
         </ResponsiveContainer>
@@ -417,9 +417,9 @@ const ALL_WIDGETS: WidgetDef[] = [
         <ResponsiveContainer width="100%" height={150}>
           <BarChart data={monthlySpend} barSize={20}>
             <CartesianGrid strokeDasharray="3 3" stroke="var(--border-soft)" vertical={false}/>
-            <XAxis dataKey="m" tick={{ fontSize: 10, fill: "var(--ink-3)" }} axisLine={false} tickLine={false}/>
-            <YAxis tick={{ fontSize: 10, fill: "var(--ink-3)" }} axisLine={false} tickLine={false} tickFormatter={v => `$${Number(v)/1000}k`} width={36}/>
-            <Tooltip formatter={(v: unknown) => [usd(Number(v)), "Spent"]} contentStyle={{ fontSize: 11, borderRadius: 9, border: "1px solid var(--border)" }}/>
+            <XAxis dataKey="m" tick={{ fontSize: 10, fill: "var(--ink-3)", fontFamily: "var(--font-sans)" }} axisLine={false} tickLine={false}/>
+            <YAxis tick={{ fontSize: 10, fill: "var(--ink-3)", fontFamily: "var(--font-sans)" }} axisLine={false} tickLine={false} tickFormatter={v => `$${Number(v)/1000}k`} width={36}/>
+            <Tooltip formatter={(v: unknown) => [usd(Number(v)), "Spent"]} contentStyle={{ fontSize: 11, borderRadius: 9, border: "1px solid var(--border)", fontFamily: "var(--font-sans)" }}/>
             <Bar dataKey="v" fill="var(--ink)" radius={[4,4,0,0]}/>
           </BarChart>
         </ResponsiveContainer>
@@ -441,7 +441,7 @@ const ALL_WIDGETS: WidgetDef[] = [
               <div key={d.name} style={{ display: "flex", alignItems: "center", gap: 7 }}>
                 <div style={{ width: 7, height: 7, borderRadius: 2, background: DONUT_COLORS[i], flexShrink: 0 }}/>
                 <span style={{ fontSize: 11, color: "var(--ink-2)", flex: 1 }}>{d.name}</span>
-                <span style={{ fontSize: 11, fontWeight: 600, color: "var(--ink)", fontFamily: "var(--font-mono)" }}>{d.value}%</span>
+                <span style={{ fontSize: 11, fontWeight: 600, color: "var(--ink)", fontFamily: "var(--font-sans)" }}>{d.value}%</span>
               </div>
             ))}
           </div>
@@ -460,11 +460,11 @@ const ALL_WIDGETS: WidgetDef[] = [
         <div style={{ marginTop: "auto", paddingTop: 16, display: "flex", gap: 10 }}>
           <div style={{ flex: 1, background: "rgba(255,255,255,0.5)", borderRadius: 10, padding: "10px 12px" }}>
             <p style={{ fontSize: 10, color: "rgba(0,0,0,0.5)", marginBottom: 3 }}>Checking</p>
-            <p style={{ fontSize: 15, fontWeight: 600, color: "var(--ink)", fontFamily: "var(--font-mono)" }}>$1,812</p>
+            <p style={{ fontSize: 15, fontWeight: 600, color: "var(--ink)", fontFamily: "var(--font-sans)" }}>$1,812</p>
           </div>
           <div style={{ flex: 1, background: "rgba(255,255,255,0.5)", borderRadius: 10, padding: "10px 12px" }}>
             <p style={{ fontSize: 10, color: "rgba(0,0,0,0.5)", marginBottom: 3 }}>Savings</p>
-            <p style={{ fontSize: 15, fontWeight: 600, color: "var(--ink)", fontFamily: "var(--font-mono)" }}>$800</p>
+            <p style={{ fontSize: 15, fontWeight: 600, color: "var(--ink)", fontFamily: "var(--font-sans)" }}>$800</p>
           </div>
         </div>
       </div>
@@ -482,7 +482,7 @@ const ALL_WIDGETS: WidgetDef[] = [
           <div style={{ display: "flex", alignItems: "center", gap: 10, padding: "9px 0", borderTop: "1px solid rgba(0,0,0,0.08)" }}>
             <span style={{ fontSize: 16 }}>💼</span>
             <div style={{ flex: 1 }}><p style={{ fontSize: 12, fontWeight: 500, color: "var(--ink)" }}>Freelance Invoice</p><p style={{ fontSize: 10, color: "rgba(0,0,0,0.4)" }}>Today · Income</p></div>
-            <span style={{ fontSize: 13, fontWeight: 600, color: "var(--mint-dk)", fontFamily: "var(--font-mono)" }}>+$350</span>
+            <span style={{ fontSize: 13, fontWeight: 600, color: "var(--mint-dk)", fontFamily: "var(--font-sans)" }}>+$350</span>
           </div>
         </div>
       </div>
@@ -500,7 +500,7 @@ const ALL_WIDGETS: WidgetDef[] = [
           <div style={{ display: "flex", alignItems: "center", gap: 10, padding: "9px 0", borderTop: "1px solid rgba(0,0,0,0.08)" }}>
             <span style={{ fontSize: 16 }}>🛒</span>
             <div style={{ flex: 1 }}><p style={{ fontSize: 12, fontWeight: 500, color: "var(--ink)" }}>Whole Foods Market</p><p style={{ fontSize: 10, color: "rgba(0,0,0,0.4)" }}>Today · Groceries</p></div>
-            <span style={{ fontSize: 13, fontWeight: 600, color: "var(--peach-dk)", fontFamily: "var(--font-mono)" }}>-$52</span>
+            <span style={{ fontSize: 13, fontWeight: 600, color: "var(--peach-dk)", fontFamily: "var(--font-sans)" }}>-$52</span>
           </div>
         </div>
       </div>
@@ -517,11 +517,11 @@ const ALL_WIDGETS: WidgetDef[] = [
         <div style={{ marginTop: "auto", paddingTop: 16, display: "flex", gap: 12 }}>
           <div style={{ flex: 1 }}>
             <p style={{ fontSize: 10, color: "rgba(0,0,0,0.45)", marginBottom: 3 }}>Income</p>
-            <p style={{ fontSize: 16, fontWeight: 400, color: "var(--lime-dk)", fontFamily: "var(--font-mono)" }}>+$3,150</p>
+            <p style={{ fontSize: 16, fontWeight: 400, color: "var(--lime-dk)", fontFamily: "var(--font-sans)" }}>+$3,150</p>
           </div>
           <div style={{ flex: 1 }}>
             <p style={{ fontSize: 10, color: "rgba(0,0,0,0.45)", marginBottom: 3 }}>Expenses</p>
-            <p style={{ fontSize: 16, fontWeight: 400, color: "var(--peach-dk)", fontFamily: "var(--font-mono)" }}>-$700</p>
+            <p style={{ fontSize: 16, fontWeight: 400, color: "var(--peach-dk)", fontFamily: "var(--font-sans)" }}>-$700</p>
           </div>
         </div>
       </div>
@@ -542,7 +542,7 @@ const ALL_WIDGETS: WidgetDef[] = [
             <div key={c.name} style={{ marginBottom: 10 }}>
               <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 4 }}>
                 <span style={{ fontSize: 11, color: "var(--ink-2)" }}>{c.icon} {c.name}</span>
-                <span style={{ fontSize: 10, fontFamily: "var(--font-mono)", color: pct >= 100 ? "var(--peach-dk)" : "var(--ink-3)" }}>{usd(c.spent)} / {usd(c.budget)}</span>
+                <span style={{ fontSize: 10, fontFamily: "var(--font-sans)", color: pct >= 100 ? "var(--peach-dk)" : "var(--ink-3)" }}>{usd(c.spent)} / {usd(c.budget)}</span>
               </div>
               <div style={{ height: 5, background: "var(--bg)", borderRadius: 99 }}>
                 <div style={{ width: `${pct}%`, height: "100%", background: pct >= 100 ? "var(--trouble-dk)" : pct >= 80 ? "var(--amber-dk)" : "var(--ink)", borderRadius: "var(--radius-track)" }} />
@@ -564,7 +564,7 @@ const ALL_WIDGETS: WidgetDef[] = [
         <p style={{ fontSize: 12, color: "rgba(0,0,0,0.5)", marginTop: 8 }}>2 days away · Employer direct deposit</p>
         <div style={{ background: "rgba(255,255,255,0.4)", borderRadius: 10, padding: "10px 12px", marginTop: 16 }}>
           <p style={{ fontSize: 10, color: "rgba(0,0,0,0.5)", marginBottom: 2 }}>Projected balance after deposit</p>
-          <p style={{ fontSize: 18, fontWeight: 400, color: "var(--lav-dk)", fontFamily: "var(--font-mono)" }}>$5,412</p>
+          <p style={{ fontSize: 18, fontWeight: 400, color: "var(--lav-dk)", fontFamily: "var(--font-sans)" }}>$5,412</p>
         </div>
       </div>
     ),
@@ -588,7 +588,7 @@ const ALL_WIDGETS: WidgetDef[] = [
                   </div>
                 </div>
                 <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 6 }}>
-                  <span style={{ fontSize: 14, fontWeight: 400, color: "var(--ink)", fontFamily: "var(--font-mono)" }}>{usd(g.saved)}</span>
+                  <span style={{ fontSize: 14, fontWeight: 400, color: "var(--ink)", fontFamily: "var(--font-sans)" }}>{usd(g.saved)}</span>
                   <span style={{ fontSize: 10, color: "var(--ink-3)", alignSelf: "flex-end" }}>of {usd(g.target)}</span>
                 </div>
                 <div style={{ height: 5, background: "var(--border)", borderRadius: 99 }}>
@@ -616,7 +616,7 @@ const ALL_WIDGETS: WidgetDef[] = [
             <div key={b.name} style={{ display: "flex", justifyContent: "space-between", borderTop: "1px solid rgba(0,0,0,0.08)", paddingTop: 6 }}>
               <span style={{ fontSize: 11, color: "rgba(0,0,0,0.6)" }}>{b.name}</span>
               <div style={{ textAlign: "right" }}>
-                <span style={{ fontSize: 11, fontWeight: 600, color: "var(--ink)", fontFamily: "var(--font-mono)" }}>{b.amt}</span>
+                <span style={{ fontSize: 11, fontWeight: 600, color: "var(--ink)", fontFamily: "var(--font-sans)" }}>{b.amt}</span>
                 <span style={{ fontSize: 10, color: "rgba(0,0,0,0.4)", marginLeft: 6 }}>{b.due}</span>
               </div>
             </div>
@@ -757,7 +757,7 @@ function ChatBubble({ msg }: { msg: ChatMessage }) {
       {!isUser && (
         <div style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 4 }}>
           <span className="fety-label" style={{ fontSize: 9, letterSpacing: "0.12em" }}>Assistant</span>
-          <span style={{ fontSize: 9, fontFamily: "var(--font-mono)", color: "var(--ink-3)" }}>{msg.time}</span>
+          <span style={{ fontSize: 9, fontFamily: "var(--font-sans)", color: "var(--ink-3)" }}>{msg.time}</span>
         </div>
       )}
       {isUser && (
@@ -1001,10 +1001,10 @@ function MonthlyCalGrid({ month, selected, onSelect }: { month: Date; selected: 
               {data && (
                 <div style={{ flex: 1, display: "flex", flexDirection: "column", justifyContent: "flex-end", gap: 1 }}>
                   <div style={{ fontSize: 9, color: isSelected ? "rgba(255,255,255,0.6)" : "var(--ink-3)" }}>
-                    Start <span style={{ fontFamily: "var(--font-mono)", fontWeight: 600, color: isSelected ? "rgba(255,255,255,0.85)" : "var(--ink-2)" }}>{usd(data.startBal)}</span>
+                    Start <span style={{ fontFamily: "var(--font-sans)", fontWeight: 600, color: isSelected ? "rgba(255,255,255,0.85)" : "var(--ink-2)" }}>{usd(data.startBal)}</span>
                   </div>
                   <div style={{ fontSize: 9, color: isSelected ? "rgba(255,255,255,0.6)" : "var(--ink-3)" }}>
-                    End <span style={{ fontFamily: "var(--font-mono)", fontWeight: 600, color: isSelected ? "#fff" : netPositive ? "var(--clear-dk)" : "var(--trouble-dk)" }}>{usd(data.endBal)}</span>
+                    End <span style={{ fontFamily: "var(--font-sans)", fontWeight: 600, color: isSelected ? "#fff" : netPositive ? "var(--clear-dk)" : "var(--trouble-dk)" }}>{usd(data.endBal)}</span>
                   </div>
                   {/* Mini dots for transactions */}
                   {hasItems && (
@@ -1082,23 +1082,23 @@ function WeeklyCalGrid({ anchor, days, selected, onSelect }: { anchor: Date; day
           <div style={{ display: "flex", flexDirection: "column", gap: 3, borderTop: `1px solid ${isSelected ? "rgba(255,255,255,0.15)" : "var(--border)"}`, paddingTop: 8 }}>
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
               <span style={{ fontSize: 9, color: isSelected ? "rgba(255,255,255,0.55)" : "var(--ink-3)" }}>Open</span>
-              <span style={{ fontSize: 10, fontWeight: 600, fontFamily: "var(--font-mono)", color: isSelected ? "rgba(255,255,255,0.8)" : "var(--ink-2)" }}>{usd(data.startBal)}</span>
+              <span style={{ fontSize: 10, fontWeight: 600, fontFamily: "var(--font-sans)", color: isSelected ? "rgba(255,255,255,0.8)" : "var(--ink-2)" }}>{usd(data.startBal)}</span>
             </div>
             {data.income > 0 && (
               <div style={{ display: "flex", justifyContent: "space-between" }}>
                 <span style={{ fontSize: 9, color: isSelected ? "rgba(255,255,255,0.55)" : "var(--ink-3)" }}>In</span>
-                <span style={{ fontSize: 10, fontWeight: 600, fontFamily: "var(--font-mono)", color: isSelected ? "var(--clear)" : "var(--clear-dk)" }}>+{usd(data.income)}</span>
+                <span style={{ fontSize: 10, fontWeight: 600, fontFamily: "var(--font-sans)", color: isSelected ? "var(--clear)" : "var(--clear-dk)" }}>+{usd(data.income)}</span>
               </div>
             )}
             {data.expenses < 0 && (
               <div style={{ display: "flex", justifyContent: "space-between" }}>
                 <span style={{ fontSize: 9, color: isSelected ? "rgba(255,255,255,0.55)" : "var(--ink-3)" }}>Out</span>
-                <span style={{ fontSize: 10, fontWeight: 600, fontFamily: "var(--font-mono)", color: isSelected ? "var(--trouble)" : "var(--trouble-dk)" }}>-{usd(data.expenses)}</span>
+                <span style={{ fontSize: 10, fontWeight: 600, fontFamily: "var(--font-sans)", color: isSelected ? "var(--trouble)" : "var(--trouble-dk)" }}>-{usd(data.expenses)}</span>
               </div>
             )}
             <div style={{ display: "flex", justifyContent: "space-between", borderTop: `1px solid ${isSelected ? "rgba(255,255,255,0.12)" : "var(--border)"}`, paddingTop: 3 }}>
               <span style={{ fontSize: 9, fontWeight: 600, color: isSelected ? "rgba(255,255,255,0.7)" : "var(--ink-2)" }}>Close</span>
-              <span style={{ fontSize: 10, fontWeight: 400, fontFamily: "var(--font-mono)", color: isSelected ? "#fff" : netPositive ? "var(--clear-dk)" : "var(--trouble-dk)" }}>{usd(data.endBal)}</span>
+              <span style={{ fontSize: 10, fontWeight: 400, fontFamily: "var(--font-sans)", color: isSelected ? "#fff" : netPositive ? "var(--clear-dk)" : "var(--trouble-dk)" }}>{usd(data.endBal)}</span>
             </div>
           </div>
         ) : (
@@ -1144,7 +1144,7 @@ function DailyCalView({ date }: { date: Date }) {
         ].map(card => (
           <div key={card.label} style={{ background: card.color, borderRadius: 16, padding: "18px 20px" }}>
             <p style={{ fontSize: 10, fontWeight: 600, color: "rgba(0,0,0,0.5)", marginBottom: 6, textTransform: "uppercase", letterSpacing: "0.16em" }}>{card.label}</p>
-            <p style={{ fontSize: 24, fontWeight: 400, color: card.textColor, letterSpacing: "-0.8px", fontFamily: "var(--font-mono)" }}>{card.value}</p>
+            <p style={{ fontSize: 24, fontWeight: 400, color: card.textColor, letterSpacing: "-0.8px", fontFamily: "var(--font-sans)" }}>{card.value}</p>
           </div>
         ))}
       </div>
@@ -1155,13 +1155,13 @@ function DailyCalView({ date }: { date: Date }) {
           {data.income > 0 && (
             <div style={{ flex: 1, background: "var(--surface)", border: "1px solid var(--border)", borderRadius: 12, padding: "14px 16px", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
               <span style={{ fontSize: 12, fontWeight: 500, color: "var(--ink-2)" }}>Total In</span>
-              <span style={{ fontFamily: "var(--font-mono)", fontWeight: 600, color: "var(--clear-dk)", fontSize: 16 }}>+{usd(data.income)}</span>
+              <span style={{ fontFamily: "var(--font-sans)", fontWeight: 600, color: "var(--clear-dk)", fontSize: 16 }}>+{usd(data.income)}</span>
             </div>
           )}
           {data.expenses < 0 && (
             <div style={{ flex: 1, background: "var(--surface)", border: "1px solid var(--border)", borderRadius: 12, padding: "14px 16px", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
               <span style={{ fontSize: 12, fontWeight: 500, color: "var(--ink-2)" }}>Total Out</span>
-              <span style={{ fontFamily: "var(--font-mono)", fontWeight: 600, color: "var(--trouble-dk)", fontSize: 16 }}>-{usd(data.expenses)}</span>
+              <span style={{ fontFamily: "var(--font-sans)", fontWeight: 600, color: "var(--trouble-dk)", fontSize: 16 }}>-{usd(data.expenses)}</span>
             </div>
           )}
         </div>
@@ -1181,7 +1181,7 @@ function DailyCalView({ date }: { date: Date }) {
               <p style={{ fontSize: 13, fontWeight: 600, color: "var(--ink)" }}>{item.desc}</p>
               <p style={{ fontSize: 10, color: "var(--ink-3)", marginTop: 1, textTransform: "capitalize" }}>{item.type}</p>
             </div>
-            <span style={{ fontFamily: "var(--font-mono)", fontWeight: 600, fontSize: 13, color: item.amount >= 0 ? "var(--clear-dk)" : item.type === "bill" ? "var(--trouble-dk)" : "var(--trouble-dk)" }}>
+            <span style={{ fontFamily: "var(--font-sans)", fontWeight: 600, fontSize: 13, color: item.amount >= 0 ? "var(--clear-dk)" : item.type === "bill" ? "var(--trouble-dk)" : "var(--trouble-dk)" }}>
               {item.amount >= 0 ? "+" : ""}{usdF(item.amount)}
             </span>
           </div>
@@ -1248,7 +1248,7 @@ function DayDetailPanel({ day, onClose }: { day: CalDay; onClose: () => void }) 
           ].map((r, i) => (
             <div key={r.label} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", paddingTop: i > 0 ? 7 : 0, paddingBottom: 7, borderTop: i > 0 ? "1px solid var(--border)" : undefined, borderBottom: i === 3 ? undefined : undefined }}>
               <span style={{ fontSize: 11, color: "var(--ink-3)" }}>{r.label}</span>
-              <span style={{ fontSize: 12, fontWeight: 600, fontFamily: "var(--font-mono)", color: r.color }}>{r.value}</span>
+              <span style={{ fontSize: 12, fontWeight: 600, fontFamily: "var(--font-sans)", color: r.color }}>{r.value}</span>
             </div>
           ))}
         </div>
@@ -1256,7 +1256,7 @@ function DayDetailPanel({ day, onClose }: { day: CalDay; onClose: () => void }) 
         {/* Net pill */}
         <div style={{ background: net >= 0 ? "var(--lime)" : "var(--peach)", borderRadius: 10, padding: "10px 14px", marginBottom: 12, display: "flex", justifyContent: "space-between", alignItems: "center" }}>
           <span style={{ fontSize: 11, fontWeight: 600, color: "rgba(0,0,0,0.6)" }}>Net</span>
-          <span style={{ fontSize: 14, fontWeight: 400, fontFamily: "var(--font-mono)", color: net >= 0 ? "var(--lime-dk)" : "var(--trouble-dk)" }}>{net >= 0 ? "+" : ""}{usd(net)}</span>
+          <span style={{ fontSize: 14, fontWeight: 400, fontFamily: "var(--font-sans)", color: net >= 0 ? "var(--lime-dk)" : "var(--trouble-dk)" }}>{net >= 0 ? "+" : ""}{usd(net)}</span>
         </div>
 
         {/* Transactions */}
@@ -1271,7 +1271,7 @@ function DayDetailPanel({ day, onClose }: { day: CalDay; onClose: () => void }) 
                     <p style={{ fontSize: 11, fontWeight: 600, color: "var(--ink)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{item.desc}</p>
                     <p style={{ fontSize: 9, color: "var(--ink-3)", textTransform: "capitalize" }}>{item.type}</p>
                   </div>
-                  <span style={{ fontFamily: "var(--font-mono)", fontWeight: 600, fontSize: 11, color: item.amount >= 0 ? "var(--clear-dk)" : "var(--trouble-dk)", flexShrink: 0 }}>
+                  <span style={{ fontFamily: "var(--font-sans)", fontWeight: 600, fontSize: 11, color: item.amount >= 0 ? "var(--clear-dk)" : "var(--trouble-dk)", flexShrink: 0 }}>
                     {item.amount >= 0 ? "+" : ""}{usdF(item.amount)}
                   </span>
                 </div>
@@ -1405,7 +1405,7 @@ function BudgetView({ viewMode }: { viewMode: ViewMode }) {
         ].map(s => (
           <div key={s.label} style={{ background: "var(--surface)", borderRadius: 14, padding: "16px 18px", border: "1px solid var(--border)", textAlign: "center" }}>
             <p style={{ fontSize: 10, fontWeight: 600, color: "var(--ink-3)", textTransform: "uppercase", letterSpacing: "0.16em", marginBottom: 6 }}>{s.label}</p>
-            <p style={{ fontSize: 22, fontWeight: 600, color: s.color, fontFamily: "var(--font-mono)" }}>{s.value}</p>
+            <p style={{ fontSize: 22, fontWeight: 600, color: s.color, fontFamily: "var(--font-sans)" }}>{s.value}</p>
           </div>
         ))}
       </div>
@@ -1465,7 +1465,7 @@ function SpendingView({ transactions, viewMode }: { transactions: typeof INIT_TR
                   <p style={{ fontSize: 13, fontWeight: 600, color: "var(--ink)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{t.desc}</p>
                   <p style={{ fontSize: 10, color: "var(--ink-3)", marginTop: 1 }}>{t.category}</p>
                 </div>
-                <div style={{ padding: "4px 10px", borderRadius: 99, fontSize: 12, fontWeight: 600, fontFamily: "var(--font-mono)", flexShrink: 0, background: t.type === "income" ? "#E8F5EE" : t.type === "transfer" ? "#F0EBFF" : "#FFECE8", color: t.type === "income" ? "var(--clear-dk)" : t.type === "transfer" ? "var(--later-dk)" : "var(--trouble-dk)" }}>
+                <div style={{ padding: "4px 10px", borderRadius: 99, fontSize: 12, fontWeight: 600, fontFamily: "var(--font-sans)", flexShrink: 0, background: t.type === "income" ? "#E8F5EE" : t.type === "transfer" ? "#F0EBFF" : "#FFECE8", color: t.type === "income" ? "var(--clear-dk)" : t.type === "transfer" ? "var(--later-dk)" : "var(--trouble-dk)" }}>
                   {t.type === "income" ? "+" : ""}{usdF(t.amount)}
                 </div>
               </div>
@@ -1498,7 +1498,7 @@ function GoalsView({ viewMode }: { viewMode: ViewMode }) {
               </div>
               <div style={{ flex: 1 }}>
                 <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 8 }}>
-                  <span style={{ fontFamily: "var(--font-mono)", fontWeight: 600, color: "var(--ink)", fontSize: 18 }}>{usd(g.saved)}</span>
+                  <span style={{ fontFamily: "var(--font-sans)", fontWeight: 600, color: "var(--ink)", fontSize: 18 }}>{usd(g.saved)}</span>
                   <span style={{ color: "var(--ink-3)", fontSize: 11, alignSelf: "flex-end" }}>of {usd(g.target)}</span>
                 </div>
                 <div style={{ height: 7, background: "var(--paper)", borderRadius: 99, overflow: "hidden" }}>
@@ -1552,7 +1552,7 @@ function SettingsView() {
                 <p style={{ fontSize: 13, fontWeight: 600, color: "var(--ink)" }}>{item.label}</p>
                 <p style={{ fontSize: 10, color: "var(--ink-3)" }}>{item.sub}</p>
               </div>
-              <span style={{ fontSize: 12, color: "var(--ink-2)", fontFamily: "var(--font-mono)" }}>{item.val}</span>
+              <span style={{ fontSize: 12, color: "var(--ink-2)", fontFamily: "var(--font-sans)" }}>{item.val}</span>
               <svg width="14" height="14" viewBox="0 0 14 14" fill="none"><path d="M5.5 3.5L9 7l-3.5 3.5" stroke="var(--ink-3)" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/></svg>
             </div>
           ))}
