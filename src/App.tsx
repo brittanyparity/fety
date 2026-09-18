@@ -1,5 +1,15 @@
-import { useState, useRef, useEffect, useCallback } from "react";
+import { useState, useRef, useEffect, useCallback, useMemo } from "react";
 import { FetyLogo } from "./FetyLogo";
+import { DashboardHero } from "./components/DashboardHero";
+import { useFetyData } from "./hooks/useFetyData";
+import { buildCalendarMap, calendarFlowHeat, formatNavDate, maxAbsDailyNet } from "./lib/fetyCalculations";
+import type { CalDay, CalendarMap, FinanceSummary } from "./types/fety";
+import {
+  BudgetManageView,
+  TransactionsManageView,
+  GoalsManageView,
+  SettingsManageView,
+} from "./views/ManageViews";
 import {
   AreaChart, Area, BarChart, Bar,
   XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer,
@@ -9,7 +19,7 @@ import {
 // ─── Types ─────────────────────────────────────────────────────────────────────
 type Page = "dashboard" | "budget" | "spending" | "goals" | "settings" | "calendar";
 type ViewMode = "cards" | "list";
-type CalView = "monthly" | "weekly" | "biweekly" | "daily";
+type CalView = "monthly" | "weekly" | "biweekly" | "daily" | "yearly";
 
 interface ChatMessage {
   id: number;
@@ -19,110 +29,16 @@ interface ChatMessage {
   tag?: string;
 }
 
-interface CalDay {
-  date: Date;
-  startBal: number;
-  endBal: number;
-  income: number;
-  expenses: number;
-  items: { icon: string; desc: string; amount: number; type: "income" | "expense" | "bill" | "paycheck" }[];
-}
+const CAL_KEY = (d: Date) => d.toISOString().slice(0, 10);
 
-// ─── Calendar data factory ─────────────────────────────────────────────────────
-// Build a month of realistic data centred on September 2026
-function buildCalendarData(): Map<string, CalDay> {
-  const map = new Map<string, CalDay>();
-  const KEY = (d: Date) => d.toISOString().slice(0, 10);
+const compactUsd = (n: number) => {
+  const abs = Math.abs(n);
+  if (abs >= 10000) return `$${(n / 1000).toFixed(0)}k`;
+  if (abs >= 1000) return `$${(n / 1000).toFixed(1)}k`;
+  return new Intl.NumberFormat("en-US", { style: "currency", currency: "USD", maximumFractionDigits: 0 }).format(n);
+};
 
-  // Seed events (date string → items)
-  const events: Record<string, CalDay["items"]> = {
-    "2026-09-01": [
-      { icon: "💵", desc: "Employer Paycheck",  amount: 2800,   type: "paycheck" },
-      { icon: "⛽", desc: "Gas Station",         amount: -48,    type: "expense"  },
-    ],
-    "2026-09-02": [
-      { icon: "🏠", desc: "Rent",                amount: -2000,  type: "bill"     },
-    ],
-    "2026-09-03": [
-      { icon: "🛒", desc: "Trader Joe's",        amount: -87,    type: "expense"  },
-    ],
-    "2026-09-05": [
-      { icon: "⚡", desc: "Electric Bill",       amount: -142,   type: "bill"     },
-      { icon: "📱", desc: "Phone Bill",          amount: -85,    type: "bill"     },
-    ],
-    "2026-09-07": [
-      { icon: "🎬", desc: "Netflix",             amount: -16,    type: "bill"     },
-      { icon: "🎵", desc: "Spotify",             amount: -10,    type: "bill"     },
-    ],
-    "2026-09-08": [
-      { icon: "🍽️", desc: "Chipotle",           amount: -15,    type: "expense"  },
-    ],
-    "2026-09-09": [
-      { icon: "🛒", desc: "Whole Foods",         amount: -52,    type: "expense"  },
-      { icon: "💼", desc: "Freelance Invoice",   amount:  350,   type: "income"   },
-    ],
-    "2026-09-10": [
-      { icon: "📦", desc: "Amazon",              amount: -90,    type: "expense"  },
-    ],
-    "2026-09-12": [
-      { icon: "🍽️", desc: "Dining Out",         amount: -65,    type: "expense"  },
-    ],
-    "2026-09-14": [
-      { icon: "🌐", desc: "Internet Bill",       amount: -65,    type: "bill"     },
-    ],
-    "2026-09-15": [
-      { icon: "💵", desc: "Employer Paycheck",   amount: 2800,   type: "paycheck" },
-      { icon: "⛽", desc: "Gas Station",         amount: -52,    type: "expense"  },
-    ],
-    "2026-09-16": [
-      { icon: "🛍️", desc: "Target",             amount: -63,    type: "expense"  },
-    ],
-    "2026-09-18": [
-      { icon: "🛒", desc: "Whole Foods",         amount: -74,    type: "expense"  },
-    ],
-    "2026-09-20": [
-      { icon: "🍽️", desc: "Restaurant",         amount: -48,    type: "expense"  },
-      { icon: "💆", desc: "Personal Care",       amount: -35,    type: "expense"  },
-    ],
-    "2026-09-22": [
-      { icon: "🚗", desc: "Car Insurance",       amount: -140,   type: "bill"     },
-    ],
-    "2026-09-24": [
-      { icon: "🛒", desc: "Grocery Store",       amount: -68,    type: "expense"  },
-    ],
-    "2026-09-26": [
-      { icon: "🎬", desc: "Movie Tickets",       amount: -28,    type: "expense"  },
-    ],
-    "2026-09-28": [
-      { icon: "📦", desc: "Amazon",              amount: -44,    type: "expense"  },
-    ],
-    "2026-09-30": [
-      { icon: "🏦", desc: "Savings Transfer",    amount: -200,   type: "expense"  },
-    ],
-  };
-
-  // Walk through Sep 2026 building running balance
-  let balance = 1820; // Aug 31 ending balance
-  const start = new Date(2026, 8, 1);  // Sep 1
-  const end   = new Date(2026, 8, 30); // Sep 30
-
-  for (let d = new Date(start); d <= end; d.setDate(d.getDate() + 1)) {
-    const key   = KEY(d);
-    const items = events[key] ?? [];
-    const income   = items.filter(i => i.amount > 0).reduce((s, i) => s + i.amount, 0);
-    const expenses = items.filter(i => i.amount < 0).reduce((s, i) => s + i.amount, 0);
-    const startBal = balance;
-    const endBal   = balance + income + expenses;
-    balance = endBal;
-    map.set(key, { date: new Date(d), startBal, endBal, income, expenses, items });
-  }
-  return map;
-}
-
-const CAL_DATA = buildCalendarData();
-const CAL_KEY  = (d: Date) => d.toISOString().slice(0, 10);
-
-// ─── Static data ───────────────────────────────────────────────────────────────
+// ─── Static demo chart data (dashboard widgets) ───────────────────────────────
 const cashFlow = [
   { d: "Mon", bal: 1820 }, { d: "Tue", bal: 2170 }, { d: "Wed", bal: 1950 },
   { d: "Thu", bal: 3960 }, { d: "Fri", bal: 3410 }, { d: "Sat", bal: 2680 }, { d: "Sun", bal: 2612 },
@@ -218,26 +134,52 @@ const NAV_ITEMS: { id: Page; label: string }[] = [
   { id: "settings",  label: "Settings"     },
 ];
 
-function TopNav({ page, setPage }: { page: Page; setPage: (p: Page) => void }) {
-  const activeNav = page;
+function TopNav({
+  page,
+  setPage,
+  navDate,
+}: {
+  page: Page;
+  setPage: (p: Page) => void;
+  navDate: string;
+}) {
   return (
-    <nav style={{ display: "flex", alignItems: "center", height: 56, background: "var(--surface)", borderBottom: "1px solid var(--border)", padding: "0 24px", flexShrink: 0, zIndex: 20 }}>
+    <header className="fety-nav">
       <FetyLogo />
-      <div style={{ display: "flex", alignItems: "center", gap: 4, flex: 1 }}>
-        {NAV_ITEMS.map(item => {
-          const active = activeNav === item.id;
-          return (
-            <button key={item.id} onClick={() => setPage(item.id)} style={{ padding: "7px 12px", borderRadius: "var(--radius-ctrl)", fontSize: 13, fontWeight: active ? 600 : 400, border: active ? "1px solid var(--border)" : "1px solid transparent", cursor: "pointer", transition: "all 0.14s", background: active ? "var(--paper)" : "transparent", color: active ? "var(--ink)" : "var(--ink-2)", whiteSpace: "nowrap" }}>
-              {item.label}
-            </button>
-          );
-        })}
+      <div className="fety-nav-links">
+        {NAV_ITEMS.map((item) => (
+          <button
+            key={item.id}
+            type="button"
+            onClick={() => setPage(item.id)}
+            className={`fety-nav-link${page === item.id ? " fety-nav-link-active" : ""}`}
+          >
+            {item.label}
+          </button>
+        ))}
       </div>
-      <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-        <div style={{ fontFamily: "var(--font-sans)", fontSize: 10, letterSpacing: "0.12em", textTransform: "uppercase", color: "var(--ink-3)", background: "var(--bg)", border: "1px solid var(--border)", borderRadius: "var(--radius-ctrl)", padding: "5px 10px" }}>Sep 16, 2026</div>
-        <div style={{ width: 30, height: 30, borderRadius: "var(--radius-ctrl)", background: "var(--paper)", border: "1px solid var(--border)", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 11, fontWeight: 600, color: "var(--ink)", cursor: "pointer" }}>A</div>
+      <div style={{ display: "flex", alignItems: "center", gap: 10, flexShrink: 0 }}>
+        <span style={{ fontSize: 12, color: "var(--ink-3)", whiteSpace: "nowrap" }}>{navDate}</span>
+        <div
+          style={{
+            width: 30,
+            height: 30,
+            borderRadius: "var(--radius-ctrl)",
+            background: "var(--paper)",
+            border: "1px solid var(--border)",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            fontSize: 11,
+            fontWeight: 600,
+            color: "var(--ink)",
+            cursor: "pointer",
+          }}
+        >
+          A
+        </div>
       </div>
-    </nav>
+    </header>
   );
 }
 
@@ -627,8 +569,6 @@ const ALL_WIDGETS: WidgetDef[] = [
   },
 ];
 
-const DEFAULT_PINNED = ["stat-balance", "stat-money-in", "stat-money-out", "stat-weekly-spend", "stat-monthly-net", "stat-remaining", "today-balance", "weekly-power", "balance-chart", "monthly-spend-chart", "budget-remaining", "next-paycheck", "spending-breakdown"];
-
 // ─── Widget Picker Panel (push sidebar) ─────────────────────────────────────────
 const SIZE_GROUPS: { label: string; sizes: WidgetDef["size"][] }[] = [
   { label: "Stat Cards", sizes: ["small"] },
@@ -716,7 +656,7 @@ function ChatPanel({ messages, onSend, onCollapse }: { messages: ChatMessage[]; 
   };
 
   return (
-    <div style={{ width: 300, flexShrink: 0, display: "flex", flexDirection: "column", background: "var(--surface)", borderRight: "1px solid var(--border)", height: "100%", overflow: "hidden" }}>
+    <div style={{ width: 300, flexShrink: 0, display: "flex", flexDirection: "column", background: "var(--surface)", borderRight: "1px solid var(--border)", height: "100%", alignSelf: "stretch", overflow: "hidden" }}>
       {/* Chat header with collapse button */}
       <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "12px 14px", borderBottom: "1px solid var(--border)", flexShrink: 0 }}>
         <span style={{ fontSize: 12, fontWeight: 600, color: "var(--ink)" }}>Assistant</span>
@@ -856,82 +796,96 @@ function RightPanel({
 
 // ─── Calendar View ─────────────────────────────────────────────────────────────
 function CalendarView({ onBack: _onBack }: { onBack: () => void }) {
-  const [calView,   setCalView]   = useState<CalView>("monthly");
-  const [focusDate, setFocusDate] = useState(new Date(2026, 8, 9));  // Sep 9 2026
-  const [selected,  setSelected]  = useState<string | null>("2026-09-09");
+  const { store } = useFetyData();
+  const [calView, setCalView] = useState<CalView>("monthly");
+  const [focusDate, setFocusDate] = useState(() => new Date());
+  const [selected, setSelected] = useState<string | null>(() => CAL_KEY(new Date()));
 
-  // helpers
   const fmt = (d: Date) => `${MONTHS[d.getMonth()]} ${d.getFullYear()}`;
+  const year = focusDate.getFullYear();
+  const calendarMap = useMemo(() => buildCalendarMap(store, year), [store, year]);
+  const maxAbsNet = useMemo(() => maxAbsDailyNet(calendarMap, year), [calendarMap, year]);
 
-  // navigate month
-  const addMonth = (n: number) => setFocusDate(p => { const d = new Date(p); d.setMonth(d.getMonth() + n); return d; });
-  const addWeek  = (n: number) => setFocusDate(p => { const d = new Date(p); d.setDate(d.getDate() + n * 7); return d; });
-  const addDay   = (n: number) => setFocusDate(p => { const d = new Date(p); d.setDate(d.getDate() + n); return d; });
+  const addMonth = (n: number) => setFocusDate((p) => { const d = new Date(p); d.setMonth(d.getMonth() + n); return d; });
+  const addWeek = (n: number) => setFocusDate((p) => { const d = new Date(p); d.setDate(d.getDate() + n * 7); return d; });
+  const addDay = (n: number) => setFocusDate((p) => { const d = new Date(p); d.setDate(d.getDate() + n); return d; });
+  const addYear = (n: number) => setFocusDate((p) => { const d = new Date(p); d.setFullYear(d.getFullYear() + n); return d; });
 
-  const selectedDay = selected ? CAL_DATA.get(selected) : null;
+  const selectedDay = selected ? calendarMap.get(selected) ?? null : null;
 
   const VIEWS: { id: CalView; label: string }[] = [
-    { id: "monthly",   label: "Monthly"   },
-    { id: "weekly",    label: "Weekly"    },
-    { id: "biweekly",  label: "Bi-Weekly" },
-    { id: "daily",     label: "Daily"     },
+    { id: "monthly", label: "Monthly" },
+    { id: "weekly", label: "Weekly" },
+    { id: "biweekly", label: "Bi-Weekly" },
+    { id: "daily", label: "Daily" },
+    { id: "yearly", label: "Yearly" },
   ];
+
+  const navBack = () => {
+    if (calView === "daily") addDay(-1);
+    else if (calView === "yearly") addYear(-1);
+    else if (calView === "monthly" || calView === "biweekly") addMonth(-1);
+    else addWeek(-1);
+  };
+  const navForward = () => {
+    if (calView === "daily") addDay(1);
+    else if (calView === "yearly") addYear(1);
+    else if (calView === "monthly" || calView === "biweekly") addMonth(1);
+    else addWeek(1);
+  };
 
   return (
     <div style={{ display: "flex", flexDirection: "column", flex: 1, width: 0, height: "100%", overflow: "hidden" }}>
-      {/* Calendar top bar */}
       <div style={{ display: "flex", alignItems: "center", gap: 12, padding: "14px 24px", borderBottom: "1px solid var(--border)", background: "var(--surface)", flexShrink: 0, flexWrap: "wrap" }}>
         <h2 style={{ fontSize: 15, fontWeight: 600, color: "var(--ink)", letterSpacing: "-0.3px" }}>Financial Calendar</h2>
-
         <div style={{ flex: 1 }}/>
-
-        {/* View switcher */}
-        <div style={{ display: "inline-flex", background: "var(--bg)", borderRadius: 99, padding: 3, border: "1px solid var(--border)", gap: 2 }}>
-          {VIEWS.map(v => (
+        <div style={{ display: "inline-flex", background: "var(--bg)", borderRadius: 99, padding: 3, border: "1px solid var(--border)", gap: 2, flexWrap: "wrap" }}>
+          {VIEWS.map((v) => (
             <button key={v.id} onClick={() => setCalView(v.id)} style={{ padding: "5px 14px", borderRadius: 99, fontSize: 11.5, fontWeight: 500, border: "none", cursor: "pointer", transition: "all 0.15s", background: calView === v.id ? "var(--ink)" : "transparent", color: calView === v.id ? "#fff" : "var(--ink-2)" }}>
               {v.label}
             </button>
           ))}
         </div>
-
-        {/* Nav arrows */}
         <div style={{ display: "flex", alignItems: "center", gap: 4 }}>
-          <button onClick={() => calView === "daily" ? addDay(-1) : calView === "monthly" || calView === "biweekly" ? addMonth(-1) : addWeek(-1)} style={{ width: 30, height: 30, borderRadius: 8, border: "1px solid var(--border)", background: "var(--surface)", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center" }}>
+          <button onClick={navBack} style={{ width: 30, height: 30, borderRadius: 8, border: "1px solid var(--border)", background: "var(--surface)", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center" }}>
             <svg width="13" height="13" viewBox="0 0 13 13" fill="none"><path d="M8 2.5L5 6.5L8 10.5" stroke="#5A5A55" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/></svg>
           </button>
           <span style={{ fontSize: 12, fontWeight: 600, color: "var(--ink)", minWidth: 140, textAlign: "center" }}>
             {calView === "daily"
               ? focusDate.toLocaleDateString("en-US", { weekday: "long", month: "long", day: "numeric", year: "numeric" })
+              : calView === "yearly"
+              ? String(year)
               : calView === "weekly"
               ? (() => {
                   const mon = new Date(focusDate); mon.setDate(focusDate.getDate() - focusDate.getDay() + 1);
                   const sun = new Date(mon); sun.setDate(mon.getDate() + 6);
-                  return `${mon.toLocaleDateString("en-US",{month:"short",day:"numeric"})} – ${sun.toLocaleDateString("en-US",{month:"short",day:"numeric",year:"numeric"})}`;
+                  return `${mon.toLocaleDateString("en-US", { month: "short", day: "numeric" })} – ${sun.toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })}`;
                 })()
               : calView === "biweekly"
               ? (() => {
                   const mon = new Date(focusDate); mon.setDate(focusDate.getDate() - focusDate.getDay() + 1);
                   const end = new Date(mon); end.setDate(mon.getDate() + 13);
-                  return `${mon.toLocaleDateString("en-US",{month:"short",day:"numeric"})} – ${end.toLocaleDateString("en-US",{month:"short",day:"numeric",year:"numeric"})}`;
+                  return `${mon.toLocaleDateString("en-US", { month: "short", day: "numeric" })} – ${end.toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })}`;
                 })()
               : fmt(focusDate)}
           </span>
-          <button onClick={() => calView === "daily" ? addDay(1) : calView === "monthly" || calView === "biweekly" ? addMonth(1) : addWeek(1)} style={{ width: 30, height: 30, borderRadius: 8, border: "1px solid var(--border)", background: "var(--surface)", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center" }}>
+          <button onClick={navForward} style={{ width: 30, height: 30, borderRadius: 8, border: "1px solid var(--border)", background: "var(--surface)", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center" }}>
             <svg width="13" height="13" viewBox="0 0 13 13" fill="none"><path d="M5 2.5L8 6.5L5 10.5" stroke="#5A5A55" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/></svg>
           </button>
         </div>
       </div>
 
-      {/* Calendar body */}
       <div style={{ flex: 1, overflow: "hidden", display: "flex" }}>
-        <div style={{ flex: 1, overflowY: "auto", padding: "16px 20px" }}>
-          {calView === "monthly"  && <MonthlyCalGrid  month={focusDate} selected={selected} onSelect={setSelected} />}
-          {calView === "weekly"   && <WeeklyCalGrid   anchor={focusDate} days={7}  selected={selected} onSelect={setSelected} />}
-          {calView === "biweekly" && <WeeklyCalGrid   anchor={focusDate} days={14} selected={selected} onSelect={setSelected} />}
-          {calView === "daily"    && <DailyCalView    date={focusDate} />}
+        <div style={{ flex: 1, overflowY: "auto", padding: calView === "yearly" ? "12px 16px" : "16px 20px" }}>
+          {calView === "monthly" && <MonthlyCalGrid month={focusDate} calendarMap={calendarMap} selected={selected} onSelect={setSelected} />}
+          {calView === "weekly" && <WeeklyCalGrid anchor={focusDate} days={7} calendarMap={calendarMap} selected={selected} onSelect={setSelected} />}
+          {calView === "biweekly" && <WeeklyCalGrid anchor={focusDate} days={14} calendarMap={calendarMap} selected={selected} onSelect={setSelected} />}
+          {calView === "daily" && <DailyCalView date={focusDate} calendarMap={calendarMap} />}
+          {calView === "yearly" && (
+            <YearlyCalGrid year={year} calendarMap={calendarMap} maxAbsNet={maxAbsNet} selected={selected} onSelect={setSelected} />
+          )}
         </div>
 
-        {/* Day detail panel (monthly & weekly) */}
         {calView !== "daily" && selected && selectedDay && (
           <DayDetailPanel day={selectedDay} onClose={() => setSelected(null)} />
         )}
@@ -940,8 +894,124 @@ function CalendarView({ onBack: _onBack }: { onBack: () => void }) {
   );
 }
 
+// ─── Yearly Calendar Grid ──────────────────────────────────────────────────────
+function YearlyCalGrid({
+  year,
+  calendarMap,
+  maxAbsNet,
+  selected,
+  onSelect,
+}: {
+  year: number;
+  calendarMap: CalendarMap;
+  maxAbsNet: number;
+  selected: string | null;
+  onSelect: (k: string) => void;
+}) {
+  const cells: (Date | null)[] = [];
+  const jan1 = new Date(year, 0, 1);
+  for (let i = 0; i < jan1.getDay(); i++) cells.push(null);
+  for (let month = 0; month < 12; month++) {
+    const daysInMonth = new Date(year, month + 1, 0).getDate();
+    for (let day = 1; day <= daysInMonth; day++) cells.push(new Date(year, month, day));
+  }
+  while (cells.length % 7 !== 0) cells.push(null);
+
+  const today = new Date();
+
+  return (
+    <div>
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(7, 1fr)", gap: 2, marginBottom: 4 }}>
+        {DAYS_SHORT.map((d) => (
+          <div key={d} style={{ textAlign: "center", fontSize: 9, fontWeight: 600, color: "var(--ink-3)", textTransform: "uppercase", letterSpacing: "0.14em", padding: "2px 0" }}>{d}</div>
+        ))}
+      </div>
+
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(7, 1fr)", gap: 2 }}>
+        {cells.map((date, i) => {
+          if (!date) return <div key={`pad-${i}`} style={{ minHeight: 46, borderRadius: 8, background: "transparent" }} />;
+          const key = CAL_KEY(date);
+          const data = calendarMap.get(key);
+          const net = data ? data.endBal - data.startBal : 0;
+          const isSelected = selected === key;
+          const isToday = date.toDateString() === today.toDateString();
+          const isFirstOfMonth = date.getDate() === 1;
+          const netPositive = (data?.endBal ?? 0) >= (data?.startBal ?? 0);
+          const tileBg = isSelected ? "var(--ink)" : isToday ? "#E8F5EE" : data ? calendarFlowHeat(net, maxAbsNet) : "var(--surface)";
+
+          return (
+            <button
+              key={key}
+              type="button"
+              onClick={() => onSelect(key)}
+              title={data ? `${date.toLocaleDateString("en-US")} · ${compactUsd(data.startBal)} → ${compactUsd(data.endBal)}` : undefined}
+              style={{
+                borderRadius: 8,
+                padding: "4px 5px",
+                border: isSelected ? "2px solid var(--ink)" : isToday ? "1px solid var(--clear-dk)" : "1px solid var(--border)",
+                background: tileBg,
+                cursor: "pointer",
+                textAlign: "left",
+                minHeight: 46,
+                display: "flex",
+                flexDirection: "column",
+                gap: 2,
+                transition: "border-color 0.12s, box-shadow 0.12s",
+                boxShadow: !isSelected && data && net !== 0 ? "inset 0 0 0 1px rgba(0,0,0,0.04)" : undefined,
+              }}
+            >
+              <div style={{ display: "flex", alignItems: "baseline", gap: 4, lineHeight: 1 }}>
+                {isFirstOfMonth && (
+                  <span style={{ fontSize: 7, fontWeight: 700, color: isSelected ? "rgba(255,255,255,0.55)" : "var(--ink-3)", textTransform: "uppercase", letterSpacing: "0.06em" }}>
+                    {MONTHS[date.getMonth()].slice(0, 3)}
+                  </span>
+                )}
+                <span style={{ fontSize: 10, fontWeight: 600, color: isSelected ? "#fff" : isToday ? "var(--clear-dk)" : "var(--ink)" }}>
+                  {date.getDate()}
+                </span>
+              </div>
+              {data && (
+                <div style={{ display: "flex", flexDirection: "column", gap: 1, marginTop: "auto" }}>
+                  <div style={{ fontSize: 7.5, lineHeight: 1.2, color: isSelected ? "rgba(255,255,255,0.55)" : "var(--ink-3)" }}>
+                    S{" "}
+                    <span style={{ fontFamily: "var(--font-sans)", fontWeight: 600, color: isSelected ? "rgba(255,255,255,0.85)" : "var(--ink-2)" }}>
+                      {compactUsd(data.startBal)}
+                    </span>
+                  </div>
+                  <div style={{ fontSize: 7.5, lineHeight: 1.2, color: isSelected ? "rgba(255,255,255,0.55)" : "var(--ink-3)" }}>
+                    E{" "}
+                    <span style={{ fontFamily: "var(--font-sans)", fontWeight: 700, color: isSelected ? "#fff" : netPositive ? "var(--clear-dk)" : "var(--trouble-dk)" }}>
+                      {compactUsd(data.endBal)}
+                    </span>
+                  </div>
+                </div>
+              )}
+            </button>
+          );
+        })}
+      </div>
+
+      <div style={{ display: "flex", gap: 16, marginTop: 14, flexWrap: "wrap", alignItems: "center" }}>
+        <span style={{ fontSize: 10, fontWeight: 600, color: "var(--ink-2)" }}>Daily cash flow</span>
+        <div style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 10, color: "var(--ink-3)" }}>
+          <div style={{ width: 48, height: 10, borderRadius: 4, background: "linear-gradient(90deg, var(--surface), rgba(145, 216, 182, 0.75))", border: "1px solid var(--border)" }} />
+          Inflow
+        </div>
+        <div style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 10, color: "var(--ink-3)" }}>
+          <div style={{ width: 48, height: 10, borderRadius: 4, background: "linear-gradient(90deg, var(--surface), rgba(255, 111, 94, 0.65))", border: "1px solid var(--border)" }} />
+          Outflow
+        </div>
+        <div style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 10, color: "var(--ink-3)" }}>
+          <span style={{ fontWeight: 700, color: "var(--clear-dk)" }}>E</span> End above start
+          <span style={{ marginLeft: 4, fontWeight: 700, color: "var(--trouble-dk)" }}>E</span> End below start
+        </div>
+      </div>
+    </div>
+  );
+}
+
 // ─── Monthly Calendar Grid ─────────────────────────────────────────────────────
-function MonthlyCalGrid({ month, selected, onSelect }: { month: Date; selected: string | null; onSelect: (k: string) => void }) {
+function MonthlyCalGrid({ month, calendarMap, selected, onSelect }: { month: Date; calendarMap: CalendarMap; selected: string | null; onSelect: (k: string) => void }) {
   const y = month.getFullYear(), m = month.getMonth();
   const firstDay = new Date(y, m, 1).getDay(); // 0=Sun
   const daysInMonth = new Date(y, m + 1, 0).getDate();
@@ -949,7 +1019,7 @@ function MonthlyCalGrid({ month, selected, onSelect }: { month: Date; selected: 
   for (let i = 0; i < firstDay; i++) cells.push(null);
   for (let d = 1; d <= daysInMonth; d++) cells.push(new Date(y, m, d));
 
-  const today = new Date(2026, 8, 9);
+  const today = new Date();
 
   return (
     <div>
@@ -965,7 +1035,7 @@ function MonthlyCalGrid({ month, selected, onSelect }: { month: Date; selected: 
         {cells.map((date, i) => {
           if (!date) return <div key={i} />;
           const key  = CAL_KEY(date);
-          const data = CAL_DATA.get(key);
+          const data = calendarMap.get(key);
           const isSelected = selected === key;
           const isToday    = date.toDateString() === today.toDateString();
           const hasItems   = (data?.items.length ?? 0) > 0;
@@ -1046,7 +1116,7 @@ function MonthlyCalGrid({ month, selected, onSelect }: { month: Date; selected: 
 }
 
 // ─── Weekly / Bi-Weekly Grid ───────────────────────────────────────────────────
-function WeeklyCalGrid({ anchor, days, selected, onSelect }: { anchor: Date; days: number; selected: string | null; onSelect: (k: string) => void }) {
+function WeeklyCalGrid({ anchor, days, calendarMap, selected, onSelect }: { anchor: Date; days: number; calendarMap: CalendarMap; selected: string | null; onSelect: (k: string) => void }) {
   // Start from Monday of anchor's week
   const monday = new Date(anchor);
   monday.setDate(anchor.getDate() - ((anchor.getDay() + 6) % 7));
@@ -1058,7 +1128,7 @@ function WeeklyCalGrid({ anchor, days, selected, onSelect }: { anchor: Date; day
     cols.push(d);
   }
 
-  const today = new Date(2026, 8, 9);
+  const today = new Date();
   const isBiweekly = days === 14;
 
   // For bi-weekly, split into two rows of 7
@@ -1068,7 +1138,7 @@ function WeeklyCalGrid({ anchor, days, selected, onSelect }: { anchor: Date; day
 
   const DayCell = (date: Date) => {
     const key  = CAL_KEY(date);
-    const data = CAL_DATA.get(key);
+    const data = calendarMap.get(key);
     const isSelected  = selected === key;
     const isToday     = date.toDateString() === today.toDateString();
     const netPositive = (data?.endBal ?? 0) >= (data?.startBal ?? 0);
@@ -1127,9 +1197,9 @@ function WeeklyCalGrid({ anchor, days, selected, onSelect }: { anchor: Date; day
 }
 
 // ─── Daily Calendar View ───────────────────────────────────────────────────────
-function DailyCalView({ date }: { date: Date }) {
-  const key  = CAL_KEY(date);
-  const data = CAL_DATA.get(key);
+function DailyCalView({ date, calendarMap }: { date: Date; calendarMap: CalendarMap }) {
+  const key = CAL_KEY(date);
+  const data = calendarMap.get(key);
 
   const net = data ? data.endBal - data.startBal : 0;
 
@@ -1288,12 +1358,13 @@ function DayDetailPanel({ day, onClose }: { day: CalDay; onClose: () => void }) 
 
 // ─── Dashboard (widget dock) ────────────────────────────────────────────────────
 function DashboardView({
-  pinned, setPinned, onCustomize, customizing,
+  pinned, setPinned, onCustomize, customizing, summary,
 }: {
   pinned: string[];
   setPinned: React.Dispatch<React.SetStateAction<string[]>>;
   onCustomize: () => void;
   customizing: boolean;
+  summary: FinanceSummary;
 }) {
   const [dragId, setDragId] = useState<string | null>(null);
   const [overId, setOverId] = useState<string | null>(null);
@@ -1328,6 +1399,7 @@ function DashboardView({
 
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
+      <DashboardHero summary={summary} />
       {/* Widget grid */}
       {widgets.length === 0 ? (
         <button
@@ -1392,282 +1464,201 @@ function DashboardView({
   );
 }
 
-function BudgetView({ viewMode }: { viewMode: ViewMode }) {
-  const totalBudget = budgetCategories.reduce((s, c) => s + c.budget, 0);
-  const totalSpent  = budgetCategories.reduce((s, c) => s + c.spent, 0);
-  return (
-    <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
-      <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 10 }}>
-        {[
-          { label: "Monthly Budget", value: usd(totalBudget), color: "var(--ink-3)" },
-          { label: "Spent So Far",   value: usd(totalSpent),  color: "var(--trouble-dk)"      },
-          { label: "Remaining",      value: usd(totalBudget - totalSpent), color: "var(--clear-dk)" },
-        ].map(s => (
-          <div key={s.label} style={{ background: "var(--surface)", borderRadius: 14, padding: "16px 18px", border: "1px solid var(--border)", textAlign: "center" }}>
-            <p style={{ fontSize: 10, fontWeight: 600, color: "var(--ink-3)", textTransform: "uppercase", letterSpacing: "0.16em", marginBottom: 6 }}>{s.label}</p>
-            <p style={{ fontSize: 22, fontWeight: 600, color: s.color, fontFamily: "var(--font-sans)" }}>{s.value}</p>
-          </div>
-        ))}
-      </div>
-      <div style={{ display: "grid", gridTemplateColumns: viewMode === "cards" ? "repeat(auto-fill, minmax(220px, 1fr))" : "1fr", gap: 10 }}>
-        {budgetCategories.map(c => {
-          const pct = Math.min((c.spent / c.budget) * 100, 100);
-          const over = c.spent > c.budget;
-          const barColor = over ? "var(--trouble-dk)" : pct > 80 ? "#D97706" : "var(--clear-dk)";
-          return (
-            <div key={c.name} style={{ background: "var(--surface)", borderRadius: 14, padding: viewMode === "list" ? "12px 18px" : "18px 20px", border: "1px solid var(--border)", display: viewMode === "list" ? "flex" : "block", alignItems: "center", gap: 14 }}>
-              <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: viewMode === "list" ? 0 : 12, flex: viewMode === "list" ? "0 0 180px" : undefined }}>
-                <div style={{ width: 34, height: 34, borderRadius: 10, background: c.color, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 16, flexShrink: 0 }}>{c.icon}</div>
-                <div>
-                  <span style={{ fontSize: 13, fontWeight: 600, color: "var(--ink)" }}>{c.name}</span>
-                  {over && <span style={{ marginLeft: 8, fontSize: 9, fontWeight: 600, color: "var(--trouble-dk)", background: "#FFECE8", padding: "2px 6px", borderRadius: 99 }}>Over</span>}
-                </div>
-              </div>
-              <div style={{ flex: 1 }}>
-                <div style={{ display: "flex", justifyContent: "space-between", fontSize: 11, color: "var(--ink-3)", marginBottom: 6 }}>
-                  <span>{usd(c.spent)}</span><span>{usd(c.budget)}</span>
-                </div>
-                <div style={{ height: 5, background: "var(--paper)", borderRadius: 99, overflow: "hidden" }}>
-                  <div style={{ height: "100%", width: `${pct}%`, background: barColor, borderRadius: 99 }}/>
-                </div>
-                <p style={{ fontSize: 10, color: over ? "var(--trouble-dk)" : "var(--ink-3)", marginTop: 4 }}>{over ? `${usd(c.spent - c.budget)} over` : `${usd(c.budget - c.spent)} left`}</p>
-              </div>
-            </div>
-          );
-        })}
-      </div>
-    </div>
-  );
-}
-
-function SpendingView({ transactions, viewMode }: { transactions: typeof INIT_TRANSACTIONS; viewMode: ViewMode }) {
-  const [filter, setFilter] = useState("All");
-  const shown = filter === "All" ? transactions : transactions.filter(t => t.type === filter.toLowerCase());
-  const byDate: Record<string, typeof INIT_TRANSACTIONS> = {};
-  shown.forEach(t => { (byDate[t.date] ||= []).push(t); });
-  return (
-    <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
-      <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
-        {["All","Income","Expense","Transfer"].map(f => (
-          <button key={f} onClick={() => setFilter(f)} style={{ padding: "6px 14px", borderRadius: 99, fontSize: 12, fontWeight: 500, border: "1px solid var(--border)", cursor: "pointer", background: filter === f ? "var(--ink)" : "var(--surface)", color: filter === f ? "#fff" : "var(--ink-2)", transition: "all 0.14s" }}>{f}</button>
-        ))}
-      </div>
-      <div style={{ background: "var(--surface)", borderRadius: 16, border: "1px solid var(--border)", overflow: "hidden" }}>
-        {Object.entries(byDate).map(([date, txns], gi) => (
-          <div key={date}>
-            <div style={{ padding: "9px 18px", background: "var(--bg)", borderTop: gi > 0 ? "1px solid var(--border)" : undefined }}>
-              <span style={{ fontSize: 10, fontWeight: 600, color: "var(--ink-3)", textTransform: "uppercase", letterSpacing: "0.16em" }}>{date}</span>
-            </div>
-            {txns.map((t, i) => (
-              <div key={i} style={{ display: "flex", alignItems: "center", padding: "12px 18px", borderTop: "1px solid var(--border)", gap: 12 }}>
-                <div style={{ width: 36, height: 36, borderRadius: 11, background: t.type === "income" ? "#E8F5EE" : t.type === "transfer" ? "#F0EBFF" : "#FFECE8", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 16, flexShrink: 0 }}>{t.icon}</div>
-                <div style={{ flex: 1, minWidth: 0 }}>
-                  <p style={{ fontSize: 13, fontWeight: 600, color: "var(--ink)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{t.desc}</p>
-                  <p style={{ fontSize: 10, color: "var(--ink-3)", marginTop: 1 }}>{t.category}</p>
-                </div>
-                <div style={{ padding: "4px 10px", borderRadius: 99, fontSize: 12, fontWeight: 600, fontFamily: "var(--font-sans)", flexShrink: 0, background: t.type === "income" ? "#E8F5EE" : t.type === "transfer" ? "#F0EBFF" : "#FFECE8", color: t.type === "income" ? "var(--clear-dk)" : t.type === "transfer" ? "var(--later-dk)" : "var(--trouble-dk)" }}>
-                  {t.type === "income" ? "+" : ""}{usdF(t.amount)}
-                </div>
-              </div>
-            ))}
-          </div>
-        ))}
-      </div>
-    </div>
-  );
-}
-
-function GoalsView({ viewMode }: { viewMode: ViewMode }) {
-  return (
-    <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
-      <div style={{ display: "grid", gridTemplateColumns: viewMode === "cards" ? "repeat(auto-fill, minmax(240px, 1fr))" : "1fr", gap: 12 }}>
-        {goals.map(g => {
-          const pct = Math.round((g.saved / g.target) * 100);
-          const status = pct >= 70 ? "Ahead" : pct >= 40 ? "On Track" : "Behind";
-          const sColor = pct >= 70 ? "var(--clear-dk)" : pct >= 40 ? "#7A5010" : "var(--trouble-dk)";
-          const sBg    = pct >= 70 ? "#E8F5EE" : pct >= 40 ? "#FFF4DC"  : "#FFECE8";
-          return (
-            <div key={g.name} style={{ background: "var(--surface)", borderRadius: 16, padding: "20px 22px", border: "1px solid var(--border)", display: "flex", flexDirection: viewMode === "list" ? "row" : "column", gap: viewMode === "list" ? 20 : 14, alignItems: viewMode === "list" ? "center" : "stretch" }}>
-              <div style={{ display: "flex", alignItems: "center", gap: 12, flex: viewMode === "list" ? "0 0 220px" : undefined }}>
-                <div style={{ width: 42, height: 42, borderRadius: 12, background: g.color, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 20, flexShrink: 0 }}>{g.icon}</div>
-                <div>
-                  <p style={{ fontSize: 14, fontWeight: 600, color: "var(--ink)" }}>{g.name}</p>
-                  <p style={{ fontSize: 10, color: "var(--ink-3)" }}>By {g.date}</p>
-                </div>
-                <span style={{ marginLeft: "auto", fontSize: 10, fontWeight: 600, color: sColor, background: sBg, padding: "3px 10px", borderRadius: 99, flexShrink: 0 }}>{status}</span>
-              </div>
-              <div style={{ flex: 1 }}>
-                <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 8 }}>
-                  <span style={{ fontFamily: "var(--font-sans)", fontWeight: 600, color: "var(--ink)", fontSize: 18 }}>{usd(g.saved)}</span>
-                  <span style={{ color: "var(--ink-3)", fontSize: 11, alignSelf: "flex-end" }}>of {usd(g.target)}</span>
-                </div>
-                <div style={{ height: 7, background: "var(--paper)", borderRadius: 99, overflow: "hidden" }}>
-                  <div style={{ height: "100%", width: `${pct}%`, background: g.color, borderRadius: 99 }}/>
-                </div>
-                <p style={{ fontSize: 10, color: "var(--ink-3)", marginTop: 5 }}>{pct}% · {usd(g.target - g.saved)} to go</p>
-              </div>
-            </div>
-          );
-        })}
-        <button style={{ background: "transparent", borderRadius: 16, padding: "20px", border: "2px dashed var(--border)", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: 8, cursor: "pointer", minHeight: 120 }}>
-          <svg width="22" height="22" viewBox="0 0 22 22" fill="none"><path d="M11 4v14M4 11h14" stroke="var(--ink-3)" strokeWidth="2" strokeLinecap="round"/></svg>
-          <p style={{ fontSize: 12, fontWeight: 600, color: "var(--ink-3)" }}>Add a Goal</p>
-        </button>
-      </div>
-    </div>
-  );
-}
-
-function SettingsView() {
-  return (
-    <div style={{ display: "flex", flexDirection: "column", gap: 16, maxWidth: 560 }}>
-      <div style={{ background: "var(--ink)", borderRadius: 20, padding: "24px 28px", display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: 14 }}>
-        <div>
-          <p style={{ fontSize: 11, color: "rgba(255,255,255,0.45)", marginBottom: 4 }}>Current Plan</p>
-          <p style={{ fontSize: 26, fontWeight: 400, color: "#fff", letterSpacing: "-0.5px" }}>Free</p>
-          <p style={{ fontSize: 12, color: "rgba(255,255,255,0.55)", marginTop: 3 }}>Upgrade for AI insights, unlimited accounts & more.</p>
-        </div>
-        <button style={{ background: "var(--ink)", color: "#fff", border: "none", borderRadius: "var(--radius-ctrl)", padding: "11px 22px", fontSize: 13, fontWeight: 600, cursor: "pointer" }}>Upgrade to Premium</button>
-      </div>
-      {[
-        { title: "Accounts", items: [
-          { label: "Chase Checking", sub: "Checking",    val: "$3,278", icon: "🏦" },
-          { label: "Marcus Savings", sub: "Savings",     val: "$8,420", icon: "💰" },
-          { label: "Visa Platinum",  sub: "Credit Card", val: "-$614",  icon: "💳" },
-        ]},
-        { title: "Profile", items: [
-          { label: "Name",     sub: "Display name", val: "Alex Johnson",     icon: "👤" },
-          { label: "Email",    sub: "Login",        val: "alex@example.com", icon: "✉️" },
-          { label: "Currency", sub: "Display",      val: "USD",              icon: "💱" },
-        ]},
-      ].map(section => (
-        <div key={section.title} style={{ background: "var(--surface)", borderRadius: 14, border: "1px solid var(--border)", overflow: "hidden" }}>
-          <div style={{ padding: "12px 18px", borderBottom: "1px solid var(--border)" }}>
-            <p style={{ fontSize: 10, fontWeight: 600, color: "var(--ink-3)", textTransform: "uppercase", letterSpacing: "0.07em" }}>{section.title}</p>
-          </div>
-          {section.items.map((item, i) => (
-            <div key={i} style={{ display: "flex", alignItems: "center", padding: "12px 18px", borderTop: i > 0 ? "1px solid var(--border)" : undefined, gap: 12 }}>
-              <div style={{ width: 34, height: 34, borderRadius: 10, background: "var(--bg)", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 16, flexShrink: 0 }}>{item.icon}</div>
-              <div style={{ flex: 1 }}>
-                <p style={{ fontSize: 13, fontWeight: 600, color: "var(--ink)" }}>{item.label}</p>
-                <p style={{ fontSize: 10, color: "var(--ink-3)" }}>{item.sub}</p>
-              </div>
-              <span style={{ fontSize: 12, color: "var(--ink-2)", fontFamily: "var(--font-sans)" }}>{item.val}</span>
-              <svg width="14" height="14" viewBox="0 0 14 14" fill="none"><path d="M5.5 3.5L9 7l-3.5 3.5" stroke="var(--ink-3)" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/></svg>
-            </div>
-          ))}
-        </div>
-      ))}
-    </div>
-  );
-}
-
 // ─── Page Header ───────────────────────────────────────────────────────────────
 const PAGE_META: Record<Page, { title: string; sub: string }> = {
-  dashboard: { title: "Dashboard",           sub: "Know what you can spend today, this week, and this month." },
-  spending:  { title: "Transactions",        sub: "Every dollar in and out of your accounts."               },
-  budget:    { title: "Budget",              sub: "Tracks are ink; coral marks the category that's over."   },
-  goals:     { title: "Goals",               sub: "Money you're holding for later."                         },
-  settings:  { title: "Settings",            sub: "Accounts, categories, and preferences."                    },
-  calendar:  { title: "Calendar",            sub: "Cash flow and spending power, day by day."               },
+  dashboard: { title: "Dashboard", sub: "Everything's counted. Here's what's yours." },
+  spending:  { title: "Transactions", sub: "Every dollar in and out of your accounts." },
+  budget:    { title: "Budget", sub: "Tracks are ink; coral marks the category that's over." },
+  goals:     { title: "Goals", sub: "Money you're holding for later." },
+  settings:  { title: "Settings", sub: "Accounts, categories, and preferences." },
+  calendar:  { title: "Calendar", sub: "Cash flow and spending power, day by day." },
 };
 
 // ─── App Root ──────────────────────────────────────────────────────────────────
 export default function App() {
-  const [page,          setPage]          = useState<Page>("dashboard");
-  const [viewMode,      setViewMode]      = useState<ViewMode>("cards");
-  const [chatCollapsed, setChatCollapsed] = useState(false);
-  const [messages,      setMessages]      = useState<ChatMessage[]>(SEED_MESSAGES);
-  const [transactions,  setTransactions]  = useState(INIT_TRANSACTIONS);
-  const [pinned,        setPinned]        = useState<string[]>(DEFAULT_PINNED);
-  const [pickerOpen,    setPickerOpen]    = useState(false);
+  const {
+    store,
+    summary,
+    addTransaction,
+    deleteTransaction,
+    updateCategoryBudget,
+    addBill,
+    deleteBill,
+    addGoal,
+    updateGoal,
+    deleteGoal,
+    updateProfile,
+    updateAccount,
+    addMessage,
+    setPinnedWidgets,
+    resetAll,
+  } = useFetyData();
 
-  const handleSend = useCallback((text: string) => {
-    const now = new Date();
-    const timeStr = now.toLocaleTimeString([], { hour: "numeric", minute: "2-digit" });
-    setMessages(prev => [...prev, { id: Date.now(), role: "user", text, time: timeStr }]);
-    const amountMatch = text.match(/\$?([\d,]+(?:\.\d{1,2})?)/);
-    if (amountMatch && /spent|paid|bought|grabbed/i.test(text)) {
-      const amount = -parseFloat(amountMatch[1].replace(",", ""));
-      setTransactions(prev => [{ date: "Today", desc: text.slice(0, 40), category: "Other", amount, type: "expense", icon: "💬" }, ...prev]);
+  const [page, setPage] = useState<Page>("dashboard");
+  const [viewMode, setViewMode] = useState<ViewMode>("cards");
+  const [chatCollapsed, setChatCollapsed] = useState(false);
+  const [pickerOpen, setPickerOpen] = useState(false);
+
+  const pinned = store.pinnedWidgets;
+  const messages = store.messages;
+  const navDate = formatNavDate();
+
+  const pageTitle = useMemo(() => {
+    if (page === "dashboard") {
+      return `Good morning, ${store.profile.displayName}`;
     }
-    setTimeout(() => setMessages(prev => [...prev, getAutoReply(text)]), 700);
-  }, []);
+    return PAGE_META[page].title;
+  }, [page, store.profile.displayName]);
+
+  const handleSend = useCallback(
+    (text: string) => {
+      const now = new Date();
+      const timeStr = now.toLocaleTimeString([], { hour: "numeric", minute: "2-digit" });
+      addMessage({ id: Date.now(), role: "user", text, time: timeStr });
+
+      const amountMatch = text.match(/\$?([\d,]+(?:\.\d{1,2})?)/);
+      if (amountMatch && /spent|paid|bought|grabbed|bill/i.test(text)) {
+        const amount = parseFloat(amountMatch[1].replace(",", ""));
+        addTransaction({
+          desc: text.slice(0, 60),
+          amount,
+          type: /bill/i.test(text) ? "bill" : "expense",
+          category: /bill/i.test(text) ? "Bills" : "Other",
+          icon: "💬",
+        });
+      } else if (amountMatch && /income|received|paycheck|freelance|deposit/i.test(text)) {
+        addTransaction({
+          desc: text.slice(0, 60),
+          amount: parseFloat(amountMatch[1].replace(",", "")),
+          type: "income",
+          category: "Income",
+          icon: "💼",
+        });
+      }
+
+      setTimeout(() => addMessage(getAutoReply(text)), 700);
+    },
+    [addMessage, addTransaction],
+  );
 
   const renderView = () => {
     if (page === "calendar") return null;
     switch (page) {
-      case "budget":    return <BudgetView   viewMode={viewMode} />;
-      case "spending":  return <SpendingView transactions={transactions} viewMode={viewMode} />;
-      case "goals":     return <GoalsView    viewMode={viewMode} />;
-      case "settings":  return <SettingsView />;
-      default:          return <DashboardView pinned={pinned} setPinned={setPinned} onCustomize={() => setPickerOpen(p => !p)} customizing={pickerOpen} />;
+      case "budget":
+        return (
+          <BudgetManageView
+            categories={summary.categoriesWithSpent}
+            bills={store.bills}
+            viewMode={viewMode}
+            onUpdateBudget={updateCategoryBudget}
+            onAddBill={addBill}
+            onDeleteBill={deleteBill}
+          />
+        );
+      case "spending":
+        return (
+          <TransactionsManageView
+            transactions={store.transactions}
+            categories={store.categories}
+            viewMode={viewMode}
+            onAdd={addTransaction}
+            onDelete={deleteTransaction}
+          />
+        );
+      case "goals":
+        return (
+          <GoalsManageView
+            goals={store.goals}
+            viewMode={viewMode}
+            onAdd={addGoal}
+            onUpdate={updateGoal}
+            onDelete={deleteGoal}
+          />
+        );
+      case "settings":
+        return (
+          <SettingsManageView
+            profile={store.profile}
+            accounts={store.accounts}
+            onUpdateProfile={updateProfile}
+            onUpdateAccount={updateAccount}
+            onReset={resetAll}
+          />
+        );
+      default:
+        return (
+          <DashboardView
+            pinned={pinned}
+            setPinned={setPinnedWidgets}
+            onCustomize={() => setPickerOpen((p) => !p)}
+            customizing={pickerOpen}
+            summary={summary}
+          />
+        );
     }
   };
 
   return (
-    <div style={{ display: "flex", flexDirection: "column", height: "100%", background: "var(--bg)" }}>
-      <TopNav page={page} setPage={setPage} />
+    <div className="fety-shell">
+      {chatCollapsed ? (
+        <div
+          className="fety-assistant-rail"
+          title="Show chat"
+          onClick={() => setChatCollapsed(false)}
+          onKeyDown={(e) => e.key === "Enter" && setChatCollapsed(false)}
+          role="button"
+          tabIndex={0}
+        >
+          <div style={{ width: 22, height: 22, borderRadius: 6, border: "1px solid var(--border)", background: "var(--bg)", display: "flex", alignItems: "center", justifyContent: "center" }}>
+            <svg width="11" height="11" viewBox="0 0 11 11" fill="none">
+              <path d="M4 2.5L7 5.5L4 8.5" stroke="var(--ink-3)" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
+            </svg>
+          </div>
+        </div>
+      ) : (
+        <ChatPanel messages={messages} onSend={handleSend} onCollapse={() => setChatCollapsed(true)} />
+      )}
 
-      <div style={{ flex: 1, display: "flex", overflow: "hidden" }}>
-        {/* Chat panel or collapsed rail — always visible */}
-        {chatCollapsed ? (
-            /* Slim rail — sits flush on the left, click anywhere to expand */
-            <div
-              title="Show chat"
-              onClick={() => setChatCollapsed(false)}
-              style={{
-                width: 32, flexShrink: 0, display: "flex", flexDirection: "column",
-                alignItems: "center", justifyContent: "flex-start", paddingTop: 14,
-                background: "var(--surface)", borderRight: "1px solid var(--border)",
-                cursor: "pointer", transition: "background 0.14s",
-              }}
-              onMouseEnter={e => (e.currentTarget.style.background = "var(--paper)")}
-              onMouseLeave={e => (e.currentTarget.style.background = "var(--surface)")}
-            >
-              <div style={{ width: 22, height: 22, borderRadius: 6, border: "1px solid var(--border)", background: "var(--bg)", display: "flex", alignItems: "center", justifyContent: "center" }}>
-                <svg width="11" height="11" viewBox="0 0 11 11" fill="none">
-                  <path d="M4 2.5L7 5.5L4 8.5" stroke="var(--ink-3)" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
-                </svg>
-              </div>
-            </div>
+      <div className="fety-main-column">
+        <TopNav page={page} setPage={setPage} navDate={navDate} />
+
+        <div style={{ flex: 1, display: "flex", overflow: "hidden", minHeight: 0 }}>
+          {page === "calendar" ? (
+            <CalendarView onBack={() => setPage("dashboard")} />
           ) : (
-            <ChatPanel messages={messages} onSend={handleSend} onCollapse={() => setChatCollapsed(true)} />
-          )}
-
-        {/* Main area */}
-        {page === "calendar" ? (
-          <CalendarView onBack={() => setPage("dashboard")} />
-        ) : (
-          <>
-            <main style={{ flex: 1, overflowY: "auto", padding: "24px 24px 48px", minWidth: 0 }}>
-              <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", marginBottom: 20 }}>
-                <div>
-                  <h1 style={{ fontSize: 22, fontWeight: 600, color: "var(--ink)", letterSpacing: "-0.02em", lineHeight: 1.2 }}>{PAGE_META[page].title}</h1>
-                  <p style={{ fontSize: 15, color: "var(--ink-2)", marginTop: 4, lineHeight: 1.45 }}>{PAGE_META[page].sub}</p>
+            <>
+              <main style={{ flex: 1, overflowY: "auto", padding: "24px 24px 48px", minWidth: 0 }}>
+                <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", marginBottom: 20 }}>
+                  <div>
+                    <h1 style={{ fontSize: 26, fontWeight: 600, color: "var(--ink)", letterSpacing: "-0.02em", lineHeight: 1.2 }}>{pageTitle}</h1>
+                    <p style={{ fontSize: 15, color: "var(--ink-2)", marginTop: 4, lineHeight: 1.45 }}>{PAGE_META[page].sub}</p>
+                  </div>
+                  {page === "dashboard" && (
+                    <button
+                      type="button"
+                      onClick={() => setPickerOpen((p) => !p)}
+                      style={{ display: "flex", alignItems: "center", gap: 7, padding: "7px 14px", borderRadius: 99, border: "1px solid var(--ink)", background: "var(--surface)", color: "var(--ink)", cursor: "pointer", fontSize: 12, fontWeight: 600, flexShrink: 0, marginTop: 2 }}
+                    >
+                      Customise
+                    </button>
+                  )}
                 </div>
-                {page === "dashboard" && (
-                  <button
-                    onClick={() => setPickerOpen(p => !p)}
-                    style={{ display: "flex", alignItems: "center", gap: 7, padding: "7px 14px", borderRadius: 99, border: "1px solid var(--border)", background: pickerOpen ? "var(--ink)" : "var(--surface)", color: pickerOpen ? "#fff" : "var(--ink-2)", cursor: "pointer", fontSize: 12, fontWeight: 600, transition: "all 0.13s", flexShrink: 0, marginTop: 2 }}
-                  >
-                    <svg width="13" height="13" viewBox="0 0 13 13" fill="none"><circle cx="6.5" cy="6.5" r="2" stroke="currentColor" strokeWidth="1.3"/><path d="M6.5 1v1.5M6.5 10.5V12M1 6.5h1.5M10.5 6.5H12M2.8 2.8l1.06 1.06M9.14 9.14l1.06 1.06M2.8 10.2l1.06-1.06M9.14 3.86l1.06-1.06" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round"/></svg>
-                    Customize
-                  </button>
-                )}
-              </div>
-              {renderView()}
-            </main>
-            {page === "dashboard" && pickerOpen && (
-              <WidgetPicker
-                pinned={pinned}
-                onToggle={id => setPinned(prev => prev.includes(id) ? prev.filter(p => p !== id) : [...prev, id])}
-                onClose={() => setPickerOpen(false)}
-              />
-            )}
-          </>
-        )}
-
+                {renderView()}
+              </main>
+              {page === "dashboard" && pickerOpen && (
+                <WidgetPicker
+                  pinned={pinned}
+                  onToggle={(id) =>
+                    setPinnedWidgets((prev) =>
+                      prev.includes(id) ? prev.filter((p) => p !== id) : [...prev, id],
+                    )
+                  }
+                  onClose={() => setPickerOpen(false)}
+                />
+              )}
+            </>
+          )}
+        </div>
       </div>
     </div>
   );

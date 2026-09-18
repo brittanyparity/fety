@@ -139,6 +139,91 @@ html, body, #root {
   padding-bottom: 2px;
 }
 
+.fety-nav {
+  display: flex;
+  align-items: center;
+  height: 56px;
+  background: var(--surface);
+  border-bottom: 1px solid var(--border);
+  padding: 0 24px;
+  flex-shrink: 0;
+}
+
+.fety-nav-links {
+  display: flex;
+  align-items: stretch;
+  gap: 2px;
+  flex: 1;
+  min-width: 0;
+}
+
+.fety-nav-link {
+  position: relative;
+  padding: 0 14px;
+  height: 56px;
+  display: inline-flex;
+  align-items: center;
+  font-family: var(--font-mono);
+  font-size: 11px;
+  font-weight: 400;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  border: none;
+  background: transparent;
+  color: var(--ink-2);
+  cursor: pointer;
+  white-space: nowrap;
+  transition: color 0.14s;
+}
+
+.fety-nav-link:hover {
+  color: var(--ink);
+}
+
+.fety-nav-link-active {
+  color: var(--ink);
+  font-weight: 500;
+}
+
+.fety-nav-link-active::after {
+  content: "";
+  position: absolute;
+  left: 10px;
+  right: 10px;
+  bottom: 0;
+  height: 2px;
+  background: var(--amber);
+  border-radius: 2px 2px 0 0;
+}
+
+.fety-shell {
+  display: flex;
+  height: 100%;
+  background: var(--bg);
+  overflow: hidden;
+}
+
+.fety-main-column {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  min-height: 0;
+}
+
+.fety-assistant-rail {
+  width: 32px;
+  flex-shrink: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding-top: 14px;
+  background: var(--surface);
+  border-right: 1px solid var(--border);
+  cursor: pointer;
+  align-self: stretch;
+}
+
 @media (max-width: 768px) {
   .fety-logo {
     margin-right: 16px;
