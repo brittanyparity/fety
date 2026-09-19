@@ -1,4 +1,5 @@
 import { computeSummary, todayISO } from "../lib/fetyCalculations";
+import { nextBillOccurrenceOnOrAfter } from "../lib/billScheduling";
 import type { Bill, FinanceSummary, FetyStore, Transaction } from "../types/fety";
 
 const usd = (n: number) =>
@@ -36,15 +37,17 @@ export function getUpcomingBills(store: FetyStore, ref = new Date()): { lines: s
   if (store.bills.length === 0) {
     return { lines: ["No bills on file yet. Add them in Budget or tell me: \"Add rent bill $2000 due on the 1st.\""] };
   }
-  const day = ref.getDate();
-  const sorted = [...store.bills].sort((a, b) => {
-    const da = a.dueDay >= day ? a.dueDay - day : a.dueDay + 28;
-    const db = b.dueDay >= day ? b.dueDay - day : b.dueDay + 28;
-    return da - db;
-  });
-  const lines = sorted.slice(0, 6).map((b) => {
-    const daysUntil = b.dueDay >= day ? b.dueDay - day : b.dueDay + (30 - day);
-    return `${b.name}: ${usd(b.amount)} · due day ${b.dueDay}${daysUntil === 0 ? " (today)" : daysUntil <= 7 ? ` (~${daysUntil}d)` : ""}`;
+  const todayIso = ref.toISOString().slice(0, 10);
+  const sorted = [...store.bills]
+    .map((b) => ({ bill: b, next: nextBillOccurrenceOnOrAfter(b, ref) }))
+    .filter((x): x is { bill: Bill; next: string } => x.next != null)
+    .sort((a, b) => a.next.localeCompare(b.next));
+  const lines = sorted.slice(0, 6).map(({ bill: b, next }) => {
+    const daysUntil = Math.round(
+      (new Date(`${next}T12:00:00`).getTime() - new Date(`${todayIso}T12:00:00`).getTime()) / 86400000,
+    );
+    const freq = b.frequency ?? "monthly";
+    return `${b.name}: ${usd(b.amount)} · next due ${next}${daysUntil === 0 ? " (today)" : daysUntil <= 7 ? ` (~${daysUntil}d)` : ""} · ${freq}`;
   });
   return { lines };
 }

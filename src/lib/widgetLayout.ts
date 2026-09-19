@@ -71,3 +71,16 @@ export function reorderWidget(pinned: string[], fromId: string, beforeId: string
   next.splice(idx, 0, fromId);
   return next;
 }
+
+export function pinWidgetToTop(pinned: string[], id: string): string[] {
+  const rest = pinned.filter((p) => p !== id);
+  return [id, ...rest];
+}
+
+export function unpinWidget(pinned: string[], id: string): string[] {
+  return pinned.filter((p) => p !== id);
+}
+
+export function togglePinWidget(pinned: string[], id: string): string[] {
+  return pinned.includes(id) ? unpinWidget(pinned, id) : pinWidgetToTop(pinned, id);
+}

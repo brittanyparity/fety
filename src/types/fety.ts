@@ -1,4 +1,16 @@
-export type TransactionType = "income" | "expense" | "transfer" | "bill";
+/** Transaction type id (built-in or user-defined). */
+export type TransactionType = string;
+
+export type TransactionFlow = "income" | "expense" | "bill" | "transfer";
+
+export interface FetyTransactionType {
+  id: string;
+  name: string;
+  icon: string;
+  flow: TransactionFlow;
+  /** Core types cannot be removed (bill scheduling uses "bill"). */
+  locked?: boolean;
+}
 
 export interface Transaction {
   id: string;
@@ -17,11 +29,15 @@ export interface BudgetCategory {
   monthlyBudget: number;
 }
 
+export type BillFrequency = "monthly" | "weekly" | "biweekly" | "quarterly";
+
 export interface Bill {
   id: string;
   name: string;
   amount: number;
+  /** Day of month (1–31) for monthly/quarterly; weekday 0–6 (Sun–Sat) for weekly/biweekly. */
   dueDay: number;
+  frequency: BillFrequency;
   category: string;
   icon: string;
   autopay?: boolean;
@@ -77,8 +93,14 @@ export interface FetyStore {
   accounts: Account[];
   messages: ChatMessage[];
   pinnedWidgets: string[];
-  /** Default emoji when adding a transaction of each type */
+  /** Default emoji when adding a transaction of each type (synced from transactionTypes). */
   typeIcons: TypeIconMap;
+  /** Types available when adding or editing transactions. */
+  transactionTypes?: FetyTransactionType[];
+  /** One-time: former fixed hero blocks are optional widgets, not auto-pinned. */
+  heroBlocksOptional?: boolean;
+  /** billId|dateISO occurrences removed when user deletes a scheduled bill line */
+  skippedBillOccurrences?: string[];
 }
 
 export interface CategoryWithSpent extends BudgetCategory {

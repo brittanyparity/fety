@@ -11,8 +11,10 @@ import {
   type ParsedCsv,
 } from "../lib/fetyCsvImport";
 import { CsvColumnMapper } from "../components/CsvColumnMapper";
+import CurrencyInput from "../components/CurrencyInput";
 import { newId } from "../lib/fetyStorage";
-import type { Bill, BudgetCategory, FetyStore, Transaction, TransactionType, UserProfile } from "../types/fety";
+import BillScheduleFields from "../components/BillScheduleFields";
+import type { Bill, BudgetCategory, FetyStore, Transaction, TransactionType, UserProfile, BillFrequency } from "../types/fety";
 
 type StepId = "welcome" | "profile" | "budget" | "bills" | "import" | "map" | "review" | "finish";
 
@@ -97,7 +99,9 @@ export function OnboardingView({
       : STARTER_BUDGET_ROWS,
   );
 
-  const [billRows, setBillRows] = useState<{ name: string; amount: string; dueDay: string; category: string }[]>([]);
+  const [billRows, setBillRows] = useState<
+    { name: string; amount: string; dueDay: number; frequency: BillFrequency; category: string }[]
+  >([]);
 
   const [rawCsvText, setRawCsvText] = useState<string | null>(null);
   const [parsedCsv, setParsedCsv] = useState<ParsedCsv | null>(null);
@@ -175,7 +179,8 @@ export function OnboardingView({
         id: newId("bill"),
         name: b.name.trim(),
         amount: parseFloat(b.amount) || 0,
-        dueDay: Math.min(31, Math.max(1, parseInt(b.dueDay, 10) || 1)),
+        dueDay: b.dueDay,
+        frequency: b.frequency,
         category: b.category.trim() || "Bills",
         icon: "📄",
       }));
@@ -307,7 +312,7 @@ export function OnboardingView({
                   <div style={{ display: "grid", gridTemplateColumns: "1fr 120px", gap: 12 }}>
                     <div>
                       <label className="fety-label" style={{ display: "block", marginBottom: 6 }}>Starting balance</label>
-                      <input value={startingBalance} onChange={(e) => setStartingBalance(e.target.value)} type="number" step="0.01" style={inputStyle} placeholder="0" />
+                      <input value={startingBalance} onChange={(e) => setStartingBalance(e.target.value)} style={inputStyle} placeholder="Optional" />
                     </div>
                     <div>
                       <label className="fety-label" style={{ display: "block", marginBottom: 6 }}>Currency</label>
@@ -381,23 +386,42 @@ export function OnboardingView({
             {step === "bills" && (
               <>
                 <h2 style={{ fontSize: 22, fontWeight: 600, marginBottom: 8 }}>Recurring bills</h2>
-                <p style={{ fontSize: 14, color: "var(--ink-2)", marginBottom: 16 }}>Optional — add rent, utilities, subscriptions (due day of month).</p>
+                <p style={{ fontSize: 14, color: "var(--ink-2)", marginBottom: 16 }}>
+                  Optional — add rent, utilities, and subscriptions. Choose how often each bill is due and which day it repeats; we&apos;ll add them to your calendar and transaction list automatically.
+                </p>
                 {billRows.length === 0 ? (
                   <p style={{ fontSize: 13, color: "var(--ink-3)", marginBottom: 12 }}>No bills yet.</p>
                 ) : (
-                  <div style={{ display: "flex", flexDirection: "column", gap: 8, marginBottom: 12 }}>
+                  <div style={{ display: "flex", flexDirection: "column", gap: 14, marginBottom: 12 }}>
                     {billRows.map((b, i) => (
-                      <div key={i} style={{ display: "grid", gridTemplateColumns: "1.2fr 90px 70px 1fr auto", gap: 8 }}>
-                        <input value={b.name} onChange={(e) => { const n = [...billRows]; n[i].name = e.target.value; setBillRows(n); }} style={inputStyle} placeholder="Rent" />
-                        <input value={b.amount} onChange={(e) => { const n = [...billRows]; n[i].amount = e.target.value; setBillRows(n); }} style={inputStyle} placeholder="$" />
-                        <input value={b.dueDay} onChange={(e) => { const n = [...billRows]; n[i].dueDay = e.target.value; setBillRows(n); }} style={inputStyle} placeholder="Due" />
-                        <input value={b.category} onChange={(e) => { const n = [...billRows]; n[i].category = e.target.value; setBillRows(n); }} style={inputStyle} placeholder="Category" />
-                        <button type="button" onClick={() => setBillRows(billRows.filter((_, j) => j !== i))} style={{ border: "none", background: "transparent", cursor: "pointer", color: "var(--ink-3)" }}>×</button>
+                      <div key={i} style={{ padding: "12px 14px", border: "1px solid var(--border)", borderRadius: 12, background: "var(--surface)" }}>
+                        <div style={{ display: "grid", gridTemplateColumns: "1.2fr 100px 1fr auto", gap: 8, marginBottom: 10 }}>
+                          <input value={b.name} onChange={(e) => { const n = [...billRows]; n[i].name = e.target.value; setBillRows(n); }} style={inputStyle} placeholder="Rent" />
+                          <input value={b.amount} onChange={(e) => { const n = [...billRows]; n[i].amount = e.target.value; setBillRows(n); }} style={inputStyle} placeholder="$" />
+                          <input value={b.category} onChange={(e) => { const n = [...billRows]; n[i].category = e.target.value; setBillRows(n); }} style={inputStyle} placeholder="Category" />
+                          <button type="button" onClick={() => setBillRows(billRows.filter((_, j) => j !== i))} style={{ border: "none", background: "transparent", cursor: "pointer", color: "var(--ink-3)" }}>×</button>
+                        </div>
+                        <BillScheduleFields
+                          compact
+                          frequency={b.frequency}
+                          dueDay={b.dueDay}
+                          onFrequencyChange={(frequency) => {
+                            const n = [...billRows];
+                            n[i].frequency = frequency;
+                            setBillRows(n);
+                          }}
+                          onDueDayChange={(dueDay) => {
+                            const n = [...billRows];
+                            n[i].dueDay = dueDay;
+                            setBillRows(n);
+                          }}
+                          inputStyle={inputStyle}
+                        />
                       </div>
                     ))}
                   </div>
                 )}
-                <button type="button" style={btnSecondary} onClick={() => setBillRows((r) => [...r, { name: "", amount: "", dueDay: "1", category: "Bills" }])}>
+                <button type="button" style={btnSecondary} onClick={() => setBillRows((r) => [...r, { name: "", amount: "", dueDay: 1, frequency: "monthly", category: "Bills" }])}>
                   + Add bill
                 </button>
                 <div style={{ display: "flex", gap: 10, marginTop: 24 }}>
@@ -586,24 +610,28 @@ export function OnboardingView({
                             />
                           </td>
                           <td style={{ padding: 4 }}>
-                            <input
-                              type="number"
-                              step="0.01"
-                              value={Math.abs(row.amount)}
-                              onChange={(e) => {
-                                const n = parseFloat(e.target.value) || 0;
+                            <CurrencyInput
+                              compact
+                              value={row.amount === 0 ? "" : String(Math.abs(row.amount))}
+                              placeholder="0.00"
+                              onChange={(v) => {
+                                const n = v === "" || v === "." ? 0 : parseFloat(v);
+                                if (v !== "" && v !== "." && !Number.isFinite(n)) return;
                                 setImportDrafts((rows) =>
                                   rows.map((r) =>
                                     r.draftId === row.draftId
                                       ? {
                                           ...r,
-                                          amount: r.type === "income" ? Math.abs(n) : -Math.abs(n),
+                                          amount:
+                                            r.type === "income"
+                                              ? Math.abs(n)
+                                              : -Math.abs(n),
                                         }
                                       : r,
                                   ),
                                 );
                               }}
-                              style={{ ...inputStyle, padding: "4px 6px", fontSize: 11, width: 90 }}
+                              style={{ padding: "4px 6px", fontSize: 11, width: 90, borderRadius: 6 }}
                             />
                           </td>
                         </tr>

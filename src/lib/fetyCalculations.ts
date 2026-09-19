@@ -7,6 +7,7 @@ import type {
   FetyStore,
   Transaction,
 } from "../types/fety";
+import { flowForTransactionType } from "./transactionTypes";
 
 export function todayISO(): string {
   return new Date().toISOString().slice(0, 10);
@@ -56,12 +57,12 @@ function monthEnd(d: Date): Date {
   return new Date(d.getFullYear(), d.getMonth() + 1, 0, 23, 59, 59);
 }
 
-function isOutflow(t: Transaction): boolean {
-  return t.amount < 0 && t.type !== "transfer";
+function isOutflow(t: Transaction, store: FetyStore): boolean {
+  return t.amount < 0 && flowForTransactionType(store, t.type) !== "transfer";
 }
 
-function isInflow(t: Transaction): boolean {
-  return t.amount > 0 && t.type === "income";
+function isInflow(t: Transaction, store: FetyStore): boolean {
+  return t.amount > 0 && flowForTransactionType(store, t.type) === "income";
 }
 
 function categorySpentInMonth(store: FetyStore, categoryName: string, ref: Date): number {
@@ -71,7 +72,7 @@ function categorySpentInMonth(store: FetyStore, categoryName: string, ref: Date)
     .filter(
       (t) =>
         t.category === categoryName &&
-        isOutflow(t) &&
+        isOutflow(t, store) &&
         inRange(t.dateISO, start, end),
     )
     .reduce((s, t) => s + Math.abs(t.amount), 0);
@@ -88,23 +89,23 @@ export function computeSummary(store: FetyStore, ref = new Date()): FinanceSumma
   const balance = store.profile.startingBalance + txSum;
 
   const moneyInToday = store.transactions
-    .filter((t) => t.dateISO === today && isInflow(t))
+    .filter((t) => t.dateISO === today && isInflow(t, store))
     .reduce((s, t) => s + t.amount, 0);
 
   const moneyOutToday = store.transactions
-    .filter((t) => t.dateISO === today && isOutflow(t))
+    .filter((t) => t.dateISO === today && isOutflow(t, store))
     .reduce((s, t) => s + Math.abs(t.amount), 0);
 
   const weeklySpent = store.transactions
-    .filter((t) => isOutflow(t) && inRange(t.dateISO, wStart, wEnd))
+    .filter((t) => isOutflow(t, store) && inRange(t.dateISO, wStart, wEnd))
     .reduce((s, t) => s + Math.abs(t.amount), 0);
 
   const monthlyIncome = store.transactions
-    .filter((t) => isInflow(t) && inRange(t.dateISO, mStart, mEnd))
+    .filter((t) => isInflow(t, store) && inRange(t.dateISO, mStart, mEnd))
     .reduce((s, t) => s + t.amount, 0);
 
   const monthlyExpenses = store.transactions
-    .filter((t) => isOutflow(t) && inRange(t.dateISO, mStart, mEnd))
+    .filter((t) => isOutflow(t, store) && inRange(t.dateISO, mStart, mEnd))
     .reduce((s, t) => s + Math.abs(t.amount), 0);
 
   const monthlyBudgetTotal = store.categories.reduce((s, c) => s + c.monthlyBudget, 0);
@@ -136,9 +137,10 @@ export function computeSummary(store: FetyStore, ref = new Date()): FinanceSumma
 
 const calKey = (d: Date) => d.toISOString().slice(0, 10);
 
-function itemTypeForTransaction(t: Transaction): CalDayItemType {
-  if (t.type === "income") return t.amount >= 500 ? "paycheck" : "income";
-  if (t.type === "bill") return "bill";
+function itemTypeForTransaction(t: Transaction, store: FetyStore): CalDayItemType {
+  const flow = flowForTransactionType(store, t.type);
+  if (flow === "income") return t.amount >= 500 ? "paycheck" : "income";
+  if (flow === "bill") return "bill";
   return "expense";
 }
 
@@ -172,7 +174,7 @@ export function buildCalendarMap(store: FetyStore, year: number): CalendarMap {
         icon: t.icon,
         desc: t.desc,
         amount: t.amount,
-        type: itemTypeForTransaction(t),
+        type: itemTypeForTransaction(t, store),
         category: t.category,
         txnType: t.type,
       }));
@@ -232,7 +234,7 @@ export function last6MonthsSpending(store: FetyStore, ref = new Date()): { m: st
     const start = monthStart(d);
     const end = monthEnd(d);
     const v = store.transactions
-      .filter((t) => isOutflow(t) && inRange(t.dateISO, start, end))
+      .filter((t) => isOutflow(t, store) && inRange(t.dateISO, start, end))
       .reduce((s, t) => s + Math.abs(t.amount), 0);
     out.push({ m: d.toLocaleDateString("en-US", { month: "short" }), v });
   }

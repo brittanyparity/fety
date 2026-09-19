@@ -1,4 +1,6 @@
 import { useEffect, useState } from "react";
+import type { CSSProperties } from "react";
+import CurrencyInput, { sanitizeDecimalInput } from "./CurrencyInput";
 
 const editBtnStyle: React.CSSProperties = {
   width: 28,
@@ -45,7 +47,9 @@ type EditableNumberProps = {
   onSave: (n: number) => void;
   min?: number;
   step?: number;
-  valueStyle?: React.CSSProperties;
+  valueStyle?: CSSProperties;
+  /** Show $ prefix and allow clearing the field while editing. */
+  currency?: boolean;
 };
 
 export function EditableNumber({
@@ -56,19 +60,29 @@ export function EditableNumber({
   min = 0,
   step = 1,
   valueStyle,
+  currency = false,
 }: EditableNumberProps) {
   const [editing, setEditing] = useState(false);
-  const [draft, setDraft] = useState(String(value));
+  const [draft, setDraft] = useState("");
 
   useEffect(() => {
-    if (!editing) setDraft(String(value));
+    if (!editing) setDraft("");
   }, [value, editing]);
 
   const display = format ? format(value) : String(value);
 
+  const openEdit = () => {
+    setDraft(value === 0 ? "" : String(value));
+    setEditing(true);
+  };
+
   const commit = () => {
+    if (draft.trim() === "") {
+      setEditing(false);
+      return;
+    }
     const n = parseFloat(draft);
-    if (Number.isFinite(n)) onSave(n);
+    if (Number.isFinite(n) && n >= min) onSave(n);
     setEditing(false);
   };
 
@@ -78,15 +92,18 @@ export function EditableNumber({
         <p className="fety-label" style={{ marginBottom: 6 }}>
           {label}
         </p>
-        <input
-          type="number"
-          min={min}
-          step={step}
-          value={draft}
-          onChange={(e) => setDraft(e.target.value)}
-          style={fieldInputStyle}
-          autoFocus
-        />
+        {currency ? (
+          <CurrencyInput value={draft} onChange={setDraft} aria-label={label} />
+        ) : (
+          <input
+            type="text"
+            inputMode="decimal"
+            value={draft}
+            onChange={(e) => setDraft(sanitizeDecimalInput(e.target.value))}
+            style={fieldInputStyle}
+            autoFocus
+          />
+        )}
         <div style={{ display: "flex", gap: 6, marginTop: 8 }}>
           <button
             type="button"
@@ -131,7 +148,7 @@ export function EditableNumber({
         </p>
         <p style={{ fontSize: 22, fontWeight: 400, color: "var(--ink)", letterSpacing: "-0.02em", ...valueStyle }}>{display}</p>
       </div>
-      <button type="button" onClick={() => setEditing(true)} style={editBtnStyle} title={`Edit ${label}`} aria-label={`Edit ${label}`}>
+      <button type="button" onClick={openEdit} style={editBtnStyle} title={`Edit ${label}`} aria-label={`Edit ${label}`}>
         <EditIcon />
       </button>
     </div>

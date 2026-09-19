@@ -50,20 +50,7 @@ export function ChatPanel({
   };
 
   return (
-    <div
-      className="fety-chat-panel"
-      style={{
-        width: 300,
-        flexShrink: 0,
-        display: "flex",
-        flexDirection: "column",
-        background: "var(--surface)",
-        borderRight: "1px solid var(--border)",
-        height: "100%",
-        alignSelf: "stretch",
-        overflow: "hidden",
-      }}
-    >
+    <div className="fety-chat-panel">
       <button type="button" className="fety-chat-toggle" onClick={onCollapse} title="Collapse chat" aria-label="Collapse chat">
         <ChatCollapseIcon />
       </button>

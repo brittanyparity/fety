@@ -1,11 +1,13 @@
 import { useState, useRef, useEffect, useCallback, useMemo } from "react";
 import { FetyLogo } from "./FetyLogo";
-import { DashboardHero } from "./components/DashboardHero";
 import { useFetyData } from "./hooks/useFetyData";
 import { buildCalendarMap, formatNavDate, last6MonthsSpending, last7DayEndingBalances, categorySpendShares, todayISO } from "./lib/fetyCalculations";
+import { getTransactionTypes } from "./lib/transactionTypes";
 import { calendarDailyBalanceBg, calendarDailyBalanceBgStrong, calSignedColor } from "./lib/calendarUi";
 import { CalendarPeriodMenu } from "./components/CalendarPeriodMenu";
-import { flattenRows, moveRow, packWidgetsIntoRows, reorderWidget } from "./lib/widgetLayout";
+import EmojiIconPicker from "./components/EmojiIconPicker";
+import CurrencyInput, { amountToEditString } from "./components/CurrencyInput";
+import { flattenRows, moveRow, packWidgetsIntoRows, pinWidgetToTop, reorderWidget, togglePinWidget, unpinWidget } from "./lib/widgetLayout";
 import { ChatPanel, ChatExpandIcon } from "./components/ChatPanel";
 import { confirmAssistantAction, handleAssistantMessageWithDeps } from "./assistant/router";
 import type { ToolAction } from "./assistant/types";
@@ -22,6 +24,7 @@ import {
   XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer,
   PieChart, Pie, Cell,
 } from "recharts";
+import { nextBillOccurrenceOnOrAfter } from "./lib/billScheduling";
 
 // ─── Types ─────────────────────────────────────────────────────────────────────
 type Page = "dashboard" | "budget" | "spending" | "goals" | "settings" | "calendar";
@@ -117,6 +120,13 @@ function TopNav({
   profileInitial: string;
   onOpenSettings: () => void;
 }) {
+  const [menuOpen, setMenuOpen] = useState(false);
+
+  const go = (p: Page) => {
+    setPage(p);
+    setMenuOpen(false);
+  };
+
   return (
     <header className="fety-nav">
       <FetyLogo />
@@ -125,38 +135,70 @@ function TopNav({
           <button
             key={item.id}
             type="button"
-            onClick={() => setPage(item.id)}
+            onClick={() => go(item.id)}
             className={`fety-nav-link${page === item.id ? " fety-nav-link-active" : ""}`}
           >
             {item.label}
           </button>
         ))}
       </div>
-      <div style={{ display: "flex", alignItems: "center", gap: 10, flexShrink: 0 }}>
-        <span style={{ fontSize: 12, color: "var(--ink-3)", whiteSpace: "nowrap" }}>{navDate}</span>
+      <div className="fety-nav-actions">
+        <span className="fety-nav-date">{navDate}</span>
         <button
           type="button"
           title="Settings"
           aria-label="Open settings"
           onClick={onOpenSettings}
-          style={{
-            width: 30,
-            height: 30,
-            borderRadius: "var(--radius-ctrl)",
-            background: "var(--paper)",
-            border: "1px solid var(--border)",
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "center",
-            fontSize: 11,
-            fontWeight: 600,
-            color: "var(--ink)",
-            cursor: "pointer",
-          }}
+          className="fety-nav-profile"
         >
           {profileInitial}
         </button>
       </div>
+      <button
+        type="button"
+        className="fety-nav-hamburger"
+        aria-label={menuOpen ? "Close menu" : "Open menu"}
+        aria-expanded={menuOpen}
+        onClick={() => setMenuOpen((o) => !o)}
+      >
+        {menuOpen ? (
+          <svg width="18" height="18" viewBox="0 0 18 18" fill="none" aria-hidden>
+            <path d="M4 4l10 10M14 4L4 14" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" />
+          </svg>
+        ) : (
+          <svg width="18" height="18" viewBox="0 0 18 18" fill="none" aria-hidden>
+            <path d="M2.5 5h13M2.5 9h13M2.5 13h13" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" />
+          </svg>
+        )}
+      </button>
+      {menuOpen && (
+        <>
+          <button type="button" className="fety-nav-backdrop" aria-label="Close menu" onClick={() => setMenuOpen(false)} />
+          <nav className="fety-nav-drawer" aria-label="Main">
+            <p className="fety-nav-drawer-date">{navDate}</p>
+            {NAV_ITEMS.map((item) => (
+              <button
+                key={item.id}
+                type="button"
+                onClick={() => go(item.id)}
+                className={`fety-nav-drawer-link${page === item.id ? " fety-nav-drawer-link-active" : ""}`}
+              >
+                {item.label}
+              </button>
+            ))}
+            <button
+              type="button"
+              className="fety-nav-drawer-link"
+              onClick={() => {
+                onOpenSettings();
+                setMenuOpen(false);
+              }}
+            >
+              Settings
+            </button>
+          </nav>
+        </>
+      )}
     </header>
   );
 }
@@ -184,17 +226,58 @@ const statPreview = (dot: string, label: string, value: string, sub?: string): R
 );
 
 const ALL_WIDGETS: WidgetDef[] = [
+  {
+    id: "spending-power-hero",
+    label: "Spending power · this week",
+    color: "var(--amber)",
+    size: "full",
+    preview: () => statPreview("var(--amber-dk)", "Spending power", "$140", "Full-width banner"),
+    render: () => {
+      const { summary: s } = widgetLive();
+      const barPct = s.weeklyUsedPct;
+      return (
+        <div
+          style={{
+            display: "flex",
+            flexWrap: "wrap",
+            alignItems: "flex-end",
+            justifyContent: "space-between",
+            gap: 20,
+          }}
+        >
+          <div>
+            <p className="fety-label" style={{ color: "var(--ink)", marginBottom: 10 }}>
+              Spending power · this week
+            </p>
+            <p className="fety-figure" style={{ fontSize: 56, letterSpacing: "-0.03em" }}>
+              {usd(s.weeklySpendingPower)}
+            </p>
+            <p style={{ fontSize: 14, color: "var(--ink-2)", marginTop: 8 }}>Safe to spend through Sunday</p>
+          </div>
+          <div style={{ minWidth: 200, flex: "1 1 200px", maxWidth: 320 }}>
+            <div style={{ height: 8, background: "rgba(17,17,17,0.2)", borderRadius: "var(--radius-track)", overflow: "hidden" }}>
+              <div style={{ width: `${barPct}%`, height: "100%", background: "var(--ink)", borderRadius: "var(--radius-track)" }} />
+            </div>
+            <div style={{ display: "flex", justifyContent: "space-between", marginTop: 8, fontSize: 11, fontFamily: "var(--font-mono)", color: "var(--ink)" }}>
+              <span>{usd(s.weeklySpent)} of {usd(s.weeklyBudget)}</span>
+              <span>{barPct}%</span>
+            </div>
+          </div>
+        </div>
+      );
+    },
+  },
   // ── Small stat cards ──────────────────────────────────────────────────────────
   {
-    id: "stat-balance", label: "Today's Balance", color: "var(--surface)", size: "small",
-    preview: () => statPreview("var(--clear)", "Today's Balance", "$2,612", "All accounts"),
+    id: "stat-balance", label: "Balance", color: "var(--surface)", size: "small",
+    preview: () => statPreview("var(--clear)", "Balance", "$2,612", "All accounts"),
     render: () => {
       const { summary: s } = widgetLive();
       return (
       <div style={{ display: "flex", alignItems: "center", gap: 8, height: "100%" }}>
         <div style={{ width: 9, height: 9, borderRadius: "var(--radius-marker)", background: "var(--clear)", flexShrink: 0 }} />
         <div style={{ flex: 1, minWidth: 0 }}>
-          <p style={{ fontSize: 10, fontWeight: 400, color: "var(--ink-3)", fontFamily: "var(--font-mono)", textTransform: "uppercase", letterSpacing: "0.16em", marginBottom: 4 }}>Today's Balance</p>
+          <p style={{ fontSize: 10, fontWeight: 400, color: "var(--ink-3)", fontFamily: "var(--font-mono)", textTransform: "uppercase", letterSpacing: "0.16em", marginBottom: 4 }}>Balance</p>
           <p style={{ fontSize: 22, fontWeight: 400, color: "var(--ink)", letterSpacing: "-0.8px", fontFamily: "var(--font-sans)", lineHeight: 1 }}>{usd(s.balance)}</p>
         </div>
       </div>
@@ -202,30 +285,52 @@ const ALL_WIDGETS: WidgetDef[] = [
     },
   },
   {
-    id: "stat-money-in", label: "Money In Today", color: "var(--surface)", size: "small",
-    preview: () => statPreview("var(--clear)", "Money In Today", "+$350", "Income today"),
-    render: () => (
+    id: "stat-money-in", label: "In today", color: "var(--surface)", size: "small",
+    preview: () => statPreview("var(--clear)", "In today", "+$350", "Income today"),
+    render: () => {
+      const { summary: s } = widgetLive();
+      return (
       <div style={{ display: "flex", alignItems: "center", gap: 8, height: "100%" }}>
         <div style={{ width: 9, height: 9, borderRadius: "var(--radius-marker)", background: "var(--clear)", flexShrink: 0 }} />
         <div style={{ flex: 1, minWidth: 0 }}>
-          <p style={{ fontSize: 10, fontWeight: 400, color: "var(--ink-3)", fontFamily: "var(--font-mono)", textTransform: "uppercase", letterSpacing: "0.16em", marginBottom: 4 }}>Money In Today</p>
-          <p style={{ fontSize: 22, fontWeight: 400, color: "var(--lime-dk)", letterSpacing: "-0.8px", fontFamily: "var(--font-sans)", lineHeight: 1 }}>+$350</p>
+          <p style={{ fontSize: 10, fontWeight: 400, color: "var(--ink-3)", fontFamily: "var(--font-mono)", textTransform: "uppercase", letterSpacing: "0.16em", marginBottom: 4 }}>In today</p>
+          <p style={{ fontSize: 22, fontWeight: 400, color: "var(--lime-dk)", letterSpacing: "-0.8px", fontFamily: "var(--font-sans)", lineHeight: 1 }}>+{usd(s.moneyInToday)}</p>
         </div>
       </div>
-    ),
+      );
+    },
   },
   {
-    id: "stat-money-out", label: "Money Out Today", color: "var(--surface)", size: "small",
-    preview: () => statPreview("var(--trouble)", "Money Out Today", "-$52", "Expenses today"),
-    render: () => (
+    id: "stat-money-out", label: "Out today", color: "var(--surface)", size: "small",
+    preview: () => statPreview("var(--trouble)", "Out today", "-$52", "Expenses today"),
+    render: () => {
+      const { summary: s } = widgetLive();
+      return (
       <div style={{ display: "flex", alignItems: "center", gap: 8, height: "100%" }}>
         <div style={{ width: 9, height: 9, borderRadius: "var(--radius-marker)", background: "var(--trouble)", flexShrink: 0 }} />
         <div style={{ flex: 1, minWidth: 0 }}>
-          <p style={{ fontSize: 10, fontWeight: 400, color: "var(--ink-3)", fontFamily: "var(--font-mono)", textTransform: "uppercase", letterSpacing: "0.16em", marginBottom: 4 }}>Money Out Today</p>
-          <p style={{ fontSize: 22, fontWeight: 400, color: "var(--peach-dk)", letterSpacing: "-0.8px", fontFamily: "var(--font-sans)", lineHeight: 1 }}>-$52</p>
+          <p style={{ fontSize: 10, fontWeight: 400, color: "var(--ink-3)", fontFamily: "var(--font-mono)", textTransform: "uppercase", letterSpacing: "0.16em", marginBottom: 4 }}>Out today</p>
+          <p style={{ fontSize: 22, fontWeight: 400, color: "var(--peach-dk)", letterSpacing: "-0.8px", fontFamily: "var(--font-sans)", lineHeight: 1 }}>-{usd(s.moneyOutToday)}</p>
         </div>
       </div>
-    ),
+      );
+    },
+  },
+  {
+    id: "stat-savings", label: "Savings", color: "var(--surface)", size: "small",
+    preview: () => statPreview("var(--later)", "Savings", "$5,200", "Goals saved total"),
+    render: () => {
+      const { summary: s } = widgetLive();
+      return (
+      <div style={{ display: "flex", alignItems: "center", gap: 8, height: "100%" }}>
+        <div style={{ width: 9, height: 9, borderRadius: "var(--radius-marker)", background: "var(--later)", flexShrink: 0 }} />
+        <div style={{ flex: 1, minWidth: 0 }}>
+          <p style={{ fontSize: 10, fontWeight: 400, color: "var(--ink-3)", fontFamily: "var(--font-mono)", textTransform: "uppercase", letterSpacing: "0.16em", marginBottom: 4 }}>Savings</p>
+          <p style={{ fontSize: 22, fontWeight: 400, color: "var(--later-dk)", letterSpacing: "-0.8px", fontFamily: "var(--font-sans)", lineHeight: 1 }}>{usd(s.savingsTotal)}</p>
+        </div>
+      </div>
+      );
+    },
   },
   {
     id: "stat-monthly-net", label: "Monthly Net", color: "var(--surface)", size: "small",
@@ -569,10 +674,10 @@ const ALL_WIDGETS: WidgetDef[] = [
       const now = new Date();
       const upcoming = store.bills
         .map((b) => {
-          const due = new Date(now.getFullYear(), now.getMonth(), b.dueDay);
-          if (due < now) due.setMonth(due.getMonth() + 1);
-          return { ...b, due };
+          const next = nextBillOccurrenceOnOrAfter(b, now);
+          return { ...b, due: next ? new Date(`${next}T12:00:00`) : null };
         })
+        .filter((b): b is typeof b & { due: Date } => b.due != null)
         .sort((a, b) => a.due.getTime() - b.due.getTime());
       const top = upcoming[0];
       const list = upcoming.slice(0, 3);
@@ -607,9 +712,9 @@ const SIZE_GROUPS: { label: string; sizes: WidgetDef["size"][] }[] = [
 ];
 
 function WidgetPicker({
-  pinned, onToggle, onClose,
+  pinned, onPinToggle, onClose,
 }: {
-  pinned: string[]; onToggle: (id: string) => void; onClose: () => void;
+  pinned: string[]; onPinToggle: (id: string) => void; onClose: () => void;
 }) {
   return (
     <div style={{
@@ -643,16 +748,28 @@ function WidgetPicker({
                       </div>
                       {/* Action row */}
                       <button
-                        onClick={() => onToggle(w.id)}
+                        type="button"
+                        onClick={() => onPinToggle(w.id)}
                         style={{ width: "100%", display: "flex", alignItems: "center", justifyContent: "space-between", padding: "8px 12px", border: "none", background: "transparent", cursor: "pointer", textAlign: "left" }}
                       >
                         <div>
                           <p style={{ fontSize: 11, fontWeight: 600, color: "var(--ink)" }}>{w.label}</p>
                           <p style={{ fontSize: 9, color: "var(--ink-3)", marginTop: 1 }}>{w.size === "full" ? "Full width" : w.size === "half" ? "Half width" : "Stat card"}</p>
                         </div>
-                        <div style={{ width: 20, height: 20, borderRadius: 99, flexShrink: 0, border: active ? "none" : "1.5px solid var(--border)", background: active ? "var(--ink)" : "transparent", display: "flex", alignItems: "center", justifyContent: "center" }}>
-                          {active && <svg width="10" height="10" viewBox="0 0 10 10" fill="none"><path d="M2 5l2.5 2.5L8 2.5" stroke="#fff" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/></svg>}
-                        </div>
+                        <span
+                          style={{
+                            fontSize: 10,
+                            fontWeight: 600,
+                            padding: "5px 10px",
+                            borderRadius: 99,
+                            border: active ? "none" : "1px solid var(--border)",
+                            background: active ? "var(--ink)" : "var(--surface)",
+                            color: active ? "#fff" : "var(--ink-2)",
+                            flexShrink: 0,
+                          }}
+                        >
+                          {active ? "Unpin" : "Pin to top"}
+                        </span>
                       </button>
                     </div>
                   );
@@ -745,6 +862,7 @@ function RightPanel({
 // ─── Calendar View ─────────────────────────────────────────────────────────────
 function CalendarView({ onBack: _onBack }: { onBack: () => void }) {
   const { store, addTransaction, updateTransaction, deleteTransaction } = useFetyData();
+  const transactionTypes = useMemo(() => getTransactionTypes(store), [store]);
   const [calView, setCalView] = useState<CalView>("monthly");
   const [focusDate, setFocusDate] = useState(() => new Date());
   const [selected, setSelected] = useState<string | null>(() => CAL_KEY(new Date()));
@@ -787,6 +905,12 @@ function CalendarView({ onBack: _onBack }: { onBack: () => void }) {
   const addYear = (n: number) => setFocusDate((p) => { const d = new Date(p); d.setFullYear(d.getFullYear() + n); return d; });
 
   const selectedDay = selected ? calendarMap.get(selected) ?? null : null;
+  const panelISO = calView === "daily" ? CAL_KEY(focusDate) : selected;
+  const panelDay = panelISO ? calendarMap.get(panelISO) ?? null : null;
+
+  useEffect(() => {
+    if (calView === "daily") setSelected(CAL_KEY(focusDate));
+  }, [calView, focusDate]);
 
   const VIEWS: { id: CalView; label: string }[] = [
     { id: "monthly", label: "Monthly" },
@@ -859,13 +983,14 @@ function CalendarView({ onBack: _onBack }: { onBack: () => void }) {
           )}
         </div>
 
-        {calView !== "daily" && (calView === "yearly" || (selected && selectedDay)) && (
+        {(calView === "yearly" || calView === "daily" || (selected && selectedDay)) && (
           <CalendarSidePanel
             calView={calView}
             year={year}
-            selectedISO={selected}
-            day={selectedDay}
+            selectedISO={panelISO}
+            day={panelDay}
             categories={store.categories}
+            transactionTypes={transactionTypes}
             onJumpToDate={jumpToDateISO}
             onClose={() => setSelected(null)}
             onAddTransaction={addTransaction}
@@ -1293,6 +1418,7 @@ function CalendarSidePanel({
   selectedISO,
   day,
   categories,
+  transactionTypes,
   onJumpToDate,
   onClose,
   onAddTransaction,
@@ -1304,6 +1430,7 @@ function CalendarSidePanel({
   selectedISO: string | null;
   day: CalDay | null;
   categories: BudgetCategory[];
+  transactionTypes: import("./types/fety").FetyTransactionType[];
   onJumpToDate: (iso: string) => void;
   onClose: () => void;
   onAddTransaction: (input: {
@@ -1316,21 +1443,25 @@ function CalendarSidePanel({
   }) => void;
   onUpdateTransaction: (
     id: string,
-    updates: Partial<{ desc: string; amount: number; type: TransactionType; category: string }>,
+    updates: Partial<{ desc: string; amount: number; type: TransactionType; category: string; icon: string }>,
   ) => void;
   onDeleteTransaction: (id: string) => void;
 }) {
+  const defaultTypeId = transactionTypes.find((t) => t.id === "expense")?.id ?? transactionTypes[0]?.id ?? "expense";
+  const iconForType = (typeId: string) => transactionTypes.find((t) => t.id === typeId)?.icon ?? "💬";
   const [jumpISO, setJumpISO] = useState(selectedISO ?? todayISO());
   const [showAdd, setShowAdd] = useState(false);
   const [addDesc, setAddDesc] = useState("");
   const [addAmount, setAddAmount] = useState("");
-  const [addType, setAddType] = useState<TransactionType>("expense");
+  const [addType, setAddType] = useState<TransactionType>(defaultTypeId);
   const [addCategory, setAddCategory] = useState(categories[0]?.name ?? "Other");
+  const [addIcon, setAddIcon] = useState("");
   const [editId, setEditId] = useState<string | null>(null);
   const [editDesc, setEditDesc] = useState("");
   const [editAmount, setEditAmount] = useState("");
-  const [editType, setEditType] = useState<TransactionType>("expense");
+  const [editType, setEditType] = useState<TransactionType>(defaultTypeId);
   const [editCategory, setEditCategory] = useState("Other");
+  const [editIcon, setEditIcon] = useState("");
 
   useEffect(() => {
     if (selectedISO) setJumpISO(selectedISO);
@@ -1357,26 +1488,34 @@ function CalendarSidePanel({
       type: addType,
       category: addCategory,
       dateISO: CAL_KEY(day.date),
-      icon: "📌",
+      icon: addIcon.trim() || undefined,
     });
     setAddDesc("");
     setAddAmount("");
+    setAddIcon("");
     setShowAdd(false);
   };
 
   const startEdit = (item: CalDay["items"][0]) => {
     setEditId(item.id);
     setEditDesc(item.desc);
-    setEditAmount(String(Math.abs(item.amount)));
+    setEditAmount(amountToEditString(item.amount));
     setEditType(item.txnType);
     setEditCategory(item.category);
+    setEditIcon(item.icon);
   };
 
   const saveEdit = () => {
     if (!editId) return;
     const n = parseFloat(editAmount);
     if (!editDesc.trim() || !Number.isFinite(n)) return;
-    onUpdateTransaction(editId, { desc: editDesc.trim(), amount: n, type: editType, category: editCategory });
+    onUpdateTransaction(editId, {
+      desc: editDesc.trim(),
+      amount: n,
+      type: editType,
+      category: editCategory,
+      icon: editIcon.trim() || iconForType(editType),
+    });
     setEditId(null);
   };
 
@@ -1448,13 +1587,20 @@ function CalendarSidePanel({
 
             {showAdd && (
               <form onSubmit={submitAdd} style={{ background: "var(--bg)", border: "1px solid var(--border)", borderRadius: 10, padding: 10, marginBottom: 10, display: "flex", flexDirection: "column", gap: 6 }}>
+                <EmojiIconPicker
+                  value={addIcon}
+                  defaultEmoji={iconForType(addType)}
+                  onChange={setAddIcon}
+                  compact
+                />
                 <input value={addDesc} onChange={(e) => setAddDesc(e.target.value)} placeholder="Description" style={panelInput} />
-                <input value={addAmount} onChange={(e) => setAddAmount(e.target.value)} placeholder="Amount" type="number" step="0.01" style={panelInput} />
-                <select value={addType} onChange={(e) => setAddType(e.target.value as TransactionType)} style={panelInput}>
-                  <option value="expense">Expense</option>
-                  <option value="income">Income</option>
-                  <option value="bill">Bill</option>
-                  <option value="transfer">Transfer</option>
+                <CurrencyInput value={addAmount} onChange={setAddAmount} placeholder="0.00" compact style={{ borderRadius: 8 }} />
+                <select value={addType} onChange={(e) => setAddType(e.target.value)} style={panelInput}>
+                  {transactionTypes.map((tt) => (
+                    <option key={tt.id} value={tt.id}>
+                      {tt.name}
+                    </option>
+                  ))}
                 </select>
                 <select value={addCategory} onChange={(e) => setAddCategory(e.target.value)} style={panelInput}>
                   {[...categories.map((c) => c.name), "Income", "Other"].filter((v, i, a) => a.indexOf(v) === i).map((name) => (
@@ -1472,13 +1618,20 @@ function CalendarSidePanel({
                 {day.items.map((item) =>
                   editId === item.id ? (
                     <div key={item.id} style={{ background: "var(--bg)", border: "1px solid var(--border)", borderRadius: 10, padding: 10, display: "flex", flexDirection: "column", gap: 6 }}>
-                      <input value={editDesc} onChange={(e) => setEditDesc(e.target.value)} style={panelInput} />
-                      <input value={editAmount} onChange={(e) => setEditAmount(e.target.value)} type="number" step="0.01" style={panelInput} />
-                      <select value={editType} onChange={(e) => setEditType(e.target.value as TransactionType)} style={panelInput}>
-                        <option value="expense">Expense</option>
-                        <option value="income">Income</option>
-                        <option value="bill">Bill</option>
-                        <option value="transfer">Transfer</option>
+                      <EmojiIconPicker
+                        value={editIcon}
+                        defaultEmoji={iconForType(editType)}
+                        onChange={setEditIcon}
+                        compact
+                      />
+                      <input value={editDesc} onChange={(e) => setEditDesc(e.target.value)} style={panelInput} placeholder="Description" />
+                      <CurrencyInput value={editAmount} onChange={setEditAmount} placeholder="0.00" compact style={{ borderRadius: 8 }} />
+                      <select value={editType} onChange={(e) => setEditType(e.target.value)} style={panelInput}>
+                        {transactionTypes.map((tt) => (
+                          <option key={tt.id} value={tt.id}>
+                            {tt.name}
+                          </option>
+                        ))}
                       </select>
                       <select value={editCategory} onChange={(e) => setEditCategory(e.target.value)} style={panelInput}>
                         {[...categories.map((c) => c.name), "Income", "Other"].filter((v, i, a) => a.indexOf(v) === i).map((name) => (
@@ -1534,8 +1687,12 @@ function DashboardView({
   const [dragWidgetId, setDragWidgetId] = useState<string | null>(null);
   const [overWidgetId, setOverWidgetId] = useState<string | null>(null);
 
-  const toggleWidget = (id: string) => {
-    setPinned(prev => prev.includes(id) ? prev.filter(p => p !== id) : [...prev, id]);
+  const moveWidgetToTop = (id: string) => {
+    setPinned((prev) => pinWidgetToTop(prev, id));
+  };
+
+  const removeWidget = (id: string) => {
+    setPinned((prev) => unpinWidget(prev, id));
   };
 
   const byId = useMemo(() => {
@@ -1563,7 +1720,6 @@ function DashboardView({
 
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
-      <DashboardHero summary={summary} />
       {pinned.length === 0 ? (
         <button
           onClick={onCustomize}
@@ -1698,9 +1854,32 @@ function DashboardView({
                         </div>
                       )}
                       {w.render()}
+                      {customizing && (
+                        <div style={{ position: "absolute", top: 8, right: 8, display: "flex", gap: 4 }}>
+                          {pinned[0] !== w.id && (
+                            <button
+                              type="button"
+                              onClick={(e) => { e.stopPropagation(); moveWidgetToTop(w.id); }}
+                              title="Pin to top of dashboard"
+                              style={{ height: 22, padding: "0 8px", borderRadius: 99, background: "rgba(0,0,0,0.08)", border: "1px solid var(--border)", cursor: "pointer", fontSize: 9, fontWeight: 600, color: "var(--ink-2)" }}
+                            >
+                              Pin top
+                            </button>
+                          )}
+                          <button
+                            type="button"
+                            onClick={(e) => { e.stopPropagation(); removeWidget(w.id); }}
+                            title="Unpin from dashboard"
+                            style={{ height: 22, padding: "0 8px", borderRadius: 99, background: "rgba(0,0,0,0.08)", border: "1px solid var(--border)", cursor: "pointer", fontSize: 9, fontWeight: 600, color: "var(--trouble-dk)" }}
+                          >
+                            Unpin
+                          </button>
+                        </div>
+                      )}
+                      {!customizing && (
                       <button
                         type="button"
-                        onClick={(e) => { e.stopPropagation(); toggleWidget(w.id); }}
+                        onClick={(e) => { e.stopPropagation(); removeWidget(w.id); }}
                         title="Remove widget"
                         style={{ position: "absolute", top: 8, right: 8, width: 22, height: 22, borderRadius: 99, background: "rgba(0,0,0,0.1)", border: "none", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", opacity: 0, transition: "opacity 0.15s" }}
                         onMouseEnter={(e) => (e.currentTarget.style.opacity = "1")}
@@ -1708,6 +1887,7 @@ function DashboardView({
                       >
                         <svg width="8" height="8" viewBox="0 0 8 8" fill="none"><path d="M1 1l6 6M7 1L1 7" stroke="rgba(0,0,0,0.55)" strokeWidth="1.4" strokeLinecap="round"/></svg>
                       </button>
+                      )}
                     </div>
                   );
                 })}
@@ -1727,7 +1907,7 @@ const PAGE_META: Record<Page, { title: string; sub: string }> = {
   spending:  { title: "Transactions", sub: "Every dollar in and out of your accounts." },
   budget:    { title: "Budget", sub: "Tracks are ink; coral marks the category that's over." },
   goals:     { title: "Goals", sub: "Money you're holding for later." },
-  settings:  { title: "Settings", sub: "Accounts, categories, and preferences." },
+  settings:  { title: "Settings", sub: "Profile, linked accounts, and data preferences." },
   calendar:  { title: "Calendar", sub: "Cash flow and spending power, day by day." },
 };
 
@@ -1748,6 +1928,8 @@ export default function App() {
     deleteGoal,
     updateProfile,
     updateAccount,
+    addAccount,
+    deleteAccount,
     addMessage,
     setPinnedWidgets,
     resetAll,
@@ -1756,8 +1938,13 @@ export default function App() {
     replaceCategories,
     replaceBills,
     importTransactionsBulk,
-    updateTypeIcons,
+    addTransactionType,
+    updateTransactionType,
+    deleteTransactionType,
   } = useFetyData();
+
+  const transactionTypes = useMemo(() => getTransactionTypes(store), [store]);
+  const transactionTypeInUse = useCallback((id: string) => store.transactions.some((t) => t.type === id), [store.transactions]);
 
   const [page, setPage] = useState<Page>("dashboard");
   const [viewMode, setViewMode] = useState<ViewMode>("cards");
@@ -1866,11 +2053,16 @@ export default function App() {
           <BudgetManageView
             categories={summary.categoriesWithSpent}
             bills={store.bills}
+            transactionTypes={transactionTypes}
             viewMode={viewMode}
             onUpdateBudget={updateCategoryBudget}
             onUpdateBill={updateBill}
             onAddBill={addBill}
             onDeleteBill={deleteBill}
+            onAddTransactionType={addTransactionType}
+            onUpdateTransactionType={updateTransactionType}
+            onDeleteTransactionType={deleteTransactionType}
+            transactionTypeInUse={transactionTypeInUse}
           />
         );
       case "spending":
@@ -1878,7 +2070,7 @@ export default function App() {
           <TransactionsManageView
             transactions={store.transactions}
             categories={store.categories}
-            typeIcons={store.typeIcons}
+            transactionTypes={transactionTypes}
             viewMode={viewMode}
             onAdd={addTransaction}
             onUpdate={updateTransaction}
@@ -1900,10 +2092,10 @@ export default function App() {
           <SettingsManageView
             profile={store.profile}
             accounts={store.accounts}
-            typeIcons={store.typeIcons}
             onUpdateProfile={updateProfile}
             onUpdateAccount={updateAccount}
-            onUpdateTypeIcons={updateTypeIcons}
+            onAddAccount={addAccount}
+            onDeleteAccount={deleteAccount}
             onReset={resetAll}
             onRestartSetup={() => {
               if (confirm("Clear all data and run setup again? This cannot be undone.")) startFreshSetup();
@@ -1917,7 +2109,7 @@ export default function App() {
             summary={summary}
             pinned={pinned}
             setPinned={setPinnedWidgets}
-            onCustomize={() => setPickerOpen((p) => !p)}
+            onCustomize={() => setPickerOpen(true)}
             customizing={pickerOpen}
           />
         );
@@ -1941,30 +2133,6 @@ export default function App() {
 
   return (
     <div className="fety-shell">
-      {chatCollapsed ? (
-        <div
-          className="fety-assistant-rail"
-          title="Show chat"
-          onClick={() => setChatCollapsed(false)}
-          onKeyDown={(e) => e.key === "Enter" && setChatCollapsed(false)}
-          role="button"
-          tabIndex={0}
-        >
-          <div style={{ width: 30, height: 30, borderRadius: 9, border: "1px solid var(--border)", background: "var(--bg)", display: "flex", alignItems: "center", justifyContent: "center" }}>
-            <ChatExpandIcon />
-          </div>
-        </div>
-      ) : (
-        <ChatPanel
-          messages={messages}
-          processing={chatProcessing}
-          onSend={handleSend}
-          onCollapse={() => setChatCollapsed(true)}
-          onConfirm={handleConfirmAction}
-          onCancelConfirm={handleCancelConfirm}
-        />
-      )}
-
       <div className="fety-main-column">
         <TopNav
           page={page}
@@ -1985,10 +2153,10 @@ export default function App() {
                     <h1 style={{ fontSize: 26, fontWeight: 600, color: "var(--ink)", letterSpacing: "-0.02em", lineHeight: 1.2 }}>{pageTitle}</h1>
                     <p style={{ fontSize: 15, color: "var(--ink-2)", marginTop: 4, lineHeight: 1.45 }}>{PAGE_META[page].sub}</p>
                   </div>
-                  {page === "dashboard" && (
+                  {page === "dashboard" && !pickerOpen && (
                     <button
                       type="button"
-                      onClick={() => setPickerOpen((p) => !p)}
+                      onClick={() => setPickerOpen(true)}
                       style={{ display: "flex", alignItems: "center", gap: 7, padding: "7px 14px", borderRadius: 99, border: "1px solid var(--ink)", background: "var(--surface)", color: "var(--ink)", cursor: "pointer", fontSize: 12, fontWeight: 600, flexShrink: 0, marginTop: 2 }}
                     >
                       Customise
@@ -2000,17 +2168,48 @@ export default function App() {
               {page === "dashboard" && pickerOpen && (
                 <WidgetPicker
                   pinned={pinned}
-                  onToggle={(id) =>
-                    setPinnedWidgets((prev) =>
-                      prev.includes(id) ? prev.filter((p) => p !== id) : [...prev, id],
-                    )
-                  }
+                  onPinToggle={(id) => setPinnedWidgets((prev) => togglePinWidget(prev, id))}
                   onClose={() => setPickerOpen(false)}
                 />
               )}
             </>
           )}
         </div>
+      </div>
+
+      <div className={`fety-chat-dock${chatCollapsed ? " fety-chat-dock-collapsed" : " fety-chat-dock-open"}`}>
+        {!chatCollapsed && (
+          <button
+            type="button"
+            className="fety-chat-mobile-backdrop"
+            aria-label="Close chat"
+            onClick={() => setChatCollapsed(true)}
+          />
+        )}
+        {chatCollapsed ? (
+          <div
+            className="fety-assistant-rail"
+            title="Show chat"
+            onClick={() => setChatCollapsed(false)}
+            onKeyDown={(e) => e.key === "Enter" && setChatCollapsed(false)}
+            role="button"
+            tabIndex={0}
+          >
+            <div className="fety-assistant-rail-inner">
+              <ChatExpandIcon />
+              <span className="fety-assistant-rail-label">Chat</span>
+            </div>
+          </div>
+        ) : (
+          <ChatPanel
+            messages={messages}
+            processing={chatProcessing}
+            onSend={handleSend}
+            onCollapse={() => setChatCollapsed(true)}
+            onConfirm={handleConfirmAction}
+            onCancelConfirm={handleCancelConfirm}
+          />
+        )}
       </div>
     </div>
   );

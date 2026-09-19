@@ -1,4 +1,6 @@
 import type { Bill, BudgetCategory, ChatMessage, FetyStore, Goal, Transaction, Account, TransactionType, TypeIconMap } from "../types/fety";
+import { applyBillScheduleToStore } from "./billScheduling";
+import { defaultTransactionTypes, typeIconsFromTransactionTypes } from "./transactionTypes";
 
 export const DEFAULT_TYPE_ICONS: TypeIconMap = {
   income: "💵",
@@ -50,10 +52,10 @@ const DEFAULT_CATEGORIES: BudgetCategory[] = [
 ];
 
 const DEFAULT_BILLS: Bill[] = [
-  { id: "b1", name: "Rent", amount: 2000, dueDay: 2, category: "Housing", icon: "🏠", autopay: true },
-  { id: "b2", name: "Electric", amount: 142, dueDay: 5, category: "Bills", icon: "⚡" },
-  { id: "b3", name: "Internet", amount: 65, dueDay: 14, category: "Bills", icon: "🌐" },
-  { id: "b4", name: "Phone", amount: 85, dueDay: 5, category: "Bills", icon: "📱" },
+  { id: "b1", name: "Rent", amount: 2000, dueDay: 2, frequency: "monthly", category: "Housing", icon: "🏠", autopay: true },
+  { id: "b2", name: "Electric", amount: 142, dueDay: 5, frequency: "monthly", category: "Bills", icon: "⚡" },
+  { id: "b3", name: "Internet", amount: 65, dueDay: 14, frequency: "monthly", category: "Bills", icon: "🌐" },
+  { id: "b4", name: "Phone", amount: 85, dueDay: 5, frequency: "monthly", category: "Bills", icon: "📱" },
 ];
 
 const DEFAULT_GOALS: Goal[] = [
@@ -69,8 +71,17 @@ const DEFAULT_ACCOUNTS: Account[] = [
   { id: "a3", name: "Visa Platinum", type: "Credit Card", balance: -614, icon: "💳" },
 ];
 
-export const DEFAULT_PINNED = [
+/** Former dashboard hero blocks — available in picker, not pinned by default. */
+export const OPTIONAL_HERO_WIDGET_IDS = [
+  "spending-power-hero",
   "weekly-power",
+  "stat-balance",
+  "stat-money-in",
+  "stat-money-out",
+  "stat-savings",
+];
+
+export const DEFAULT_PINNED = [
   "balance-chart",
   "monthly-spend-chart",
   "budget-remaining",
@@ -105,6 +116,8 @@ export function createEmptyStore(): FetyStore {
     ],
     pinnedWidgets: DEFAULT_PINNED,
     typeIcons: { ...DEFAULT_TYPE_ICONS },
+    transactionTypes: defaultTransactionTypes(),
+    heroBlocksOptional: true,
   };
 }
 
@@ -126,6 +139,8 @@ export function createDefaultStore(): FetyStore {
     messages: SEED_MESSAGES,
     pinnedWidgets: DEFAULT_PINNED,
     typeIcons: { ...DEFAULT_TYPE_ICONS },
+    transactionTypes: defaultTransactionTypes(),
+    heroBlocksOptional: true,
   };
 }
 
@@ -137,11 +152,23 @@ function migrateStore(store: FetyStore): FetyStore {
   if (!next.typeIcons) {
     next = { ...next, typeIcons: { ...DEFAULT_TYPE_ICONS } };
   }
-  const pinnedWidgets = next.pinnedWidgets.filter((id) => !id.startsWith("stat-"));
-  if (pinnedWidgets.length !== next.pinnedWidgets.length) {
-    next = { ...next, pinnedWidgets: pinnedWidgets.length > 0 ? pinnedWidgets : DEFAULT_PINNED };
+  if (!next.heroBlocksOptional) {
+    const filtered = next.pinnedWidgets.filter((id) => !OPTIONAL_HERO_WIDGET_IDS.includes(id));
+    next = {
+      ...next,
+      pinnedWidgets: filtered.length > 0 ? filtered : DEFAULT_PINNED,
+      heroBlocksOptional: true,
+    };
   }
-  return next;
+  next = {
+    ...next,
+    bills: next.bills.map((b) => ({ ...b, frequency: b.frequency ?? "monthly" })),
+  };
+  if (!next.transactionTypes?.length) {
+    const types = defaultTransactionTypes(next.typeIcons);
+    next = { ...next, transactionTypes: types, typeIcons: typeIconsFromTransactionTypes(types) };
+  }
+  return applyBillScheduleToStore(next);
 }
 
 export function loadStore(): FetyStore {

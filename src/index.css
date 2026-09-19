@@ -147,6 +147,60 @@ html, body, #root {
   border-bottom: 1px solid var(--border);
   padding: 0 24px;
   flex-shrink: 0;
+  position: relative;
+  z-index: 40;
+}
+
+.fety-nav-actions {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-shrink: 0;
+  margin-left: auto;
+}
+
+.fety-nav-date {
+  font-size: 12px;
+  color: var(--ink-3);
+  white-space: nowrap;
+}
+
+.fety-nav-profile {
+  width: 30px;
+  height: 30px;
+  border-radius: var(--radius-ctrl);
+  background: var(--paper);
+  border: 1px solid var(--border);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--ink);
+  cursor: pointer;
+}
+
+.fety-nav-hamburger {
+  display: none;
+  align-items: center;
+  justify-content: center;
+  width: 40px;
+  height: 40px;
+  margin-left: auto;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-ctrl);
+  background: var(--surface);
+  color: var(--ink);
+  cursor: pointer;
+  flex-shrink: 0;
+}
+
+.fety-nav-backdrop {
+  display: none;
+}
+
+.fety-nav-drawer {
+  display: none;
 }
 
 .fety-nav-links {
@@ -198,9 +252,32 @@ html, body, #root {
 
 .fety-shell {
   display: flex;
+  flex-direction: row;
   height: 100%;
   background: var(--bg);
   overflow: hidden;
+}
+
+.fety-chat-dock {
+  flex-shrink: 0;
+  display: flex;
+  align-items: stretch;
+  align-self: stretch;
+  order: -1;
+}
+
+.fety-chat-mobile-backdrop {
+  display: none;
+}
+
+.fety-assistant-rail-inner {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.fety-assistant-rail-label {
+  display: none;
 }
 
 .fety-main-column {
@@ -228,6 +305,15 @@ html, body, #root {
 
 .fety-chat-panel {
   position: relative;
+  width: 300px;
+  flex-shrink: 0;
+  display: flex;
+  flex-direction: column;
+  background: var(--surface);
+  border-right: 1px solid var(--border);
+  height: 100%;
+  align-self: stretch;
+  overflow: hidden;
 }
 
 .fety-chat-toggle {
@@ -351,7 +437,7 @@ html, body, #root {
 
 @media (max-width: 768px) {
   .fety-logo {
-    margin-right: 16px;
+    margin-right: 0;
   }
 
   .fety-logo-word {
@@ -363,6 +449,77 @@ html, body, #root {
     font-size: 28px;
   }
 
+  .fety-nav {
+    padding: 0 14px;
+    justify-content: space-between;
+  }
+
+  .fety-nav-links,
+  .fety-nav-actions {
+    display: none;
+  }
+
+  .fety-nav-hamburger {
+    display: inline-flex;
+  }
+
+  .fety-nav-backdrop {
+    display: block;
+    position: fixed;
+    inset: 56px 0 0 0;
+    z-index: 45;
+    border: none;
+    background: rgba(0, 0, 0, 0.35);
+    cursor: pointer;
+  }
+
+  .fety-nav-drawer {
+    display: flex;
+    flex-direction: column;
+    position: absolute;
+    top: 56px;
+    left: 0;
+    right: 0;
+    z-index: 50;
+    background: var(--surface);
+    border-bottom: 1px solid var(--border);
+    padding: 12px 14px 16px;
+    box-shadow: 0 12px 32px rgba(0, 0, 0, 0.08);
+    max-height: calc(100vh - 56px);
+    overflow-y: auto;
+  }
+
+  .fety-nav-drawer-date {
+    font-size: 11px;
+    color: var(--ink-3);
+    font-family: var(--font-mono);
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    margin-bottom: 10px;
+    padding: 0 4px;
+  }
+
+  .fety-nav-drawer-link {
+    width: 100%;
+    text-align: left;
+    padding: 12px 12px;
+    border: none;
+    border-radius: var(--radius-inner);
+    background: transparent;
+    font-family: var(--font-mono);
+    font-size: 12px;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    color: var(--ink-2);
+    cursor: pointer;
+  }
+
+  .fety-nav-drawer-link-active {
+    background: var(--bg);
+    color: var(--ink);
+    font-weight: 500;
+  }
+
   .fety-main-scroll {
     padding: 16px 14px 40px !important;
   }
@@ -371,14 +528,90 @@ html, body, #root {
     flex-direction: column;
   }
 
+  .fety-main-column {
+    order: 1;
+    flex: 1;
+    min-height: 0;
+    padding-bottom: calc(56px + env(safe-area-inset-bottom, 0px));
+  }
+
+  .fety-chat-dock {
+    order: 2;
+    position: fixed;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    z-index: 60;
+    pointer-events: none;
+  }
+
+  .fety-chat-dock > * {
+    pointer-events: auto;
+  }
+
+  .fety-chat-mobile-backdrop {
+    display: block;
+    position: fixed;
+    inset: 0;
+    z-index: 55;
+    border: none;
+    background: rgba(0, 0, 0, 0.4);
+    cursor: pointer;
+    pointer-events: auto;
+  }
+
+  .fety-chat-dock-collapsed .fety-chat-mobile-backdrop {
+    display: none;
+  }
+
   .fety-assistant-rail {
+    position: relative;
     width: 100%;
-    height: 48px;
+    height: calc(56px + env(safe-area-inset-bottom, 0px));
     flex-direction: row;
     justify-content: center;
+    align-items: center;
     border-right: none;
-    border-bottom: 1px solid var(--border);
-    padding: 8px 12px;
+    border-top: 1px solid var(--border);
+    border-bottom: none;
+    padding: 8px 16px;
+    padding-bottom: calc(8px + env(safe-area-inset-bottom, 0px));
+    background: var(--surface);
+    box-shadow: 0 -4px 20px rgba(0, 0, 0, 0.06);
+  }
+
+  .fety-assistant-rail-inner {
+    gap: 10px;
+    width: 100%;
+    max-width: 420px;
+    height: 40px;
+    border-radius: 10px;
+    border: 1px solid var(--border);
+    background: var(--bg);
+  }
+
+  .fety-assistant-rail-label {
+    display: inline;
+    font-size: 13px;
+    font-weight: 600;
+    color: var(--ink);
+  }
+
+  .fety-chat-dock-open .fety-chat-panel {
+    position: relative;
+    z-index: 61;
+    width: 100% !important;
+    height: min(75vh, 560px) !important;
+    max-height: calc(100vh - 48px);
+    border-right: none;
+    border-top: 1px solid var(--border);
+    border-radius: 16px 16px 0 0;
+    box-shadow: 0 -16px 48px rgba(0, 0, 0, 0.14);
+    animation: fety-chat-slide-up 0.28s ease-out;
+  }
+
+  .fety-chat-dock-open .fety-chat-toggle {
+    opacity: 1;
   }
 
   .fety-calendar-body {
@@ -405,6 +638,15 @@ html, body, #root {
     width: 100%;
     height: 28px;
     padding: 4px;
+  }
+}
+
+@keyframes fety-chat-slide-up {
+  from {
+    transform: translateY(100%);
+  }
+  to {
+    transform: translateY(0);
   }
 }
 

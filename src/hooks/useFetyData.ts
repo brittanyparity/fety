@@ -1,17 +1,29 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { computeSummary } from "../lib/fetyCalculations";
+import {
+  applyBillScheduleToStore,
+  parseScheduledBillId,
+  skipKeyForBillOccurrence,
+} from "../lib/billScheduling";
 import { loadStore, newId, saveStore, resetStore as resetStored, resetToEmptyStore } from "../lib/fetyStorage";
+import {
+  flowForTransactionType,
+  iconForTransactionType,
+  signAmountForFlow,
+  typeIconsFromTransactionTypes,
+} from "../lib/transactionTypes";
 import type {
   Account,
   Bill,
   BudgetCategory,
   ChatMessage,
   FetyStore,
+  FetyTransactionType,
   Goal,
   Transaction,
+  TransactionFlow,
   TransactionType,
   UserProfile,
-  TypeIconMap,
 } from "../types/fety";
 
 export function useFetyData() {
@@ -24,7 +36,7 @@ export function useFetyData() {
   const summary = useMemo(() => computeSummary(store), [store]);
 
   const patch = useCallback((fn: (prev: FetyStore) => FetyStore) => {
-    setStore((prev) => fn(prev));
+    setStore((prev) => applyBillScheduleToStore(fn(prev)));
   }, []);
 
   const addTransaction = useCallback(
@@ -36,21 +48,16 @@ export function useFetyData() {
       dateISO?: string;
       icon?: string;
     }) => {
-      const signed =
-        input.type === "income"
-          ? Math.abs(input.amount)
-          : input.type === "transfer"
-            ? -Math.abs(input.amount)
-            : -Math.abs(input.amount);
       let created: Transaction | null = null;
       patch((prev) => {
-        const icon = input.icon ?? prev.typeIcons[input.type] ?? "💬";
+        const flow = flowForTransactionType(prev, input.type);
+        const icon = input.icon ?? iconForTransactionType(prev, input.type);
         const tx: Transaction = {
           id: newId("tx"),
           dateISO: input.dateISO ?? new Date().toISOString().slice(0, 10),
           desc: input.desc,
           category: input.category,
-          amount: signed,
+          amount: signAmountForFlow(flow, input.amount),
           type: input.type,
           icon,
         };
@@ -64,10 +71,19 @@ export function useFetyData() {
 
   const deleteTransaction = useCallback(
     (id: string) => {
-      patch((prev) => ({
-        ...prev,
-        transactions: prev.transactions.filter((t) => t.id !== id),
-      }));
+      patch((prev) => {
+        const parsed = parseScheduledBillId(id);
+        const skipped = [...(prev.skippedBillOccurrences ?? [])];
+        if (parsed) {
+          const key = skipKeyForBillOccurrence(parsed.billId, parsed.dateISO);
+          if (!skipped.includes(key)) skipped.push(key);
+        }
+        return {
+          ...prev,
+          skippedBillOccurrences: skipped,
+          transactions: prev.transactions.filter((t) => t.id !== id),
+        };
+      });
     },
     [patch],
   );
@@ -82,12 +98,8 @@ export function useFetyData() {
           if (updates.amount !== undefined || updates.type !== undefined) {
             const type = updates.type ?? t.type;
             const raw = updates.amount !== undefined ? updates.amount : Math.abs(t.amount);
-            next.amount =
-              type === "income"
-                ? Math.abs(raw)
-                : type === "transfer"
-                  ? -Math.abs(raw)
-                  : -Math.abs(raw);
+            const flow = flowForTransactionType(prev, type);
+            next.amount = signAmountForFlow(flow, raw);
             next.type = type;
           }
           return next;
@@ -98,7 +110,7 @@ export function useFetyData() {
   );
 
   const updateBill = useCallback(
-    (id: string, updates: Partial<Pick<Bill, "name" | "amount" | "dueDay" | "category" | "icon">>) => {
+    (id: string, updates: Partial<Pick<Bill, "name" | "amount" | "dueDay" | "frequency" | "category" | "icon">>) => {
       patch((prev) => ({
         ...prev,
         bills: prev.bills.map((b) => (b.id === id ? { ...b, ...updates } : b)),
@@ -210,8 +222,70 @@ export function useFetyData() {
     [patch],
   );
 
+  const addAccount = useCallback(
+    (input: Omit<Account, "id">) => {
+      patch((prev) => ({
+        ...prev,
+        accounts: [...prev.accounts, { ...input, id: newId("acct") }],
+      }));
+    },
+    [patch],
+  );
+
+  const deleteAccount = useCallback(
+    (id: string) => {
+      patch((prev) => ({ ...prev, accounts: prev.accounts.filter((a) => a.id !== id) }));
+    },
+    [patch],
+  );
+
+  const addTransactionType = useCallback(
+    (input: { name: string; icon: string; flow: TransactionFlow }) => {
+      patch((prev) => {
+        const types = [...(prev.transactionTypes ?? []), {
+          id: newId("ttype"),
+          name: input.name.trim(),
+          icon: input.icon || "🏷️",
+          flow: input.flow,
+        }];
+        return { ...prev, transactionTypes: types, typeIcons: typeIconsFromTransactionTypes(types) };
+      });
+    },
+    [patch],
+  );
+
+  const updateTransactionType = useCallback(
+    (id: string, updates: Partial<Pick<FetyTransactionType, "name" | "icon" | "flow">>) => {
+      patch((prev) => {
+        const types = (prev.transactionTypes ?? []).map((t) => {
+          if (t.id !== id) return t;
+          if (t.locked && updates.flow !== undefined) {
+            const { flow: _flow, ...rest } = updates;
+            return { ...t, ...rest, name: rest.name?.trim() ?? t.name };
+          }
+          return { ...t, ...updates, name: updates.name !== undefined ? updates.name.trim() : t.name };
+        });
+        return { ...prev, transactionTypes: types, typeIcons: typeIconsFromTransactionTypes(types) };
+      });
+    },
+    [patch],
+  );
+
+  const deleteTransactionType = useCallback(
+    (id: string) => {
+      patch((prev) => {
+        if (prev.transactions.some((t) => t.type === id)) return prev;
+        const target = (prev.transactionTypes ?? []).find((t) => t.id === id);
+        if (!target || target.locked) return prev;
+        const types = (prev.transactionTypes ?? []).filter((t) => t.id !== id);
+        return { ...prev, transactionTypes: types, typeIcons: typeIconsFromTransactionTypes(types) };
+      });
+    },
+    [patch],
+  );
+
   const updateTypeIcons = useCallback(
-    (typeIcons: TypeIconMap) => {
+    (typeIcons: import("../types/fety").TypeIconMap) => {
       patch((prev) => ({ ...prev, typeIcons: { ...typeIcons } }));
     },
     [patch],
@@ -266,6 +340,8 @@ export function useFetyData() {
     deleteGoal,
     updateProfile,
     updateAccount,
+    addAccount,
+    deleteAccount,
     addMessage,
     setPinnedWidgets,
     resetAll,
@@ -275,5 +351,8 @@ export function useFetyData() {
     replaceBills,
     importTransactionsBulk,
     updateTypeIcons,
+    addTransactionType,
+    updateTransactionType,
+    deleteTransactionType,
   };
 }
