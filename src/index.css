@@ -129,7 +129,7 @@ html, body, #root {
 }
 
 .fety-logo-word {
-  font-size: clamp(36px, 4vw, 44px);
+  font-size: clamp(28px, 3.2vw, 34px);
   letter-spacing: 0.02em;
 }
 
@@ -224,6 +224,48 @@ html, body, #root {
   align-self: stretch;
 }
 
+.fety-chat-panel {
+  position: relative;
+}
+
+.fety-chat-toggle {
+  position: absolute;
+  top: 10px;
+  right: 10px;
+  z-index: 3;
+  width: 30px;
+  height: 30px;
+  border-radius: 9px;
+  border: 1px solid var(--border);
+  background: var(--surface);
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  opacity: 0;
+  transition: opacity 0.15s, background 0.15s;
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.06);
+}
+
+.fety-chat-panel:hover .fety-chat-toggle,
+.fety-chat-toggle:focus-visible {
+  opacity: 1;
+}
+
+.fety-chat-toggle:hover {
+  background: var(--bg);
+}
+
+.fety-yearly-dow {
+  position: sticky;
+  top: 0;
+  z-index: 2;
+  background: var(--bg);
+  padding: 6px 0 8px;
+  margin-bottom: 4px;
+  border-bottom: 1px solid var(--border);
+}
+
 @media (max-width: 768px) {
   .fety-logo {
     margin-right: 16px;
@@ -235,6 +277,7 @@ html, body, #root {
 
   .fety-logo-mark {
     display: block;
+    font-size: 28px;
   }
 }
 

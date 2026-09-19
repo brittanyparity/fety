@@ -1,6 +1,7 @@
 import { useState } from "react";
 import type { Bill, BudgetCategory, CategoryWithSpent, Goal, Transaction, TransactionType } from "../types/fety";
 import { formatDisplayDate, todayISO } from "../lib/fetyCalculations";
+import { EditableNumber, EditableText } from "../components/EditableField";
 
 const usd = (n: number) =>
   new Intl.NumberFormat("en-US", { style: "currency", currency: "USD", maximumFractionDigits: 0 }).format(Math.abs(n));
@@ -24,6 +25,7 @@ export function BudgetManageView({
   bills,
   viewMode,
   onUpdateBudget,
+  onUpdateBill,
   onAddBill,
   onDeleteBill,
 }: {
@@ -31,6 +33,7 @@ export function BudgetManageView({
   bills: Bill[];
   viewMode: ViewMode;
   onUpdateBudget: (id: string, monthlyBudget: number) => void;
+  onUpdateBill: (id: string, updates: Partial<Pick<Bill, "name" | "amount" | "dueDay" | "category">>) => void;
   onAddBill: (bill: Omit<Bill, "id">) => void;
   onDeleteBill: (id: string) => void;
 }) {
@@ -83,14 +86,12 @@ export function BudgetManageView({
                 <span style={{ fontSize: 13, fontWeight: 600 }}>{c.name}</span>
                 {over && <span style={{ fontSize: 9, color: "var(--trouble-dk)", background: "#FFECE8", padding: "2px 6px", borderRadius: 99 }}>Over</span>}
               </div>
-              <label className="fety-label" style={{ display: "block", marginBottom: 4 }}>Monthly cap</label>
-              <input
-                type="number"
-                min={0}
-                step={1}
+              <EditableNumber
+                label="Monthly cap"
                 value={c.monthlyBudget}
-                onChange={(e) => onUpdateBudget(c.id, parseFloat(e.target.value) || 0)}
-                style={inputStyle}
+                format={usd}
+                onSave={(n) => onUpdateBudget(c.id, n)}
+                valueStyle={{ fontSize: 18 }}
               />
               <p style={{ fontSize: 11, color: "var(--ink-3)", marginTop: 8 }}>
                 Spent {usd(c.spent)} · {over ? `${usd(c.spent - c.monthlyBudget)} over` : `${usd(c.monthlyBudget - c.spent)} left`}
@@ -107,14 +108,19 @@ export function BudgetManageView({
         <p className="fety-label-strong" style={{ marginBottom: 12 }}>Bills</p>
         <div style={{ display: "flex", flexDirection: "column", gap: 8, marginBottom: 14 }}>
           {bills.map((b) => (
-            <div key={b.id} style={{ display: "flex", alignItems: "center", gap: 12, padding: "8px 0", borderBottom: "1px solid var(--border-soft)" }}>
-              <span>{b.icon}</span>
-              <div style={{ flex: 1 }}>
-                <p style={{ fontSize: 13, fontWeight: 600 }}>{b.name}</p>
-                <p style={{ fontSize: 10, color: "var(--ink-3)" }}>Due day {b.dueDay} · {b.category}</p>
+            <div key={b.id} style={{ padding: "12px 0", borderBottom: "1px solid var(--border-soft)" }}>
+              <div style={{ display: "flex", alignItems: "flex-start", gap: 10 }}>
+                <span style={{ fontSize: 18, marginTop: 4 }}>{b.icon}</span>
+                <div style={{ flex: 1, minWidth: 0 }}>
+                  <EditableText label="Bill name" value={b.name} onSave={(name) => onUpdateBill(b.id, { name })} />
+                  <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10, marginTop: 4 }}>
+                    <EditableNumber label="Amount" value={b.amount} format={usd} onSave={(amount) => onUpdateBill(b.id, { amount })} valueStyle={{ fontSize: 16 }} />
+                    <EditableNumber label="Due day" value={b.dueDay} onSave={(dueDay) => onUpdateBill(b.id, { dueDay: Math.min(31, Math.max(1, Math.round(dueDay))) })} valueStyle={{ fontSize: 16 }} step={1} />
+                  </div>
+                  <EditableText label="Category" value={b.category} onSave={(category) => onUpdateBill(b.id, { category })} valueStyle={{ fontSize: 12 }} />
+                </div>
+                <button type="button" onClick={() => onDeleteBill(b.id)} style={{ border: "none", background: "transparent", color: "var(--ink-3)", cursor: "pointer", fontSize: 11, flexShrink: 0 }}>Remove</button>
               </div>
-              <span style={{ fontSize: 14 }}>{usd(b.amount)}</span>
-              <button type="button" onClick={() => onDeleteBill(b.id)} style={{ border: "none", background: "transparent", color: "var(--ink-3)", cursor: "pointer", fontSize: 11 }}>Remove</button>
             </div>
           ))}
         </div>
@@ -147,15 +153,22 @@ export function TransactionsManageView({
   categories,
   viewMode,
   onAdd,
+  onUpdate,
   onDelete,
 }: {
   transactions: Transaction[];
   categories: BudgetCategory[];
   viewMode: ViewMode;
   onAdd: (input: { desc: string; amount: number; type: TransactionType; category: string; dateISO?: string; icon?: string }) => void;
+  onUpdate: (id: string, updates: Partial<Pick<Transaction, "desc" | "amount" | "type" | "category" | "dateISO">>) => void;
   onDelete: (id: string) => void;
 }) {
   const [filter, setFilter] = useState("All");
+  const [editId, setEditId] = useState<string | null>(null);
+  const [editDesc, setEditDesc] = useState("");
+  const [editAmount, setEditAmount] = useState("");
+  const [editType, setEditType] = useState<TransactionType>("expense");
+  const [editCategory, setEditCategory] = useState("Other");
   const [desc, setDesc] = useState("");
   const [amount, setAmount] = useState("");
   const [type, setType] = useState<TransactionType>("expense");
@@ -231,15 +244,62 @@ export function TransactionsManageView({
             </div>
             {txns.map((t) => (
               <div key={t.id} style={{ display: "flex", alignItems: "center", padding: "12px 18px", borderTop: "1px solid var(--border)", gap: 12 }}>
-                <div style={{ width: 36, height: 36, borderRadius: 11, background: "var(--paper)", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 16 }}>{t.icon}</div>
-                <div style={{ flex: 1, minWidth: 0 }}>
-                  <p style={{ fontSize: 13, fontWeight: 600, color: "var(--ink)" }}>{t.desc}</p>
-                  <p style={{ fontSize: 10, color: "var(--ink-3)" }}>{t.category}</p>
-                </div>
-                <span style={{ fontSize: 13, fontWeight: 500, color: t.amount >= 0 ? "var(--clear-dk)" : "var(--trouble-dk)" }}>
-                  {t.amount >= 0 ? "+" : ""}{usdF(t.amount)}
-                </span>
-                <button type="button" onClick={() => onDelete(t.id)} style={{ border: "none", background: "transparent", color: "var(--ink-3)", cursor: "pointer", fontSize: 11 }}>Delete</button>
+                {editId === t.id ? (
+                  <div style={{ flex: 1, display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(100px, 1fr))", gap: 8, alignItems: "end" }}>
+                    <input value={editDesc} onChange={(e) => setEditDesc(e.target.value)} style={inputStyle} placeholder="Description" />
+                    <input value={editAmount} onChange={(e) => setEditAmount(e.target.value)} type="number" step="0.01" style={inputStyle} />
+                    <select value={editType} onChange={(e) => setEditType(e.target.value as TransactionType)} style={inputStyle}>
+                      <option value="expense">Expense</option>
+                      <option value="income">Income</option>
+                      <option value="transfer">Transfer</option>
+                      <option value="bill">Bill</option>
+                    </select>
+                    <select value={editCategory} onChange={(e) => setEditCategory(e.target.value)} style={inputStyle}>
+                      {[...categories.map((c) => c.name), "Income", "Savings", "Other"].filter((v, i, a) => a.indexOf(v) === i).map((name) => (
+                        <option key={name} value={name}>{name}</option>
+                      ))}
+                    </select>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        const n = parseFloat(editAmount);
+                        if (editDesc.trim() && Number.isFinite(n)) {
+                          onUpdate(t.id, { desc: editDesc.trim(), amount: n, type: editType, category: editCategory });
+                          setEditId(null);
+                        }
+                      }}
+                      style={{ padding: "8px 12px", borderRadius: "var(--radius-ctrl)", border: "none", background: "var(--ink)", color: "#fff", fontWeight: 600, cursor: "pointer" }}
+                    >
+                      Save
+                    </button>
+                    <button type="button" onClick={() => setEditId(null)} style={{ padding: "8px 12px", borderRadius: "var(--radius-ctrl)", border: "1px solid var(--border)", background: "transparent", cursor: "pointer" }}>Cancel</button>
+                  </div>
+                ) : (
+                  <>
+                    <div style={{ width: 36, height: 36, borderRadius: 11, background: "var(--paper)", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 16 }}>{t.icon}</div>
+                    <div style={{ flex: 1, minWidth: 0 }}>
+                      <p style={{ fontSize: 13, fontWeight: 600, color: "var(--ink)" }}>{t.desc}</p>
+                      <p style={{ fontSize: 10, color: "var(--ink-3)" }}>{t.category}</p>
+                    </div>
+                    <span style={{ fontSize: 13, fontWeight: 500, color: t.amount >= 0 ? "var(--clear-dk)" : "var(--trouble-dk)" }}>
+                      {t.amount >= 0 ? "+" : ""}{usdF(t.amount)}
+                    </span>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setEditId(t.id);
+                        setEditDesc(t.desc);
+                        setEditAmount(String(Math.abs(t.amount)));
+                        setEditType(t.type);
+                        setEditCategory(t.category);
+                      }}
+                      style={{ border: "none", background: "transparent", color: "var(--ink-3)", cursor: "pointer", fontSize: 11 }}
+                    >
+                      Edit
+                    </button>
+                    <button type="button" onClick={() => onDelete(t.id)} style={{ border: "none", background: "transparent", color: "var(--ink-3)", cursor: "pointer", fontSize: 11 }}>Delete</button>
+                  </>
+                )}
               </div>
             ))}
           </div>
@@ -300,20 +360,17 @@ export function GoalsManageView({
             <div key={g.id} style={{ background: "var(--surface)", borderRadius: 16, padding: "20px 22px", border: "1px solid var(--border)" }}>
               <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 12 }}>
                 <span style={{ fontSize: 22 }}>{g.icon}</span>
-                <div style={{ flex: 1 }}>
-                  <p style={{ fontSize: 14, fontWeight: 600 }}>{g.name}</p>
-                  <p style={{ fontSize: 10, color: "var(--ink-3)" }}>Target {g.targetDate}</p>
+              <div style={{ flex: 1 }}>
+                  <EditableText label="Goal name" value={g.name} onSave={(name) => onUpdate(g.id, { name })} valueStyle={{ fontSize: 14, fontWeight: 600 }} />
+                  <p style={{ fontSize: 10, color: "var(--ink-3)", marginTop: -4, marginBottom: 8 }}>Target {g.targetDate}</p>
                 </div>
                 <button type="button" onClick={() => onDelete(g.id)} style={{ border: "none", background: "transparent", color: "var(--ink-3)", cursor: "pointer", fontSize: 11 }}>Remove</button>
               </div>
-              <label className="fety-label" style={{ display: "block", marginBottom: 4 }}>Saved amount</label>
-              <input
-                type="number"
-                value={g.saved}
-                onChange={(e) => onUpdate(g.id, { saved: parseFloat(e.target.value) || 0 })}
-                style={{ ...inputStyle, marginBottom: 8 }}
-              />
-              <p style={{ fontSize: 12, color: "var(--ink-2)" }}>{pct}% of {usd(g.target)}</p>
+              <EditableNumber label="Saved" value={g.saved} format={usd} onSave={(saved) => onUpdate(g.id, { saved })} valueStyle={{ fontSize: 18 }} />
+              <div style={{ marginTop: 8 }}>
+                <EditableNumber label="Target" value={g.target} format={usd} onSave={(target) => onUpdate(g.id, { target })} valueStyle={{ fontSize: 16 }} />
+              </div>
+              <p style={{ fontSize: 12, color: "var(--ink-2)", marginTop: 8 }}>{pct}% of target</p>
               <div style={{ height: 6, background: "var(--paper)", borderRadius: 99, marginTop: 8, overflow: "hidden" }}>
                 <div style={{ width: `${Math.min(pct, 100)}%`, height: "100%", background: "var(--later)" }} />
               </div>
@@ -344,40 +401,23 @@ export function SettingsManageView({
   onUpdateProfile,
   onUpdateAccount,
   onReset,
+  onRestartSetup,
 }: {
   profile: { displayName: string; email: string; currency: string; startingBalance: number };
   accounts: { id: string; name: string; type: string; balance: number; icon: string }[];
   onUpdateProfile: (u: Partial<{ displayName: string; email: string; currency: string; startingBalance: number }>) => void;
   onUpdateAccount: (id: string, u: Partial<{ name: string; type: string; balance: number }>) => void;
   onReset: () => void;
+  onRestartSetup?: () => void;
 }) {
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 16, maxWidth: 560 }}>
       <div style={{ background: "var(--surface)", borderRadius: 14, border: "1px solid var(--border)", padding: "18px 20px" }}>
         <p className="fety-label-strong" style={{ marginBottom: 12 }}>Profile</p>
-        {[
-          { key: "displayName" as const, label: "Display name" },
-          { key: "email" as const, label: "Email" },
-          { key: "currency" as const, label: "Currency" },
-        ].map((f) => (
-          <div key={f.key} style={{ marginBottom: 10 }}>
-            <label className="fety-label" style={{ display: "block", marginBottom: 4 }}>{f.label}</label>
-            <input
-              value={profile[f.key]}
-              onChange={(e) => onUpdateProfile({ [f.key]: e.target.value })}
-              style={inputStyle}
-            />
-          </div>
-        ))}
-        <div>
-          <label className="fety-label" style={{ display: "block", marginBottom: 4 }}>Starting balance (baseline)</label>
-          <input
-            type="number"
-            value={profile.startingBalance}
-            onChange={(e) => onUpdateProfile({ startingBalance: parseFloat(e.target.value) || 0 })}
-            style={inputStyle}
-          />
-        </div>
+        <EditableText label="Display name" value={profile.displayName} onSave={(displayName) => onUpdateProfile({ displayName })} />
+        <EditableText label="Email" value={profile.email} type="email" onSave={(email) => onUpdateProfile({ email })} />
+        <EditableText label="Currency" value={profile.currency} onSave={(currency) => onUpdateProfile({ currency })} />
+        <EditableNumber label="Starting balance (baseline)" value={profile.startingBalance} format={usd} onSave={(startingBalance) => onUpdateProfile({ startingBalance })} />
       </div>
 
       <div style={{ background: "var(--surface)", borderRadius: 14, border: "1px solid var(--border)", overflow: "hidden" }}>
@@ -385,17 +425,22 @@ export function SettingsManageView({
           <p className="fety-label-strong">Accounts</p>
         </div>
         {accounts.map((a, i) => (
-          <div key={a.id} style={{ padding: "12px 18px", borderTop: i > 0 ? "1px solid var(--border)" : undefined, display: "grid", gridTemplateColumns: "1fr 1fr 100px", gap: 8 }}>
-            <input value={a.name} onChange={(e) => onUpdateAccount(a.id, { name: e.target.value })} style={inputStyle} />
-            <input value={a.type} onChange={(e) => onUpdateAccount(a.id, { type: e.target.value })} style={inputStyle} />
-            <input type="number" value={a.balance} onChange={(e) => onUpdateAccount(a.id, { balance: parseFloat(e.target.value) || 0 })} style={inputStyle} />
+          <div key={a.id} style={{ padding: "14px 18px", borderTop: i > 0 ? "1px solid var(--border)" : undefined }}>
+            <EditableText label="Account name" value={a.name} onSave={(name) => onUpdateAccount(a.id, { name })} />
+            <EditableText label="Type" value={a.type} onSave={(type) => onUpdateAccount(a.id, { type })} valueStyle={{ fontSize: 12 }} />
+            <EditableNumber label="Balance" value={a.balance} format={usd} onSave={(balance) => onUpdateAccount(a.id, { balance })} valueStyle={{ fontSize: 18 }} />
           </div>
         ))}
       </div>
 
-      <button type="button" onClick={() => { if (confirm("Reset all local data to defaults?")) onReset(); }} style={{ padding: "10px 16px", borderRadius: "var(--radius-ctrl)", border: "1px solid var(--trouble-dk)", background: "transparent", color: "var(--trouble-dk)", cursor: "pointer", fontWeight: 600 }}>
-        Reset local data
+      <button type="button" onClick={() => { if (confirm("Reset all local data to demo sample data?")) onReset(); }} style={{ padding: "10px 16px", borderRadius: "var(--radius-ctrl)", border: "1px solid var(--trouble-dk)", background: "transparent", color: "var(--trouble-dk)", cursor: "pointer", fontWeight: 600 }}>
+        Load demo sample data
       </button>
+      {onRestartSetup && (
+        <button type="button" onClick={onRestartSetup} style={{ padding: "10px 16px", borderRadius: "var(--radius-ctrl)", border: "1px solid var(--border)", background: "var(--surface)", color: "var(--ink)", cursor: "pointer", fontWeight: 600 }}>
+          Run setup wizard again
+        </button>
+      )}
     </div>
   );
 }

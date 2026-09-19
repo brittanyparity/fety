@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { computeSummary } from "../lib/fetyCalculations";
-import { loadStore, newId, saveStore, resetStore as resetStored } from "../lib/fetyStorage";
+import { loadStore, newId, saveStore, resetStore as resetStored, resetToEmptyStore } from "../lib/fetyStorage";
 import type {
   Account,
   Bill,
@@ -61,6 +61,41 @@ export function useFetyData() {
       patch((prev) => ({
         ...prev,
         transactions: prev.transactions.filter((t) => t.id !== id),
+      }));
+    },
+    [patch],
+  );
+
+  const updateTransaction = useCallback(
+    (id: string, updates: Partial<Pick<Transaction, "desc" | "amount" | "type" | "category" | "dateISO" | "icon">>) => {
+      patch((prev) => ({
+        ...prev,
+        transactions: prev.transactions.map((t) => {
+          if (t.id !== id) return t;
+          const next = { ...t, ...updates };
+          if (updates.amount !== undefined || updates.type !== undefined) {
+            const type = updates.type ?? t.type;
+            const raw = updates.amount !== undefined ? updates.amount : Math.abs(t.amount);
+            next.amount =
+              type === "income"
+                ? Math.abs(raw)
+                : type === "transfer"
+                  ? -Math.abs(raw)
+                  : -Math.abs(raw);
+            next.type = type;
+          }
+          return next;
+        }),
+      }));
+    },
+    [patch],
+  );
+
+  const updateBill = useCallback(
+    (id: string, updates: Partial<Pick<Bill, "name" | "amount" | "dueDay" | "category" | "icon">>) => {
+      patch((prev) => ({
+        ...prev,
+        bills: prev.bills.map((b) => (b.id === id ? { ...b, ...updates } : b)),
       }));
     },
     [patch],
@@ -173,11 +208,42 @@ export function useFetyData() {
     setStore(resetStored());
   }, []);
 
+  const startFreshSetup = useCallback(() => {
+    setStore(resetToEmptyStore());
+  }, []);
+
+  const completeOnboarding = useCallback(() => {
+    patch((prev) => ({ ...prev, onboardingCompleted: true }));
+  }, [patch]);
+
+  const replaceCategories = useCallback((categories: BudgetCategory[]) => {
+    patch((prev) => ({ ...prev, categories }));
+  }, [patch]);
+
+  const replaceBills = useCallback((bills: Bill[]) => {
+    patch((prev) => ({ ...prev, bills }));
+  }, [patch]);
+
+  const importTransactionsBulk = useCallback(
+    (inputs: Omit<Transaction, "id">[]) => {
+      patch((prev) => ({
+        ...prev,
+        transactions: [
+          ...inputs.map((t) => ({ ...t, id: newId("tx") })),
+          ...prev.transactions,
+        ],
+      }));
+    },
+    [patch],
+  );
+
   return {
     store,
     summary,
     addTransaction,
     deleteTransaction,
+    updateTransaction,
+    updateBill,
     updateCategoryBudget,
     addCategory,
     addBill,
@@ -190,5 +256,10 @@ export function useFetyData() {
     addMessage,
     setPinnedWidgets,
     resetAll,
+    startFreshSetup,
+    completeOnboarding,
+    replaceCategories,
+    replaceBills,
+    importTransactionsBulk,
   };
 }

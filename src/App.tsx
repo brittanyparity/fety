@@ -2,14 +2,18 @@ import { useState, useRef, useEffect, useCallback, useMemo } from "react";
 import { FetyLogo } from "./FetyLogo";
 import { DashboardHero } from "./components/DashboardHero";
 import { useFetyData } from "./hooks/useFetyData";
-import { buildCalendarMap, calendarFlowHeat, formatNavDate, maxAbsDailyNet } from "./lib/fetyCalculations";
-import type { CalDay, CalendarMap, FinanceSummary } from "./types/fety";
+import { buildCalendarMap, calendarFlowHeat, formatNavDate, maxAbsDailyNet, todayISO } from "./lib/fetyCalculations";
+import { ChatPanel, ChatExpandIcon } from "./components/ChatPanel";
+import { confirmAssistantAction, handleAssistantMessageWithDeps } from "./assistant/router";
+import type { ToolAction } from "./assistant/types";
+import type { BudgetCategory, CalDay, CalendarMap, ChatMessage, FinanceSummary, TransactionType } from "./types/fety";
 import {
   BudgetManageView,
   TransactionsManageView,
   GoalsManageView,
   SettingsManageView,
 } from "./views/ManageViews";
+import { OnboardingView } from "./views/OnboardingView";
 import {
   AreaChart, Area, BarChart, Bar,
   XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer,
@@ -20,14 +24,6 @@ import {
 type Page = "dashboard" | "budget" | "spending" | "goals" | "settings" | "calendar";
 type ViewMode = "cards" | "list";
 type CalView = "monthly" | "weekly" | "biweekly" | "daily" | "yearly";
-
-interface ChatMessage {
-  id: number;
-  role: "system" | "user";
-  text: string;
-  time: string;
-  tag?: string;
-}
 
 const CAL_KEY = (d: Date) => d.toISOString().slice(0, 10);
 
@@ -82,49 +78,12 @@ const goals = [
   { name: "New Car",        icon: "🚗", target: 20000, saved: 4000, color: "var(--later)", date: "Jan 2028", monthly: 500 },
 ];
 
-const SEED_MESSAGES: ChatMessage[] = [
-  { id: 1, role: "system", text: "Morning. You've got $140 of spending power this week — after every bill I know about.", time: "8:00 AM" },
-  { id: 2, role: "user",   text: "Just paid the electric bill, $142.", time: "8:14 AM" },
-  { id: 3, role: "system", text: "Logged to Bills. $10 left in that budget, and nothing else due this month.", time: "8:14 AM", tag: "Budget updated" },
-  { id: 4, role: "user",   text: "Groceries at Whole Foods, about $52.", time: "9:31 AM" },
-  { id: 5, role: "system", text: "Added $52 to Groceries. $128 left in that budget for September.", time: "9:31 AM", tag: "Transaction added" },
-  { id: 6, role: "user",   text: "Freelance payment of $350 came in today.", time: "11:02 AM" },
-  { id: 7, role: "system", text: "Recorded +$350 income. Spending power this week is now $140.", time: "11:02 AM", tag: "Income recorded" },
-];
-
-const getAutoReply = (msg: string): ChatMessage => {
-  const lower = msg.toLowerCase();
-  let text = "I've noted that. Your dashboard has been updated to reflect this.";
-  let tag: string | undefined = "Note saved";
-  if (/spent|paid|bought|purchased|charged/i.test(lower)) {
-    const match = msg.match(/\$[\d,.]+|\d+/);
-    const amt = match ? match[0] : "that amount";
-    text = `Logged ${amt} as an expense. Spending power adjusted.`;
-    tag = "Transaction added";
-  } else if (/income|received|paid me|deposit|paycheck|freelance/i.test(lower)) {
-    text = "Income recorded. Check the dashboard for updated spending power.";
-    tag = "Income recorded";
-  } else if (/transfer|moved|savings/i.test(lower)) {
-    text = "Logged as a transfer. Net spending power stays the same.";
-    tag = "Transfer logged";
-  } else if (/goal|saving for/i.test(lower)) {
-    text = "Goal update noted. Check your Goals tab for the latest progress.";
-    tag = "Goal updated";
-  } else if (/budget|limit|category/i.test(lower)) {
-    text = "Budget updated. Your Budget page reflects the new allocation.";
-    tag = "Budget updated";
-  }
-  const now = new Date();
-  return { id: Date.now(), role: "system", text, time: now.toLocaleTimeString([], { hour: "numeric", minute: "2-digit" }), tag };
-};
-
 // ─── Helpers ───────────────────────────────────────────────────────────────────
 const usd  = (n: number) => new Intl.NumberFormat("en-US", { style: "currency", currency: "USD", maximumFractionDigits: 0 }).format(Math.abs(n));
 const usdF = (n: number) => new Intl.NumberFormat("en-US", { style: "currency", currency: "USD", minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(Math.abs(n));
 const MONTHS = ["January","February","March","April","May","June","July","August","September","October","November","December"];
 const DAYS_SHORT = ["Sun","Mon","Tue","Wed","Thu","Fri","Sat"];
 
-// ─── Top Nav ───────────────────────────────────────────────────────────────────
 const NAV_ITEMS: { id: Page; label: string }[] = [
   { id: "dashboard", label: "Dashboard"    },
   { id: "calendar",  label: "Calendar"     },
@@ -637,88 +596,6 @@ function WidgetPicker({
 }
 
 
-// ─── Chat Panel ────────────────────────────────────────────────────────────────
-function ChatPanel({ messages, onSend, onCollapse }: { messages: ChatMessage[]; onSend: (t: string) => void; onCollapse: () => void }) {
-  const [draft, setDraft] = useState("");
-  const feedRef  = useRef<HTMLDivElement>(null);
-  const inputRef = useRef<HTMLTextAreaElement>(null);
-
-  useEffect(() => {
-    if (feedRef.current) feedRef.current.scrollTop = feedRef.current.scrollHeight;
-  }, [messages]);
-
-  const send = () => {
-    const t = draft.trim();
-    if (!t) return;
-    onSend(t);
-    setDraft("");
-    inputRef.current?.focus();
-  };
-
-  return (
-    <div style={{ width: 300, flexShrink: 0, display: "flex", flexDirection: "column", background: "var(--surface)", borderRight: "1px solid var(--border)", height: "100%", alignSelf: "stretch", overflow: "hidden" }}>
-      {/* Chat header with collapse button */}
-      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "12px 14px", borderBottom: "1px solid var(--border)", flexShrink: 0 }}>
-        <span style={{ fontSize: 12, fontWeight: 600, color: "var(--ink)" }}>Assistant</span>
-        <button onClick={onCollapse} title="Collapse chat" style={{ width: 24, height: 24, borderRadius: 7, border: "1px solid var(--border)", background: "var(--bg)", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center" }}>
-          <svg width="11" height="11" viewBox="0 0 11 11" fill="none"><path d="M7 2L4 5.5L7 9" stroke="var(--ink-3)" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/></svg>
-        </button>
-      </div>
-
-      <div ref={feedRef} style={{ flex: 1, overflowY: "auto", padding: "14px 14px 6px" }}>
-        {messages.map(msg => <ChatBubble key={msg.id} msg={msg} />)}
-      </div>
-
-      <div style={{ borderTop: "1px solid var(--border)", padding: "10px 12px", flexShrink: 0 }}>
-        <div style={{ display: "flex", gap: 8, alignItems: "flex-end", background: "var(--bg)", borderRadius: 14, padding: "8px 10px 8px 14px", border: "1px solid var(--border)" }}>
-          <textarea
-            ref={inputRef}
-            value={draft}
-            onChange={e => setDraft(e.target.value)}
-            onKeyDown={e => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); send(); } }}
-            placeholder="Share a spending update…"
-            rows={1}
-            style={{ flex: 1, resize: "none", border: "none", background: "transparent", fontSize: 12, color: "var(--ink)", fontFamily: "inherit", outline: "none", lineHeight: 1.5, maxHeight: 80, overflowY: "auto" }}
-          />
-          <button onClick={send} disabled={!draft.trim()} style={{ width: 30, height: 30, borderRadius: 99, border: "none", cursor: draft.trim() ? "pointer" : "default", background: draft.trim() ? "var(--ink)" : "var(--border)", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0, transition: "background 0.15s" }}>
-            <svg width="13" height="13" viewBox="0 0 13 13" fill="none"><path d="M6.5 11V2M2.5 6L6.5 2l4 4" stroke={draft.trim() ? "#fff" : "var(--ink-3)"} strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round"/></svg>
-          </button>
-        </div>
-        <p style={{ fontSize: 9, color: "var(--ink-3)", textAlign: "center", marginTop: 6 }}>Enter to send · Shift+Enter for new line</p>
-      </div>
-    </div>
-  );
-}
-
-function ChatBubble({ msg }: { msg: ChatMessage }) {
-  const isUser = msg.role === "user";
-  return (
-    <div style={{ display: "flex", flexDirection: "column", alignItems: isUser ? "flex-end" : "flex-start", marginBottom: 12 }}>
-      {!isUser && (
-        <div style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 4 }}>
-          <span className="fety-label" style={{ fontSize: 9, letterSpacing: "0.12em" }}>Assistant</span>
-          <span style={{ fontSize: 9, fontFamily: "var(--font-sans)", color: "var(--ink-3)" }}>{msg.time}</span>
-        </div>
-      )}
-      {isUser && (
-        <div style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 4 }}>
-          <span style={{ fontSize: 9, color: "var(--ink-3)" }}>{msg.time}</span>
-          <span style={{ fontSize: 10, fontWeight: 600, color: "var(--ink-2)" }}>You</span>
-          <div style={{ width: 20, height: 20, borderRadius: "var(--radius-marker)", background: "var(--lavender)", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 10, fontWeight: 600, color: "var(--lav-dk)" }}>A</div>
-        </div>
-      )}
-      <div style={{ maxWidth: "85%", background: isUser ? "var(--ink)" : "var(--paper)", color: isUser ? "#fff" : "var(--ink)", borderRadius: isUser ? "12px 12px 4px 12px" : "12px 12px 12px 4px", padding: "10px 12px", fontSize: 13, lineHeight: 1.55, border: isUser ? "none" : "1px solid var(--border)" }}>
-        {msg.text}
-      </div>
-      {msg.tag && (
-        <div style={{ marginTop: 4, fontSize: 9, fontWeight: 600, color: "var(--lime-dk)", background: "#E8F5EE", padding: "2px 8px", borderRadius: 99 }}>
-          ✓ {msg.tag}
-        </div>
-      )}
-    </div>
-  );
-}
-
 // ─── Right Icon Panel ──────────────────────────────────────────────────────────
 function RightPanel({
   viewMode, setViewMode, chatCollapsed, setChatCollapsed, onCalendar,
@@ -796,15 +673,43 @@ function RightPanel({
 
 // ─── Calendar View ─────────────────────────────────────────────────────────────
 function CalendarView({ onBack: _onBack }: { onBack: () => void }) {
-  const { store } = useFetyData();
+  const { store, addTransaction, updateTransaction, deleteTransaction } = useFetyData();
   const [calView, setCalView] = useState<CalView>("monthly");
   const [focusDate, setFocusDate] = useState(() => new Date());
   const [selected, setSelected] = useState<string | null>(() => CAL_KEY(new Date()));
+  const [scrollToKey, setScrollToKey] = useState<string | null>(null);
+  const dayCellRefs = useRef<Map<string, HTMLButtonElement>>(new Map());
+
+  const registerDayRef = useCallback((key: string, el: HTMLButtonElement | null) => {
+    if (el) dayCellRefs.current.set(key, el);
+    else dayCellRefs.current.delete(key);
+  }, []);
 
   const fmt = (d: Date) => `${MONTHS[d.getMonth()]} ${d.getFullYear()}`;
   const year = focusDate.getFullYear();
   const calendarMap = useMemo(() => buildCalendarMap(store, year), [store, year]);
   const maxAbsNet = useMemo(() => maxAbsDailyNet(calendarMap, year), [calendarMap, year]);
+
+  useEffect(() => {
+    if (!scrollToKey || calView !== "yearly") return;
+    const timer = window.setTimeout(() => {
+      dayCellRefs.current.get(scrollToKey)?.scrollIntoView({ block: "center", behavior: "smooth" });
+      setScrollToKey(null);
+    }, 80);
+    return () => window.clearTimeout(timer);
+  }, [scrollToKey, calView, calendarMap]);
+
+  const jumpToDateISO = useCallback(
+    (iso: string) => {
+      const d = new Date(`${iso}T12:00:00`);
+      if (!Number.isNaN(d.getTime())) {
+        if (d.getFullYear() !== year) setFocusDate(d);
+        setSelected(iso);
+        if (calView === "yearly") setScrollToKey(iso);
+      }
+    },
+    [calView, year],
+  );
 
   const addMonth = (n: number) => setFocusDate((p) => { const d = new Date(p); d.setMonth(d.getMonth() + n); return d; });
   const addWeek = (n: number) => setFocusDate((p) => { const d = new Date(p); d.setDate(d.getDate() + n * 7); return d; });
@@ -882,12 +787,30 @@ function CalendarView({ onBack: _onBack }: { onBack: () => void }) {
           {calView === "biweekly" && <WeeklyCalGrid anchor={focusDate} days={14} calendarMap={calendarMap} selected={selected} onSelect={setSelected} />}
           {calView === "daily" && <DailyCalView date={focusDate} calendarMap={calendarMap} />}
           {calView === "yearly" && (
-            <YearlyCalGrid year={year} calendarMap={calendarMap} maxAbsNet={maxAbsNet} selected={selected} onSelect={setSelected} />
+            <YearlyCalGrid
+              year={year}
+              calendarMap={calendarMap}
+              maxAbsNet={maxAbsNet}
+              selected={selected}
+              onSelect={setSelected}
+              registerDayRef={registerDayRef}
+            />
           )}
         </div>
 
-        {calView !== "daily" && selected && selectedDay && (
-          <DayDetailPanel day={selectedDay} onClose={() => setSelected(null)} />
+        {calView !== "daily" && (calView === "yearly" || (selected && selectedDay)) && (
+          <CalendarSidePanel
+            calView={calView}
+            year={year}
+            selectedISO={selected}
+            day={selectedDay}
+            categories={store.categories}
+            onJumpToDate={jumpToDateISO}
+            onClose={() => setSelected(null)}
+            onAddTransaction={addTransaction}
+            onUpdateTransaction={updateTransaction}
+            onDeleteTransaction={deleteTransaction}
+          />
         )}
       </div>
     </div>
@@ -901,12 +824,14 @@ function YearlyCalGrid({
   maxAbsNet,
   selected,
   onSelect,
+  registerDayRef,
 }: {
   year: number;
   calendarMap: CalendarMap;
   maxAbsNet: number;
   selected: string | null;
   onSelect: (k: string) => void;
+  registerDayRef?: (key: string, el: HTMLButtonElement | null) => void;
 }) {
   const cells: (Date | null)[] = [];
   const jan1 = new Date(year, 0, 1);
@@ -921,9 +846,22 @@ function YearlyCalGrid({
 
   return (
     <div>
-      <div style={{ display: "grid", gridTemplateColumns: "repeat(7, 1fr)", gap: 2, marginBottom: 4 }}>
+      <div className="fety-yearly-dow" style={{ display: "grid", gridTemplateColumns: "repeat(7, 1fr)", gap: 2 }}>
         {DAYS_SHORT.map((d) => (
-          <div key={d} style={{ textAlign: "center", fontSize: 9, fontWeight: 600, color: "var(--ink-3)", textTransform: "uppercase", letterSpacing: "0.14em", padding: "2px 0" }}>{d}</div>
+          <div
+            key={d}
+            style={{
+              textAlign: "center",
+              fontSize: 11,
+              fontWeight: 700,
+              color: "var(--ink-2)",
+              textTransform: "uppercase",
+              letterSpacing: "0.12em",
+              padding: "2px 0",
+            }}
+          >
+            {d}
+          </div>
         ))}
       </div>
 
@@ -943,6 +881,7 @@ function YearlyCalGrid({
             <button
               key={key}
               type="button"
+              ref={(el) => registerDayRef?.(key, el)}
               onClick={() => onSelect(key)}
               title={data ? `${date.toLocaleDateString("en-US")} · ${compactUsd(data.startBal)} → ${compactUsd(data.endBal)}` : undefined}
               style={{
@@ -1291,67 +1230,230 @@ function DailyCalView({ date, calendarMap }: { date: Date; calendarMap: Calendar
   );
 }
 
-// ─── Day Detail Panel (sidebar for monthly/weekly clicks) ─────────────────────
-function DayDetailPanel({ day, onClose }: { day: CalDay; onClose: () => void }) {
-  const net = day.endBal - day.startBal;
+// ─── Calendar side panel (day detail + yearly jump + transactions) ─────────────
+function CalendarSidePanel({
+  calView,
+  year,
+  selectedISO,
+  day,
+  categories,
+  onJumpToDate,
+  onClose,
+  onAddTransaction,
+  onUpdateTransaction,
+  onDeleteTransaction,
+}: {
+  calView: CalView;
+  year: number;
+  selectedISO: string | null;
+  day: CalDay | null;
+  categories: BudgetCategory[];
+  onJumpToDate: (iso: string) => void;
+  onClose: () => void;
+  onAddTransaction: (input: {
+    desc: string;
+    amount: number;
+    type: TransactionType;
+    category: string;
+    dateISO?: string;
+    icon?: string;
+  }) => void;
+  onUpdateTransaction: (
+    id: string,
+    updates: Partial<{ desc: string; amount: number; type: TransactionType; category: string }>,
+  ) => void;
+  onDeleteTransaction: (id: string) => void;
+}) {
+  const [jumpISO, setJumpISO] = useState(selectedISO ?? todayISO());
+  const [showAdd, setShowAdd] = useState(false);
+  const [addDesc, setAddDesc] = useState("");
+  const [addAmount, setAddAmount] = useState("");
+  const [addType, setAddType] = useState<TransactionType>("expense");
+  const [addCategory, setAddCategory] = useState(categories[0]?.name ?? "Other");
+  const [editId, setEditId] = useState<string | null>(null);
+  const [editDesc, setEditDesc] = useState("");
+  const [editAmount, setEditAmount] = useState("");
+  const [editType, setEditType] = useState<TransactionType>("expense");
+  const [editCategory, setEditCategory] = useState("Other");
+
+  useEffect(() => {
+    if (selectedISO) setJumpISO(selectedISO);
+  }, [selectedISO]);
+
+  const panelInput: React.CSSProperties = {
+    width: "100%",
+    padding: "7px 9px",
+    borderRadius: 8,
+    border: "1px solid var(--border)",
+    fontSize: 11,
+    fontFamily: "inherit",
+    background: "var(--surface)",
+  };
+
+  const submitAdd = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!day) return;
+    const n = parseFloat(addAmount);
+    if (!addDesc.trim() || !Number.isFinite(n)) return;
+    onAddTransaction({
+      desc: addDesc.trim(),
+      amount: n,
+      type: addType,
+      category: addCategory,
+      dateISO: CAL_KEY(day.date),
+      icon: "📌",
+    });
+    setAddDesc("");
+    setAddAmount("");
+    setShowAdd(false);
+  };
+
+  const startEdit = (item: CalDay["items"][0]) => {
+    setEditId(item.id);
+    setEditDesc(item.desc);
+    setEditAmount(String(Math.abs(item.amount)));
+    setEditType(item.txnType);
+    setEditCategory(item.category);
+  };
+
+  const saveEdit = () => {
+    if (!editId) return;
+    const n = parseFloat(editAmount);
+    if (!editDesc.trim() || !Number.isFinite(n)) return;
+    onUpdateTransaction(editId, { desc: editDesc.trim(), amount: n, type: editType, category: editCategory });
+    setEditId(null);
+  };
+
+  const net = day ? day.endBal - day.startBal : 0;
+
   return (
-    <div style={{ width: 260, flexShrink: 0, borderLeft: "1px solid var(--border)", background: "var(--surface)", display: "flex", flexDirection: "column", overflow: "hidden" }}>
-      {/* Header */}
-      <div style={{ padding: "14px 16px", borderBottom: "1px solid var(--border)", display: "flex", alignItems: "center", justifyContent: "space-between" }}>
-        <p style={{ fontSize: 12, fontWeight: 600, color: "var(--ink)" }}>
-          {day.date.toLocaleDateString("en-US", { weekday: "short", month: "short", day: "numeric" })}
-        </p>
-        <button onClick={onClose} style={{ width: 22, height: 22, borderRadius: 6, border: "1px solid var(--border)", background: "transparent", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center" }}>
-          <svg width="10" height="10" viewBox="0 0 10 10" fill="none"><path d="M2 2l6 6M8 2l-6 6" stroke="var(--ink-3)" strokeWidth="1.5" strokeLinecap="round"/></svg>
-        </button>
-      </div>
-
-      <div style={{ flex: 1, overflowY: "auto", padding: "14px" }}>
-        {/* Mini balance sheet */}
-        <div style={{ background: "var(--bg)", border: "1px solid var(--border)", borderRadius: 12, padding: "12px 14px", marginBottom: 12 }}>
-          <p style={{ fontSize: 10, fontWeight: 400, color: "var(--ink-3)", fontFamily: "var(--font-mono)", textTransform: "uppercase", letterSpacing: "0.07em", marginBottom: 10 }}>Balance Sheet</p>
-          {[
-            { label: "Opening",    value: usd(day.startBal), color: "var(--ink)"                                 },
-            { label: "Income",     value: day.income > 0   ? `+${usd(day.income)}` : "—",   color: "var(--clear-dk)"    },
-            { label: "Expenses",   value: day.expenses < 0 ? `-${usd(day.expenses)}`  : "—", color: "var(--trouble-dk)"   },
-            { label: "Closing",    value: usd(day.endBal),   color: net >= 0 ? "var(--clear-dk)" : "var(--trouble-dk)"            },
-          ].map((r, i) => (
-            <div key={r.label} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", paddingTop: i > 0 ? 7 : 0, paddingBottom: 7, borderTop: i > 0 ? "1px solid var(--border)" : undefined, borderBottom: i === 3 ? undefined : undefined }}>
-              <span style={{ fontSize: 11, color: "var(--ink-3)" }}>{r.label}</span>
-              <span style={{ fontSize: 12, fontWeight: 600, fontFamily: "var(--font-sans)", color: r.color }}>{r.value}</span>
-            </div>
-          ))}
+    <div style={{ width: 280, flexShrink: 0, borderLeft: "1px solid var(--border)", background: "var(--surface)", display: "flex", flexDirection: "column", overflow: "hidden", minHeight: 0 }}>
+      {calView === "yearly" && (
+        <div style={{ padding: "12px 14px", borderBottom: "1px solid var(--border)", background: "var(--bg)" }}>
+          <p className="fety-label" style={{ marginBottom: 8 }}>Jump to date</p>
+          <input type="date" value={jumpISO} onChange={(e) => setJumpISO(e.target.value)} style={panelInput} />
+          <div style={{ display: "flex", gap: 6, marginTop: 8 }}>
+            <button
+              type="button"
+              onClick={() => onJumpToDate(todayISO())}
+              style={{ flex: 1, padding: "7px 0", borderRadius: 8, border: "1px solid var(--border)", background: "var(--surface)", fontSize: 11, fontWeight: 600, cursor: "pointer" }}
+            >
+              Today
+            </button>
+            <button
+              type="button"
+              onClick={() => onJumpToDate(jumpISO)}
+              style={{ flex: 1, padding: "7px 0", borderRadius: 8, border: "none", background: "var(--ink)", color: "#fff", fontSize: 11, fontWeight: 600, cursor: "pointer" }}
+            >
+              Go
+            </button>
+          </div>
+          <p style={{ fontSize: 9, color: "var(--ink-3)", marginTop: 6 }}>Scrolls the {year} grid to the day you pick.</p>
         </div>
+      )}
 
-        {/* Net pill */}
-        <div style={{ background: net >= 0 ? "var(--lime)" : "var(--peach)", borderRadius: 10, padding: "10px 14px", marginBottom: 12, display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-          <span style={{ fontSize: 11, fontWeight: 600, color: "rgba(0,0,0,0.6)" }}>Net</span>
-          <span style={{ fontSize: 14, fontWeight: 400, fontFamily: "var(--font-sans)", color: net >= 0 ? "var(--lime-dk)" : "var(--trouble-dk)" }}>{net >= 0 ? "+" : ""}{usd(net)}</span>
-        </div>
+      {!day ? (
+        <div style={{ padding: 20, textAlign: "center", color: "var(--ink-3)", fontSize: 12 }}>Select a day to see balances and transactions.</div>
+      ) : (
+        <>
+          <div style={{ padding: "14px 16px", borderBottom: "1px solid var(--border)", display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+            <p style={{ fontSize: 12, fontWeight: 600, color: "var(--ink)" }}>
+              {day.date.toLocaleDateString("en-US", { weekday: "short", month: "short", day: "numeric", year: "numeric" })}
+            </p>
+            {calView !== "yearly" && (
+              <button type="button" onClick={onClose} style={{ width: 22, height: 22, borderRadius: 6, border: "1px solid var(--border)", background: "transparent", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center" }}>
+                <svg width="10" height="10" viewBox="0 0 10 10" fill="none"><path d="M2 2l6 6M8 2l-6 6" stroke="var(--ink-3)" strokeWidth="1.5" strokeLinecap="round"/></svg>
+              </button>
+            )}
+          </div>
 
-        {/* Transactions */}
-        {day.items.length > 0 ? (
-          <>
-            <p style={{ fontSize: 10, fontWeight: 400, color: "var(--ink-3)", fontFamily: "var(--font-mono)", textTransform: "uppercase", letterSpacing: "0.07em", marginBottom: 8 }}>Transactions</p>
-            <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
-              {day.items.map((item, i) => (
-                <div key={i} style={{ display: "flex", alignItems: "center", gap: 8, background: "var(--bg)", border: "1px solid var(--border)", borderRadius: 10, padding: "9px 11px" }}>
-                  <span style={{ fontSize: 15 }}>{item.icon}</span>
-                  <div style={{ flex: 1, minWidth: 0 }}>
-                    <p style={{ fontSize: 11, fontWeight: 600, color: "var(--ink)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{item.desc}</p>
-                    <p style={{ fontSize: 9, color: "var(--ink-3)", textTransform: "capitalize" }}>{item.type}</p>
-                  </div>
-                  <span style={{ fontFamily: "var(--font-sans)", fontWeight: 600, fontSize: 11, color: item.amount >= 0 ? "var(--clear-dk)" : "var(--trouble-dk)", flexShrink: 0 }}>
-                    {item.amount >= 0 ? "+" : ""}{usdF(item.amount)}
-                  </span>
+          <div style={{ flex: 1, overflowY: "auto", padding: "14px", minHeight: 0 }}>
+            <div style={{ background: "var(--bg)", border: "1px solid var(--border)", borderRadius: 12, padding: "12px 14px", marginBottom: 12 }}>
+              <p className="fety-label" style={{ marginBottom: 10 }}>Balance sheet</p>
+              {[
+                { label: "Opening", value: usd(day.startBal), color: "var(--ink)" },
+                { label: "Income", value: day.income > 0 ? `+${usd(day.income)}` : "—", color: "var(--clear-dk)" },
+                { label: "Expenses", value: day.expenses < 0 ? `-${usd(day.expenses)}` : "—", color: "var(--trouble-dk)" },
+                { label: "Closing", value: usd(day.endBal), color: net >= 0 ? "var(--clear-dk)" : "var(--trouble-dk)" },
+              ].map((r, i) => (
+                <div key={r.label} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", paddingTop: i > 0 ? 7 : 0, paddingBottom: 7, borderTop: i > 0 ? "1px solid var(--border)" : undefined }}>
+                  <span style={{ fontSize: 11, color: "var(--ink-3)" }}>{r.label}</span>
+                  <span style={{ fontSize: 12, fontWeight: 600, fontFamily: "var(--font-sans)", color: r.color }}>{r.value}</span>
                 </div>
               ))}
             </div>
-          </>
-        ) : (
-          <p style={{ fontSize: 11, color: "var(--ink-3)", textAlign: "center", padding: "16px 0" }}>No transactions</p>
-        )}
-      </div>
+
+            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 8 }}>
+              <p className="fety-label">Transactions</p>
+              <button type="button" onClick={() => setShowAdd((s) => !s)} style={{ fontSize: 10, fontWeight: 600, border: "none", background: "transparent", color: "var(--ink-2)", cursor: "pointer" }}>
+                {showAdd ? "Cancel" : "+ Add"}
+              </button>
+            </div>
+
+            {showAdd && (
+              <form onSubmit={submitAdd} style={{ background: "var(--bg)", border: "1px solid var(--border)", borderRadius: 10, padding: 10, marginBottom: 10, display: "flex", flexDirection: "column", gap: 6 }}>
+                <input value={addDesc} onChange={(e) => setAddDesc(e.target.value)} placeholder="Description" style={panelInput} />
+                <input value={addAmount} onChange={(e) => setAddAmount(e.target.value)} placeholder="Amount" type="number" step="0.01" style={panelInput} />
+                <select value={addType} onChange={(e) => setAddType(e.target.value as TransactionType)} style={panelInput}>
+                  <option value="expense">Expense</option>
+                  <option value="income">Income</option>
+                  <option value="bill">Bill</option>
+                  <option value="transfer">Transfer</option>
+                </select>
+                <select value={addCategory} onChange={(e) => setAddCategory(e.target.value)} style={panelInput}>
+                  {[...categories.map((c) => c.name), "Income", "Other"].filter((v, i, a) => a.indexOf(v) === i).map((name) => (
+                    <option key={name} value={name}>{name}</option>
+                  ))}
+                </select>
+                <button type="submit" style={{ padding: "7px 0", borderRadius: 8, border: "none", background: "var(--ink)", color: "#fff", fontSize: 11, fontWeight: 600, cursor: "pointer" }}>Save transaction</button>
+              </form>
+            )}
+
+            {day.items.length === 0 ? (
+              <p style={{ fontSize: 11, color: "var(--ink-3)", textAlign: "center", padding: "12px 0" }}>No transactions</p>
+            ) : (
+              <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+                {day.items.map((item) =>
+                  editId === item.id ? (
+                    <div key={item.id} style={{ background: "var(--bg)", border: "1px solid var(--border)", borderRadius: 10, padding: 10, display: "flex", flexDirection: "column", gap: 6 }}>
+                      <input value={editDesc} onChange={(e) => setEditDesc(e.target.value)} style={panelInput} />
+                      <input value={editAmount} onChange={(e) => setEditAmount(e.target.value)} type="number" step="0.01" style={panelInput} />
+                      <select value={editType} onChange={(e) => setEditType(e.target.value as TransactionType)} style={panelInput}>
+                        <option value="expense">Expense</option>
+                        <option value="income">Income</option>
+                        <option value="bill">Bill</option>
+                        <option value="transfer">Transfer</option>
+                      </select>
+                      <select value={editCategory} onChange={(e) => setEditCategory(e.target.value)} style={panelInput}>
+                        {[...categories.map((c) => c.name), "Income", "Other"].filter((v, i, a) => a.indexOf(v) === i).map((name) => (
+                          <option key={name} value={name}>{name}</option>
+                        ))}
+                      </select>
+                      <div style={{ display: "flex", gap: 6 }}>
+                        <button type="button" onClick={saveEdit} style={{ flex: 1, padding: "6px 0", borderRadius: 8, border: "none", background: "var(--ink)", color: "#fff", fontSize: 10, fontWeight: 600, cursor: "pointer" }}>Save</button>
+                        <button type="button" onClick={() => setEditId(null)} style={{ flex: 1, padding: "6px 0", borderRadius: 8, border: "1px solid var(--border)", background: "transparent", fontSize: 10, cursor: "pointer" }}>Cancel</button>
+                      </div>
+                    </div>
+                  ) : (
+                    <div key={item.id} style={{ display: "flex", alignItems: "center", gap: 8, background: "var(--bg)", border: "1px solid var(--border)", borderRadius: 10, padding: "9px 11px" }}>
+                      <span style={{ fontSize: 15 }}>{item.icon}</span>
+                      <div style={{ flex: 1, minWidth: 0 }}>
+                        <p style={{ fontSize: 11, fontWeight: 600, color: "var(--ink)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{item.desc}</p>
+                        <p style={{ fontSize: 9, color: "var(--ink-3)" }}>{item.category}</p>
+                      </div>
+                      <span style={{ fontFamily: "var(--font-sans)", fontWeight: 600, fontSize: 11, color: item.amount >= 0 ? "var(--clear-dk)" : "var(--trouble-dk)", flexShrink: 0 }}>
+                        {item.amount >= 0 ? "+" : ""}{usdF(item.amount)}
+                      </span>
+                      <button type="button" onClick={() => startEdit(item)} title="Edit" style={{ border: "none", background: "transparent", cursor: "pointer", fontSize: 10, color: "var(--ink-3)", padding: 2 }}>✎</button>
+                      <button type="button" onClick={() => onDeleteTransaction(item.id)} title="Remove" style={{ border: "none", background: "transparent", cursor: "pointer", fontSize: 10, color: "var(--trouble-dk)", padding: 2 }}>×</button>
+                    </div>
+                  ),
+                )}
+              </div>
+            )}
+          </div>
+        </>
+      )}
     </div>
   );
 }
@@ -1481,6 +1583,8 @@ export default function App() {
     summary,
     addTransaction,
     deleteTransaction,
+    updateTransaction,
+    updateBill,
     updateCategoryBudget,
     addBill,
     deleteBill,
@@ -1492,16 +1596,104 @@ export default function App() {
     addMessage,
     setPinnedWidgets,
     resetAll,
+    startFreshSetup,
+    completeOnboarding,
+    replaceCategories,
+    replaceBills,
+    importTransactionsBulk,
   } = useFetyData();
 
   const [page, setPage] = useState<Page>("dashboard");
   const [viewMode, setViewMode] = useState<ViewMode>("cards");
   const [chatCollapsed, setChatCollapsed] = useState(false);
   const [pickerOpen, setPickerOpen] = useState(false);
+  const [chatProcessing, setChatProcessing] = useState(false);
+  const pendingConfirmations = useRef<Map<string, ToolAction>>(new Map());
 
   const pinned = store.pinnedWidgets;
   const messages = store.messages;
   const navDate = formatNavDate();
+
+  const assistantDeps = useMemo(
+    () => ({
+      addTransaction,
+      updateTransaction,
+      deleteTransaction,
+      addGoal,
+      updateProfile,
+    }),
+    [addTransaction, updateTransaction, deleteTransaction, addGoal, updateProfile],
+  );
+
+  const pushAssistantReply = useCallback(
+    (reply: ReturnType<typeof handleAssistantMessageWithDeps>) => {
+      const now = new Date();
+      if (reply.confirmation) {
+        pendingConfirmations.current.set(reply.confirmation.id, reply.confirmation.action);
+      }
+      addMessage({
+        id: Date.now() + Math.floor(Math.random() * 1000),
+        role: "system",
+        time: now.toLocaleTimeString([], { hour: "numeric", minute: "2-digit" }),
+        text: reply.text,
+        tag: reply.tag,
+        resultCard: reply.resultCard,
+        confirmationId: reply.confirmation?.id,
+        confirmationTitle: reply.confirmation?.title,
+      });
+    },
+    [addMessage],
+  );
+
+  const recentUserText = useMemo(
+    () =>
+      messages
+        .filter((m) => m.role === "user")
+        .slice(-5)
+        .map((m) => m.text),
+    [messages],
+  );
+
+  const handleSend = useCallback(
+    (text: string) => {
+      const now = new Date();
+      const timeStr = now.toLocaleTimeString([], { hour: "numeric", minute: "2-digit" });
+      addMessage({ id: Date.now(), role: "user", text, time: timeStr });
+      setChatProcessing(true);
+      window.setTimeout(() => {
+        const reply = handleAssistantMessageWithDeps(
+          text,
+          { store, summary, recentUserText },
+          assistantDeps,
+        );
+        pushAssistantReply(reply);
+        setChatProcessing(false);
+      }, 400);
+    },
+    [addMessage, assistantDeps, pushAssistantReply, recentUserText, store, summary],
+  );
+
+  const handleConfirmAction = useCallback(
+    (confirmationId: string) => {
+      const action = pendingConfirmations.current.get(confirmationId);
+      if (!action) {
+        pushAssistantReply({ text: "That confirmation expired. Please ask again." });
+        return;
+      }
+      pendingConfirmations.current.delete(confirmationId);
+      const reply = confirmAssistantAction(action, assistantDeps, summary);
+      pushAssistantReply(reply);
+    },
+    [assistantDeps, pushAssistantReply, summary],
+  );
+
+  const handleCancelConfirm = useCallback(
+    (confirmationId: string) => {
+      pendingConfirmations.current.delete(confirmationId);
+      pushAssistantReply({ text: "Cancelled — nothing was changed." });
+    },
+    [pushAssistantReply],
+  );
 
   const pageTitle = useMemo(() => {
     if (page === "dashboard") {
@@ -1509,37 +1701,6 @@ export default function App() {
     }
     return PAGE_META[page].title;
   }, [page, store.profile.displayName]);
-
-  const handleSend = useCallback(
-    (text: string) => {
-      const now = new Date();
-      const timeStr = now.toLocaleTimeString([], { hour: "numeric", minute: "2-digit" });
-      addMessage({ id: Date.now(), role: "user", text, time: timeStr });
-
-      const amountMatch = text.match(/\$?([\d,]+(?:\.\d{1,2})?)/);
-      if (amountMatch && /spent|paid|bought|grabbed|bill/i.test(text)) {
-        const amount = parseFloat(amountMatch[1].replace(",", ""));
-        addTransaction({
-          desc: text.slice(0, 60),
-          amount,
-          type: /bill/i.test(text) ? "bill" : "expense",
-          category: /bill/i.test(text) ? "Bills" : "Other",
-          icon: "💬",
-        });
-      } else if (amountMatch && /income|received|paycheck|freelance|deposit/i.test(text)) {
-        addTransaction({
-          desc: text.slice(0, 60),
-          amount: parseFloat(amountMatch[1].replace(",", "")),
-          type: "income",
-          category: "Income",
-          icon: "💼",
-        });
-      }
-
-      setTimeout(() => addMessage(getAutoReply(text)), 700);
-    },
-    [addMessage, addTransaction],
-  );
 
   const renderView = () => {
     if (page === "calendar") return null;
@@ -1551,6 +1712,7 @@ export default function App() {
             bills={store.bills}
             viewMode={viewMode}
             onUpdateBudget={updateCategoryBudget}
+            onUpdateBill={updateBill}
             onAddBill={addBill}
             onDeleteBill={deleteBill}
           />
@@ -1562,6 +1724,7 @@ export default function App() {
             categories={store.categories}
             viewMode={viewMode}
             onAdd={addTransaction}
+            onUpdate={updateTransaction}
             onDelete={deleteTransaction}
           />
         );
@@ -1583,6 +1746,9 @@ export default function App() {
             onUpdateProfile={updateProfile}
             onUpdateAccount={updateAccount}
             onReset={resetAll}
+            onRestartSetup={() => {
+              if (confirm("Clear all data and run setup again? This cannot be undone.")) startFreshSetup();
+            }}
           />
         );
       default:
@@ -1598,6 +1764,19 @@ export default function App() {
     }
   };
 
+  if (!store.onboardingCompleted) {
+    return (
+      <OnboardingView
+        store={store}
+        onUpdateProfile={updateProfile}
+        onReplaceCategories={replaceCategories}
+        onReplaceBills={replaceBills}
+        onImportTransactionsBulk={importTransactionsBulk}
+        onComplete={completeOnboarding}
+      />
+    );
+  }
+
   return (
     <div className="fety-shell">
       {chatCollapsed ? (
@@ -1609,14 +1788,19 @@ export default function App() {
           role="button"
           tabIndex={0}
         >
-          <div style={{ width: 22, height: 22, borderRadius: 6, border: "1px solid var(--border)", background: "var(--bg)", display: "flex", alignItems: "center", justifyContent: "center" }}>
-            <svg width="11" height="11" viewBox="0 0 11 11" fill="none">
-              <path d="M4 2.5L7 5.5L4 8.5" stroke="var(--ink-3)" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
-            </svg>
+          <div style={{ width: 30, height: 30, borderRadius: 9, border: "1px solid var(--border)", background: "var(--bg)", display: "flex", alignItems: "center", justifyContent: "center" }}>
+            <ChatExpandIcon />
           </div>
         </div>
       ) : (
-        <ChatPanel messages={messages} onSend={handleSend} onCollapse={() => setChatCollapsed(true)} />
+        <ChatPanel
+          messages={messages}
+          processing={chatProcessing}
+          onSend={handleSend}
+          onCollapse={() => setChatCollapsed(true)}
+          onConfirm={handleConfirmAction}
+          onCancelConfirm={handleCancelConfirm}
+        />
       )}
 
       <div className="fety-main-column">

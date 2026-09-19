@@ -78,9 +78,37 @@ export const DEFAULT_PINNED = [
   "spending-breakdown",
 ];
 
+export function createEmptyStore(): FetyStore {
+  return {
+    version: 1,
+    onboardingCompleted: false,
+    profile: {
+      displayName: "",
+      email: "",
+      currency: "USD",
+      startingBalance: 0,
+    },
+    categories: [],
+    transactions: [],
+    bills: [],
+    goals: [],
+    accounts: [],
+    messages: [
+      {
+        id: 1,
+        role: "system",
+        text: "Welcome to Fety. Tell me about money in or out — include amounts — and I will update your books.",
+        time: new Date().toLocaleTimeString([], { hour: "numeric", minute: "2-digit" }),
+      },
+    ],
+    pinnedWidgets: DEFAULT_PINNED,
+  };
+}
+
 export function createDefaultStore(): FetyStore {
   return {
     version: 1,
+    onboardingCompleted: true,
     profile: {
       displayName: "Alex",
       email: "alex@example.com",
@@ -97,16 +125,23 @@ export function createDefaultStore(): FetyStore {
   };
 }
 
+function migrateStore(store: FetyStore): FetyStore {
+  if (store.onboardingCompleted === undefined) {
+    return { ...store, onboardingCompleted: true };
+  }
+  return store;
+}
+
 export function loadStore(): FetyStore {
-  if (typeof window === "undefined") return createDefaultStore();
+  if (typeof window === "undefined") return createEmptyStore();
   try {
     const raw = localStorage.getItem(STORAGE_KEY);
-    if (!raw) return createDefaultStore();
+    if (!raw) return createEmptyStore();
     const parsed = JSON.parse(raw) as FetyStore;
-    if (parsed?.version !== 1) return createDefaultStore();
-    return parsed;
+    if (parsed?.version !== 1) return createEmptyStore();
+    return migrateStore(parsed);
   } catch {
-    return createDefaultStore();
+    return createEmptyStore();
   }
 }
 
@@ -117,6 +152,12 @@ export function saveStore(store: FetyStore): void {
 
 export function resetStore(): FetyStore {
   const fresh = createDefaultStore();
+  saveStore(fresh);
+  return fresh;
+}
+
+export function resetToEmptyStore(): FetyStore {
+  const fresh = createEmptyStore();
   saveStore(fresh);
   return fresh;
 }

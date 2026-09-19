@@ -168,10 +168,13 @@ export function buildCalendarMap(store: FetyStore, year: number): CalendarMap {
       const key = calKey(date);
       const txns = byDate.get(key) ?? [];
       const items: CalDayItem[] = txns.map((t) => ({
+        id: t.id,
         icon: t.icon,
         desc: t.desc,
         amount: t.amount,
         type: itemTypeForTransaction(t),
+        category: t.category,
+        txnType: t.type,
       }));
       const income = txns.filter((t) => t.amount > 0).reduce((s, t) => s + t.amount, 0);
       const expenses = txns.filter((t) => t.amount < 0).reduce((s, t) => s + t.amount, 0);

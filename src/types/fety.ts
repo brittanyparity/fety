@@ -51,6 +51,10 @@ export interface ChatMessage {
   text: string;
   time: string;
   tag?: string;
+  /** Shown with Confirm / Cancel when set; action stored in session memory only */
+  confirmationId?: string;
+  confirmationTitle?: string;
+  resultCard?: { title: string; lines: string[] };
 }
 
 export interface UserProfile {
@@ -62,6 +66,7 @@ export interface UserProfile {
 
 export interface FetyStore {
   version: 1;
+  onboardingCompleted: boolean;
   profile: UserProfile;
   categories: BudgetCategory[];
   transactions: Transaction[];
@@ -93,10 +98,13 @@ export interface FinanceSummary {
 export type CalDayItemType = "income" | "expense" | "bill" | "paycheck";
 
 export interface CalDayItem {
+  id: string;
   icon: string;
   desc: string;
   amount: number;
   type: CalDayItemType;
+  category: string;
+  txnType: TransactionType;
 }
 
 export interface CalDay {
