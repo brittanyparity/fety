@@ -345,20 +345,56 @@ html, body, #root {
 }
 
 .fety-yearly-dow-wrap {
-  position: sticky;
-  top: 0;
+  flex-shrink: 0;
   z-index: 4;
-  margin: 0 -16px 6px;
-  padding: 0 16px 8px;
   background: var(--surface);
   border-bottom: 1px solid var(--border);
-  box-shadow: 0 10px 16px var(--surface);
+  padding: 0 16px;
 }
 
 .fety-yearly-dow {
   display: grid;
   grid-template-columns: repeat(7, 1fr);
-  gap: 2;
+  gap: 0;
+  min-height: 52px;
+  align-items: stretch;
+  background: var(--surface);
+}
+
+.fety-yearly-dow > div {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--surface);
+  text-align: center;
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--ink-2);
+  text-transform: uppercase;
+  letter-spacing: 0.12em;
+}
+
+.fety-form-desc {
+  flex: 1 1 200px;
+  min-width: 0;
+}
+
+.fety-form-desc input {
+  width: 100%;
+}
+
+.fety-txn-add-form {
+  display: grid;
+  grid-template-columns: auto minmax(180px, 2.5fr) minmax(110px, 1fr) minmax(110px, 1fr) minmax(110px, 1fr) minmax(130px, 1fr) auto;
+}
+
+@media (max-width: 960px) {
+  .fety-txn-add-form {
+    grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
+  }
+  .fety-txn-add-form .fety-form-desc {
+    grid-column: 1 / -1;
+  }
 }
 
 .fety-yearly-scroll {

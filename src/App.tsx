@@ -3,11 +3,11 @@ import { FetyLogo } from "./FetyLogo";
 import { useFetyData } from "./hooks/useFetyData";
 import { buildCalendarMap, formatNavDate, last6MonthsSpending, last7DayEndingBalances, categorySpendShares, todayISO } from "./lib/fetyCalculations";
 import { getTransactionTypes } from "./lib/transactionTypes";
-import { calendarDailyBalanceBg, calendarDailyBalanceBgStrong, calendarEndingBalanceBg, calendarEndingBalanceBgStrong, calSignedColor } from "./lib/calendarUi";
+import { calendarDailyBalanceBg, calendarDailyBalanceBgStrong, calendarEndingBalanceBg, calendarEndingBalanceBgStrong, calBalanceColor, calSignedColor } from "./lib/calendarUi";
 import { CalendarPeriodMenu } from "./components/CalendarPeriodMenu";
 import EmojiIconPicker from "./components/EmojiIconPicker";
 import CurrencyInput, { amountToEditString } from "./components/CurrencyInput";
-import { flattenRows, moveRow, packWidgetsIntoRows, pinWidgetToTop, reorderWidget, togglePinWidget, unpinWidget } from "./lib/widgetLayout";
+import { flattenRows, isWidgetPinnedToTop, moveRow, packWidgetsIntoRows, reorderWidget, togglePinToTop, toggleWidgetOnDashboard, unpinWidget } from "./lib/widgetLayout";
 import { ChatPanel, ChatExpandIcon } from "./components/ChatPanel";
 import { confirmAssistantAction, handleAssistantMessageWithDeps } from "./assistant/router";
 import type { ToolAction } from "./assistant/types";
@@ -34,10 +34,14 @@ type CalView = "monthly" | "weekly" | "biweekly" | "daily" | "yearly";
 const CAL_KEY = (d: Date) => d.toISOString().slice(0, 10);
 
 const compactUsd = (n: number) => {
+  const sign = n < 0 ? "-" : "";
   const abs = Math.abs(n);
-  if (abs >= 10000) return `$${(n / 1000).toFixed(0)}k`;
-  if (abs >= 1000) return `$${(n / 1000).toFixed(1)}k`;
-  return new Intl.NumberFormat("en-US", { style: "currency", currency: "USD", maximumFractionDigits: 0 }).format(n);
+  if (abs >= 10000) return `${sign}$${(abs / 1000).toFixed(0)}k`;
+  if (abs >= 1000) return `${sign}$${(abs / 1000).toFixed(1)}k`;
+  return (
+    sign +
+    new Intl.NumberFormat("en-US", { style: "currency", currency: "USD", maximumFractionDigits: 0 }).format(abs)
+  );
 };
 
 // ─── Static demo chart data (dashboard widgets) ───────────────────────────────
@@ -85,8 +89,8 @@ const goals = [
 ];
 
 // ─── Helpers ───────────────────────────────────────────────────────────────────
-const usd  = (n: number) => new Intl.NumberFormat("en-US", { style: "currency", currency: "USD", maximumFractionDigits: 0 }).format(Math.abs(n));
-const usdF = (n: number) => new Intl.NumberFormat("en-US", { style: "currency", currency: "USD", minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(Math.abs(n));
+const usd  = (n: number) => new Intl.NumberFormat("en-US", { style: "currency", currency: "USD", maximumFractionDigits: 0 }).format(n);
+const usdF = (n: number) => new Intl.NumberFormat("en-US", { style: "currency", currency: "USD", minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(n);
 const MONTHS = ["January","February","March","April","May","June","July","August","September","October","November","December"];
 const DAYS_SHORT = ["Sun","Mon","Tue","Wed","Thu","Fri","Sat"];
 
@@ -712,9 +716,9 @@ const SIZE_GROUPS: { label: string; sizes: WidgetDef["size"][] }[] = [
 ];
 
 function WidgetPicker({
-  pinned, onPinToggle, onClose,
+  pinned, onDashboardToggle, onClose,
 }: {
-  pinned: string[]; onPinToggle: (id: string) => void; onClose: () => void;
+  pinned: string[]; onDashboardToggle: (id: string) => void; onClose: () => void;
 }) {
   return (
     <div style={{
@@ -747,30 +751,58 @@ function WidgetPicker({
                         {w.preview()}
                       </div>
                       {/* Action row */}
-                      <button
-                        type="button"
-                        onClick={() => onPinToggle(w.id)}
-                        style={{ width: "100%", display: "flex", alignItems: "center", justifyContent: "space-between", padding: "8px 12px", border: "none", background: "transparent", cursor: "pointer", textAlign: "left" }}
-                      >
-                        <div>
+                      <div style={{ width: "100%", display: "flex", alignItems: "center", justifyContent: "space-between", padding: "8px 12px", gap: 8 }}>
+                        <div style={{ minWidth: 0 }}>
                           <p style={{ fontSize: 11, fontWeight: 600, color: "var(--ink)" }}>{w.label}</p>
                           <p style={{ fontSize: 9, color: "var(--ink-3)", marginTop: 1 }}>{w.size === "full" ? "Full width" : w.size === "half" ? "Half width" : "Stat card"}</p>
                         </div>
-                        <span
-                          style={{
-                            fontSize: 10,
-                            fontWeight: 600,
-                            padding: "5px 10px",
-                            borderRadius: 99,
-                            border: active ? "none" : "1px solid var(--border)",
-                            background: active ? "var(--ink)" : "var(--surface)",
-                            color: active ? "#fff" : "var(--ink-2)",
-                            flexShrink: 0,
-                          }}
-                        >
-                          {active ? "Unpin" : "Pin to top"}
-                        </span>
-                      </button>
+                        <div style={{ display: "flex", gap: 6, flexShrink: 0 }}>
+                          {!active && (
+                            <button
+                              type="button"
+                              title="Add to dashboard"
+                              onClick={() => onDashboardToggle(w.id)}
+                              style={{
+                                width: 30,
+                                height: 30,
+                                borderRadius: 8,
+                                border: "1px solid var(--clear-dk)",
+                                background: "var(--clear)",
+                                cursor: "pointer",
+                                display: "flex",
+                                alignItems: "center",
+                                justifyContent: "center",
+                              }}
+                            >
+                              <svg width="14" height="14" viewBox="0 0 14 14" fill="none" aria-hidden>
+                                <path d="M2.5 7.2l3 3 6-6.5" stroke="var(--clear-dk)" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" />
+                              </svg>
+                            </button>
+                          )}
+                          {active && (
+                            <button
+                              type="button"
+                              title="Remove from dashboard"
+                              onClick={() => onDashboardToggle(w.id)}
+                              style={{
+                                width: 30,
+                                height: 30,
+                                borderRadius: 8,
+                                border: "1px solid var(--trouble-dk)",
+                                background: "#FFECE8",
+                                cursor: "pointer",
+                                display: "flex",
+                                alignItems: "center",
+                                justifyContent: "center",
+                              }}
+                            >
+                              <svg width="12" height="12" viewBox="0 0 12 12" fill="none" aria-hidden>
+                                <path d="M2.5 2.5l7 7M9.5 2.5l-7 7" stroke="var(--trouble-dk)" strokeWidth="1.6" strokeLinecap="round" />
+                              </svg>
+                            </button>
+                          )}
+                        </div>
+                      </div>
                     </div>
                   );
                 })}
@@ -978,9 +1010,10 @@ function CalendarView({
 
       <div className="fety-calendar-body" style={{ flex: 1, overflow: "hidden", display: "flex", minHeight: 0 }}>
         <div style={{ flex: 1, display: "flex", flexDirection: "column", minHeight: 0, minWidth: 0 }}>
+          {calView === "yearly" && <YearlyWeekdayBar />}
           <div
             className={calView === "yearly" ? "fety-yearly-scroll" : undefined}
-            style={{ flex: 1, overflowY: "auto", padding: calView === "yearly" ? "12px 16px 0" : "16px 20px", minHeight: 0 }}
+            style={{ flex: 1, overflowY: "auto", padding: calView === "yearly" ? "8px 16px 0" : "16px 20px", minHeight: 0 }}
           >
             {calView === "monthly" && <MonthlyCalGrid month={focusDate} calendarMap={calendarMap} selected={selected} onSelect={setSelected} />}
             {calView === "weekly" && <WeeklyCalGrid anchor={focusDate} days={7} calendarMap={calendarMap} selected={selected} onSelect={setSelected} />}
@@ -1046,28 +1079,6 @@ function YearlyCalGrid({
 
   return (
     <div>
-      <div className="fety-yearly-dow-wrap">
-        <div className="fety-yearly-dow" style={{ display: "grid", gridTemplateColumns: "repeat(7, 1fr)", gap: 2 }}>
-          {DAYS_SHORT.map((d) => (
-            <div
-              key={d}
-              style={{
-                textAlign: "center",
-                fontSize: 11,
-                fontWeight: 700,
-                color: "var(--ink-2)",
-                textTransform: "uppercase",
-                letterSpacing: "0.12em",
-                padding: "6px 0",
-                background: "var(--surface)",
-              }}
-            >
-              {d}
-            </div>
-          ))}
-        </div>
-      </div>
-
       <div style={{ display: "grid", gridTemplateColumns: "repeat(7, 1fr)", gap: 2 }}>
         {cells.map((date, i) => {
           if (!date) return <div key={`pad-${i}`} style={{ minHeight: 46, borderRadius: 8, background: "transparent" }} />;
@@ -1120,7 +1131,7 @@ function YearlyCalGrid({
                   </div>
                   <div style={{ fontSize: 7.5, lineHeight: 1.2, color: isSelected ? "rgba(255,255,255,0.55)" : "var(--ink-3)" }}>
                     E{" "}
-                    <span style={{ fontFamily: "var(--font-sans)", fontWeight: 700, color: calSignedColor(data.endBal, isSelected) }}>
+                    <span style={{ fontFamily: "var(--font-sans)", fontWeight: 700, color: calBalanceColor(data.endBal, isSelected) }}>
                       {compactUsd(data.endBal)}
                     </span>
                   </div>
@@ -1129,6 +1140,18 @@ function YearlyCalGrid({
             </button>
           );
         })}
+      </div>
+    </div>
+  );
+}
+
+function YearlyWeekdayBar() {
+  return (
+    <div className="fety-yearly-dow-wrap">
+      <div className="fety-yearly-dow">
+        {DAYS_SHORT.map((d) => (
+          <div key={d}>{d}</div>
+        ))}
       </div>
     </div>
   );
@@ -1224,7 +1247,7 @@ function MonthlyCalGrid({ month, calendarMap, selected, onSelect }: { month: Dat
                     Start <span style={{ fontFamily: "var(--font-sans)", fontWeight: 600, color: calSignedColor(data.startBal, isSelected) }}>{usd(data.startBal)}</span>
                   </div>
                   <div style={{ fontSize: 9, color: isSelected ? "rgba(255,255,255,0.6)" : "var(--ink-3)" }}>
-                    End <span style={{ fontFamily: "var(--font-sans)", fontWeight: 600, color: calSignedColor(data.endBal, isSelected) }}>{usd(data.endBal)}</span>
+                    End <span style={{ fontFamily: "var(--font-sans)", fontWeight: 600, color: calBalanceColor(data.endBal, isSelected) }}>{usd(data.endBal)}</span>
                   </div>
                   {/* Mini dots for transactions */}
                   {hasItems && (
@@ -1313,12 +1336,12 @@ function WeeklyCalGrid({ anchor, days, calendarMap, selected, onSelect }: { anch
             {data.expenses < 0 && (
               <div style={{ display: "flex", justifyContent: "space-between" }}>
                 <span style={{ fontSize: 9, color: isSelected ? "rgba(255,255,255,0.55)" : "var(--ink-3)" }}>Out</span>
-                <span style={{ fontSize: 10, fontWeight: 600, fontFamily: "var(--font-sans)", color: calSignedColor(data.expenses, isSelected) }}>-{usd(data.expenses)}</span>
+                <span style={{ fontSize: 10, fontWeight: 600, fontFamily: "var(--font-sans)", color: calSignedColor(data.expenses, isSelected) }}>{usd(data.expenses)}</span>
               </div>
             )}
             <div style={{ display: "flex", justifyContent: "space-between", borderTop: `1px solid ${isSelected ? "rgba(255,255,255,0.12)" : "var(--border)"}`, paddingTop: 3 }}>
               <span style={{ fontSize: 9, fontWeight: 600, color: isSelected ? "rgba(255,255,255,0.7)" : "var(--ink-2)" }}>End</span>
-              <span style={{ fontSize: 10, fontWeight: 400, fontFamily: "var(--font-sans)", color: calSignedColor(data.endBal, isSelected) }}>{usd(data.endBal)}</span>
+              <span style={{ fontSize: 10, fontWeight: 400, fontFamily: "var(--font-sans)", color: calBalanceColor(data.endBal, isSelected) }}>{usd(data.endBal)}</span>
             </div>
           </div>
         ) : (
@@ -1359,11 +1382,11 @@ function DailyCalView({ date, calendarMap }: { date: Date; calendarMap: Calendar
         {[
           { label: "Starting Balance", value: data ? usd(data.startBal) : "—", bg: "var(--surface)", colorAmount: data?.startBal ?? 0 },
           { label: "Ending Balance", value: data ? usd(data.endBal) : "—", bg: data ? calendarEndingBalanceBgStrong(data.endBal) : "var(--surface)", colorAmount: data?.endBal ?? 0 },
-          { label: "Net Cash Flow", value: data ? `${net >= 0 ? "+" : ""}${usd(net)}` : "—", bg: calendarDailyBalanceBgStrong(net), colorAmount: net },
+          { label: "Net Cash Flow", value: data ? (net > 0 ? `+${usd(net)}` : usd(net)) : "—", bg: calendarDailyBalanceBgStrong(net), colorAmount: net },
         ].map(card => (
           <div key={card.label} style={{ background: card.bg, borderRadius: 16, padding: "18px 20px", border: "1px solid var(--border)" }}>
             <p style={{ fontSize: 10, fontWeight: 600, color: "var(--ink-3)", marginBottom: 6, textTransform: "uppercase", letterSpacing: "0.16em" }}>{card.label}</p>
-            <p style={{ fontSize: 24, fontWeight: 400, color: calSignedColor(card.colorAmount), letterSpacing: "-0.8px", fontFamily: "var(--font-sans)" }}>{card.value}</p>
+            <p style={{ fontSize: 24, fontWeight: 400, color: card.label.endsWith("Balance") ? calBalanceColor(card.colorAmount) : calSignedColor(card.colorAmount), letterSpacing: "-0.8px", fontFamily: "var(--font-sans)" }}>{card.value}</p>
           </div>
         ))}
       </div>
@@ -1380,7 +1403,7 @@ function DailyCalView({ date, calendarMap }: { date: Date; calendarMap: Calendar
           {data.expenses < 0 && (
             <div style={{ flex: 1, background: "var(--surface)", border: "1px solid var(--border)", borderRadius: 12, padding: "14px 16px", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
               <span style={{ fontSize: 12, fontWeight: 500, color: "var(--ink-2)" }}>Total Out</span>
-              <span style={{ fontFamily: "var(--font-sans)", fontWeight: 600, color: "var(--trouble-dk)", fontSize: 16 }}>-{usd(data.expenses)}</span>
+              <span style={{ fontFamily: "var(--font-sans)", fontWeight: 600, color: "var(--trouble-dk)", fontSize: 16 }}>{usd(data.expenses)}</span>
             </div>
           )}
         </div>
@@ -1432,7 +1455,7 @@ function DailyCalView({ date, calendarMap }: { date: Date; calendarMap: Calendar
           </div>
           <div style={{ display: "flex", justifyContent: "space-between", marginTop: 6, fontSize: 9, color: "var(--ink-3)" }}>
             <span>Start · <span style={{ color: calSignedColor(data.startBal) }}>{usd(data.startBal)}</span></span>
-            <span>End · <span style={{ color: calSignedColor(net) }}>{usd(data.endBal)}</span></span>
+            <span>End · <span style={{ color: calBalanceColor(data.endBal) }}>{usd(data.endBal)}</span></span>
           </div>
         </div>
       )}
@@ -1548,8 +1571,6 @@ function CalendarSidePanel({
     setEditId(null);
   };
 
-  const net = day ? day.endBal - day.startBal : 0;
-
   return (
     <div style={{ width: 280, flexShrink: 0, borderLeft: "1px solid var(--border)", background: "var(--surface)", display: "flex", flexDirection: "column", overflow: "hidden", minHeight: 0 }}>
       {calView === "yearly" && (
@@ -1595,10 +1616,10 @@ function CalendarSidePanel({
             <div style={{ background: "var(--bg)", border: "1px solid var(--border)", borderRadius: 12, padding: "12px 14px", marginBottom: 12 }}>
               <p className="fety-label" style={{ marginBottom: 10 }}>Balance sheet</p>
               {[
-                { label: "Starting", value: usd(day.startBal), color: calSignedColor(day.startBal) },
+                { label: "Starting", value: usd(day.startBal), color: calBalanceColor(day.startBal) },
                 { label: "Income", value: day.income > 0 ? `+${usd(day.income)}` : "—", color: calSignedColor(day.income) },
-                { label: "Expenses", value: day.expenses < 0 ? `-${usd(day.expenses)}` : "—", color: calSignedColor(day.expenses) },
-                { label: "Ending", value: usd(day.endBal), color: calSignedColor(net) },
+                { label: "Expenses", value: day.expenses < 0 ? usd(day.expenses) : "—", color: calSignedColor(day.expenses) },
+                { label: "Ending", value: usd(day.endBal), color: calBalanceColor(day.endBal) },
               ].map((r, i) => (
                 <div key={r.label} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", paddingTop: i > 0 ? 7 : 0, paddingBottom: 7, borderTop: i > 0 ? "1px solid var(--border)" : undefined }}>
                   <span style={{ fontSize: 11, color: "var(--ink-3)" }}>{r.label}</span>
@@ -1616,13 +1637,17 @@ function CalendarSidePanel({
 
             {showAdd && (
               <form onSubmit={submitAdd} style={{ background: "var(--bg)", border: "1px solid var(--border)", borderRadius: 10, padding: 10, marginBottom: 10, display: "flex", flexDirection: "column", gap: 6 }}>
-                <EmojiIconPicker
-                  value={addIcon}
-                  defaultEmoji={iconForType(addType)}
-                  onChange={setAddIcon}
-                  compact
-                />
-                <input value={addDesc} onChange={(e) => setAddDesc(e.target.value)} placeholder="Description" style={panelInput} />
+                <div style={{ display: "flex", alignItems: "flex-end", gap: 6 }}>
+                  <EmojiIconPicker
+                    value={addIcon}
+                    defaultEmoji={iconForType(addType)}
+                    onChange={setAddIcon}
+                    compact
+                  />
+                  <div className="fety-form-desc" style={{ flex: 1, minWidth: 0 }}>
+                    <input value={addDesc} onChange={(e) => setAddDesc(e.target.value)} placeholder="Description" style={{ ...panelInput, width: "100%" }} />
+                  </div>
+                </div>
                 <CurrencyInput value={addAmount} onChange={setAddAmount} placeholder="0.00" compact style={{ borderRadius: 8 }} />
                 <select value={addType} onChange={(e) => setAddType(e.target.value)} style={panelInput}>
                   {transactionTypes.map((tt) => (
@@ -1647,13 +1672,17 @@ function CalendarSidePanel({
                 {day.items.map((item) =>
                   editId === item.id ? (
                     <div key={item.id} style={{ background: "var(--bg)", border: "1px solid var(--border)", borderRadius: 10, padding: 10, display: "flex", flexDirection: "column", gap: 6 }}>
-                      <EmojiIconPicker
-                        value={editIcon}
-                        defaultEmoji={iconForType(editType)}
-                        onChange={setEditIcon}
-                        compact
-                      />
-                      <input value={editDesc} onChange={(e) => setEditDesc(e.target.value)} style={panelInput} placeholder="Description" />
+                      <div style={{ display: "flex", alignItems: "flex-end", gap: 6 }}>
+                        <EmojiIconPicker
+                          value={editIcon}
+                          defaultEmoji={iconForType(editType)}
+                          onChange={setEditIcon}
+                          compact
+                        />
+                        <div className="fety-form-desc" style={{ flex: 1, minWidth: 0 }}>
+                          <input value={editDesc} onChange={(e) => setEditDesc(e.target.value)} style={{ ...panelInput, width: "100%" }} placeholder="Description" />
+                        </div>
+                      </div>
                       <CurrencyInput value={editAmount} onChange={setEditAmount} placeholder="0.00" compact style={{ borderRadius: 8 }} />
                       <select value={editType} onChange={(e) => setEditType(e.target.value)} style={panelInput}>
                         {transactionTypes.map((tt) => (
@@ -1716,8 +1745,8 @@ function DashboardView({
   const [dragWidgetId, setDragWidgetId] = useState<string | null>(null);
   const [overWidgetId, setOverWidgetId] = useState<string | null>(null);
 
-  const moveWidgetToTop = (id: string) => {
-    setPinned((prev) => pinWidgetToTop(prev, id));
+  const toggleWidgetTopPin = (id: string) => {
+    setPinned((prev) => togglePinToTop(prev, id));
   };
 
   const removeWidget = (id: string) => {
@@ -1885,23 +1914,40 @@ function DashboardView({
                       {w.render()}
                       {customizing && (
                         <div style={{ position: "absolute", top: 8, right: 8, display: "flex", gap: 4 }}>
-                          {pinned[0] !== w.id && (
-                            <button
-                              type="button"
-                              onClick={(e) => { e.stopPropagation(); moveWidgetToTop(w.id); }}
-                              title="Pin to top of dashboard"
-                              style={{ height: 22, padding: "0 8px", borderRadius: 99, background: "rgba(0,0,0,0.08)", border: "1px solid var(--border)", cursor: "pointer", fontSize: 9, fontWeight: 600, color: "var(--ink-2)" }}
-                            >
-                              Pin top
-                            </button>
-                          )}
+                          <button
+                            type="button"
+                            onClick={(e) => { e.stopPropagation(); toggleWidgetTopPin(w.id); }}
+                            title={isWidgetPinnedToTop(pinned, w.id) ? "Unpin from top row" : "Pin to top of dashboard"}
+                            style={{
+                              width: 28,
+                              height: 28,
+                              borderRadius: 99,
+                              border: isWidgetPinnedToTop(pinned, w.id) ? "2px solid var(--ink)" : "1px solid var(--border)",
+                              background: isWidgetPinnedToTop(pinned, w.id) ? "var(--ink)" : "rgba(255,255,255,0.85)",
+                              cursor: "pointer",
+                              display: "flex",
+                              alignItems: "center",
+                              justifyContent: "center",
+                              transition: "background 0.12s, border-color 0.12s",
+                            }}
+                          >
+                            <svg width="12" height="12" viewBox="0 0 12 12" fill="none" aria-hidden>
+                              <path
+                                d="M6 1.5v9M3.5 4L6 1.5 8.5 4M2.5 10.5h7"
+                                stroke={isWidgetPinnedToTop(pinned, w.id) ? "#fff" : "var(--ink-2)"}
+                                strokeWidth="1.3"
+                                strokeLinecap="round"
+                                strokeLinejoin="round"
+                              />
+                            </svg>
+                          </button>
                           <button
                             type="button"
                             onClick={(e) => { e.stopPropagation(); removeWidget(w.id); }}
-                            title="Unpin from dashboard"
-                            style={{ height: 22, padding: "0 8px", borderRadius: 99, background: "rgba(0,0,0,0.08)", border: "1px solid var(--border)", cursor: "pointer", fontSize: 9, fontWeight: 600, color: "var(--trouble-dk)" }}
+                            title="Remove from dashboard"
+                            style={{ width: 28, height: 28, borderRadius: 99, background: "rgba(0,0,0,0.08)", border: "1px solid var(--border)", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center" }}
                           >
-                            Unpin
+                            <svg width="10" height="10" viewBox="0 0 10 10" fill="none"><path d="M2 2l6 6M8 2L2 8" stroke="var(--trouble-dk)" strokeWidth="1.4" strokeLinecap="round" /></svg>
                           </button>
                         </div>
                       )}
@@ -2203,7 +2249,7 @@ export default function App() {
               {page === "dashboard" && pickerOpen && (
                 <WidgetPicker
                   pinned={pinned}
-                  onPinToggle={(id) => setPinnedWidgets((prev) => togglePinWidget(prev, id))}
+                  onDashboardToggle={(id) => setPinnedWidgets((prev) => toggleWidgetOnDashboard(prev, id))}
                   onClose={() => setPickerOpen(false)}
                 />
               )}

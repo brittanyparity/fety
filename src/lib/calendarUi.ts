@@ -1,8 +1,14 @@
 /** Calendar amount / balance color helpers (positive = green, negative = red). */
 
 export function calSignedColor(amount: number, whenSelected?: boolean): string {
+  if (!Number.isFinite(amount)) return whenSelected ? "rgba(255,255,255,0.7)" : "var(--ink-3)";
   if (whenSelected) return amount >= 0 ? "var(--clear)" : "var(--trouble)";
   return amount >= 0 ? "var(--clear-dk)" : "var(--trouble-dk)";
+}
+
+/** Running balance text (green when positive, red when negative — not daily net cash flow). */
+export function calBalanceColor(balance: number, whenSelected?: boolean): string {
+  return calSignedColor(balance, whenSelected);
 }
 
 export function calDailyNetPositive(startBal: number, endBal: number): boolean {

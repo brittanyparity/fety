@@ -11,7 +11,10 @@ export function scheduledBillTransactionId(billId: string, dateISO: string): str
 }
 
 function isoDate(d: Date): string {
-  return d.toISOString().slice(0, 10);
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, "0");
+  const day = String(d.getDate()).padStart(2, "0");
+  return `${y}-${m}-${day}`;
 }
 
 function clampMonthDay(year: number, month: number, day: number): Date {
@@ -60,14 +63,36 @@ export function billOccurrencesInRange(bill: Bill, from: Date, to: Date): string
   return out;
 }
 
-function manualBillPaidOnDate(transactions: Transaction[], bill: Bill, dateISO: string): boolean {
-  return transactions.some(
-    (t) =>
-      !isScheduledBillTransaction(t.id) &&
-      t.dateISO === dateISO &&
-      t.type === "bill" &&
-      (t.desc === bill.name || t.desc.toLowerCase() === bill.name.toLowerCase()),
+function billMatchesManualLine(t: Transaction, bill: Bill): boolean {
+  return (
+    t.desc === bill.name ||
+    t.desc.toLowerCase() === bill.name.toLowerCase()
   );
+}
+
+function manualLinesForBillOnDate(transactions: Transaction[], bill: Bill, dateISO: string): Transaction[] {
+  return transactions.filter(
+    (t) => !isScheduledBillTransaction(t.id) && t.dateISO === dateISO && billMatchesManualLine(t, bill),
+  );
+}
+
+/** One manual line per bill occurrence; drop duplicate manual copies. */
+function dedupeManualBillLines(manual: Transaction[], bills: Bill[]): Transaction[] {
+  const dropIds = new Set<string>();
+  for (const bill of bills) {
+    const byDate = new Map<string, Transaction[]>();
+    for (const t of manual) {
+      if (!billMatchesManualLine(t, bill)) continue;
+      const list = byDate.get(t.dateISO) ?? [];
+      list.push(t);
+      byDate.set(t.dateISO, list);
+    }
+    for (const list of byDate.values()) {
+      if (list.length <= 1) continue;
+      list.slice(1).forEach((t) => dropIds.add(t.id));
+    }
+  }
+  return dropIds.size === 0 ? manual : manual.filter((t) => !dropIds.has(t.id));
 }
 
 export function rebuildTransactionsWithBillSchedule(
@@ -75,19 +100,22 @@ export function rebuildTransactionsWithBillSchedule(
   ref = new Date(),
 ): Transaction[] {
   const skipped = new Set(store.skippedBillOccurrences ?? []);
-  const manual = store.transactions.filter((t) => !isScheduledBillTransaction(t.id));
+  let manual = store.transactions.filter((t) => !isScheduledBillTransaction(t.id));
+  manual = dedupeManualBillLines(manual, store.bills);
 
   const from = new Date(ref.getFullYear() - 1, 0, 1);
   const to = new Date(ref.getFullYear() + 1, 11, 31);
 
-  const scheduled: Transaction[] = [];
+  const scheduledById = new Map<string, Transaction>();
   for (const bill of store.bills) {
-    for (const dateISO of billOccurrencesInRange(bill, from, to)) {
+    const dates = [...new Set(billOccurrencesInRange(bill, from, to))];
+    for (const dateISO of dates) {
       const skipKey = `${bill.id}|${dateISO}`;
       if (skipped.has(skipKey)) continue;
-      if (manualBillPaidOnDate(manual, bill, dateISO)) continue;
-      scheduled.push({
-        id: scheduledBillTransactionId(bill.id, dateISO),
+      if (manualLinesForBillOnDate(manual, bill, dateISO).length > 0) continue;
+      const id = scheduledBillTransactionId(bill.id, dateISO);
+      scheduledById.set(id, {
+        id,
         dateISO,
         desc: bill.name,
         category: bill.category,
@@ -98,7 +126,54 @@ export function rebuildTransactionsWithBillSchedule(
     }
   }
 
-  return [...manual, ...scheduled].sort((a, b) => b.dateISO.localeCompare(a.dateISO));
+  const scheduledKeys = new Set(
+    [...scheduledById.values()].map((t) => {
+      const parsed = parseScheduledBillId(t.id);
+      return parsed ? `${parsed.billId}|${parsed.dateISO}` : t.id;
+    }),
+  );
+
+  manual = manual.filter((t) => {
+    for (const bill of store.bills) {
+      if (t.dateISO && billMatchesManualLine(t, bill) && scheduledKeys.has(`${bill.id}|${t.dateISO}`)) {
+        return false;
+      }
+    }
+    return true;
+  });
+
+  const seenManual = new Set<string>();
+  manual = manual.filter((t) => {
+    const key = `${t.dateISO}|${t.desc.toLowerCase()}|${t.amount}|${t.type}`;
+    if (seenManual.has(key)) return false;
+    seenManual.add(key);
+    return true;
+  });
+
+  const scheduled = [...scheduledById.values()];
+
+  const occurrenceKey = (billId: string, dateISO: string) => `${billId}|${dateISO}`;
+  const scheduledOccurrenceKeys = new Set(
+    scheduled.map((t) => {
+      const parsed = parseScheduledBillId(t.id);
+      return parsed ? occurrenceKey(parsed.billId, parsed.dateISO) : t.id;
+    }),
+  );
+
+  const byId = new Map<string, Transaction>();
+  for (const t of manual) {
+    let drop = false;
+    for (const bill of store.bills) {
+      if (t.dateISO && billMatchesManualLine(t, bill) && scheduledOccurrenceKeys.has(occurrenceKey(bill.id, t.dateISO))) {
+        drop = true;
+        break;
+      }
+    }
+    if (!drop) byId.set(t.id, t);
+  }
+  for (const t of scheduled) byId.set(t.id, t);
+
+  return [...byId.values()].sort((a, b) => b.dateISO.localeCompare(a.dateISO));
 }
 
 export function applyBillScheduleToStore(store: FetyStore, ref = new Date()): FetyStore {

@@ -81,6 +81,24 @@ export function unpinWidget(pinned: string[], id: string): string[] {
   return pinned.filter((p) => p !== id);
 }
 
+export function toggleWidgetOnDashboard(pinned: string[], id: string): string[] {
+  if (pinned.includes(id)) return pinned.filter((p) => p !== id);
+  return [...pinned, id];
+}
+
+export function togglePinToTop(pinned: string[], id: string): string[] {
+  if (!pinned.includes(id)) return pinned;
+  if (pinned[0] === id) {
+    const rest = pinned.filter((p) => p !== id);
+    return [...rest, id];
+  }
+  return pinWidgetToTop(pinned, id);
+}
+
+export function isWidgetPinnedToTop(pinned: string[], id: string): boolean {
+  return pinned.length > 0 && pinned[0] === id;
+}
+
 export function togglePinWidget(pinned: string[], id: string): string[] {
-  return pinned.includes(id) ? unpinWidget(pinned, id) : pinWidgetToTop(pinned, id);
+  return toggleWidgetOnDashboard(pinned, id);
 }

@@ -5,13 +5,12 @@ const usd = (n: number) =>
     style: "currency",
     currency: "USD",
     maximumFractionDigits: 0,
-  }).format(Math.abs(n));
+  }).format(n);
 
 const usdSigned = (n: number, sign: "+" | "-" | "") => {
-  const v = usd(n);
-  if (sign === "+") return `+${v}`;
-  if (sign === "-") return `-${v}`;
-  return v;
+  if (sign === "+") return `+${usd(Math.abs(n))}`;
+  if (sign === "-") return `-${usd(Math.abs(n))}`;
+  return usd(n);
 };
 
 export function DashboardHero({ summary }: { summary: FinanceSummary }) {

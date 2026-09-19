@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useState } from "react";
 import type {
   Account,
   Bill,
@@ -15,12 +15,36 @@ import { formatDisplayDate, todayISO } from "../lib/fetyCalculations";
 import { EditableNumber, EditableText } from "../components/EditableField";
 import EmojiIconPicker from "../components/EmojiIconPicker";
 import BillScheduleFields from "../components/BillScheduleFields";
+import { BILL_FREQUENCY_LABELS } from "../lib/billScheduling";
 import CurrencyInput, { amountToEditString } from "../components/CurrencyInput";
 
 const usd = (n: number) =>
-  new Intl.NumberFormat("en-US", { style: "currency", currency: "USD", maximumFractionDigits: 0 }).format(Math.abs(n));
+  new Intl.NumberFormat("en-US", { style: "currency", currency: "USD", maximumFractionDigits: 0 }).format(n);
 const usdF = (n: number) =>
-  new Intl.NumberFormat("en-US", { style: "currency", currency: "USD", minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(Math.abs(n));
+  new Intl.NumberFormat("en-US", { style: "currency", currency: "USD", minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(n);
+
+const FLOW_LABELS: Record<TransactionFlow, string> = {
+  income: "Money in",
+  expense: "Money out",
+  bill: "Bill / recurring due",
+  transfer: "Transfer",
+};
+
+const editBtnStyle: React.CSSProperties = {
+  borderRadius: 8,
+  border: "1px solid var(--border)",
+  background: "var(--surface)",
+  cursor: "pointer",
+  display: "flex",
+  alignItems: "center",
+  justifyContent: "center",
+  flexShrink: 0,
+  color: "var(--ink-3)",
+  fontSize: 11,
+  fontWeight: 600,
+  padding: "0 10px",
+  height: 28,
+};
 
 const inputStyle: React.CSSProperties = {
   width: "100%",
@@ -69,14 +93,85 @@ export function BudgetManageView({
   const [typeName, setTypeName] = useState("");
   const [typeIcon, setTypeIcon] = useState("🏷️");
   const [typeFlow, setTypeFlow] = useState<TransactionFlow>("expense");
-  const typeNameDrafts = useMemo(
-    () => Object.fromEntries(transactionTypes.map((t) => [t.id, t.name])),
-    [transactionTypes],
-  );
-  const [typeNames, setTypeNames] = useState<Record<string, string>>(typeNameDrafts);
-  useEffect(() => {
-    setTypeNames(typeNameDrafts);
-  }, [typeNameDrafts]);
+  const [budgetAddMode, setBudgetAddMode] = useState<"bill" | "type">("bill");
+  const [editingTypeId, setEditingTypeId] = useState<string | null>(null);
+  const [typeEditDraft, setTypeEditDraft] = useState<{ name: string; icon: string; flow: TransactionFlow } | null>(null);
+
+  const startEditTransactionType = (tt: FetyTransactionType) => {
+    setEditingTypeId(tt.id);
+    setTypeEditDraft({ name: tt.name, icon: tt.icon, flow: tt.flow });
+  };
+
+  const saveEditTransactionType = () => {
+    if (!editingTypeId || !typeEditDraft) return;
+    const name = typeEditDraft.name.trim();
+    if (!name) return;
+    onUpdateTransactionType(editingTypeId, {
+      name,
+      icon: typeEditDraft.icon,
+      flow: typeEditDraft.flow,
+    });
+    setEditingTypeId(null);
+    setTypeEditDraft(null);
+  };
+
+  const cancelEditTransactionType = () => {
+    setEditingTypeId(null);
+    setTypeEditDraft(null);
+  };
+
+  const [editingBillId, setEditingBillId] = useState<string | null>(null);
+  const [billEditDraft, setBillEditDraft] = useState<{
+    name: string;
+    amount: string;
+    category: string;
+    frequency: BillFrequency;
+    dueDay: number;
+    icon: string;
+  } | null>(null);
+
+  const startEditBill = (b: Bill) => {
+    setEditingBillId(b.id);
+    setBillEditDraft({
+      name: b.name,
+      amount: b.amount === 0 ? "" : String(b.amount),
+      category: b.category,
+      frequency: b.frequency ?? "monthly",
+      dueDay: b.dueDay,
+      icon: b.icon || "📄",
+    });
+  };
+
+  const saveEditBill = () => {
+    if (!editingBillId || !billEditDraft) return;
+    const name = billEditDraft.name.trim();
+    const amount = parseFloat(billEditDraft.amount);
+    if (!name || !Number.isFinite(amount)) return;
+    onUpdateBill(editingBillId, {
+      name,
+      amount,
+      category: billEditDraft.category.trim() || "Bills",
+      frequency: billEditDraft.frequency,
+      dueDay: billEditDraft.dueDay,
+      icon: billEditDraft.icon,
+    });
+    setEditingBillId(null);
+    setBillEditDraft(null);
+  };
+
+  const cancelEditBill = () => {
+    setEditingBillId(null);
+    setBillEditDraft(null);
+  };
+
+  const billDueSummary = (b: Bill) => {
+    const freq = BILL_FREQUENCY_LABELS[b.frequency ?? "monthly"];
+    if (b.frequency === "weekly" || b.frequency === "biweekly") {
+      const days = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
+      return `${freq} · ${days[b.dueDay] ?? "Mon"}`;
+    }
+    return `${freq} · day ${b.dueDay}`;
+  };
 
   const totalBudget = categories.reduce((s, c) => s + c.monthlyBudget, 0);
   const totalSpent = categories.reduce((s, c) => s + c.spent, 0);
@@ -98,6 +193,30 @@ export function BudgetManageView({
     setBillDue(1);
     setBillFrequency("monthly");
   };
+
+  const submitBudgetAdd = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (budgetAddMode === "bill") {
+      submitBill(e);
+      return;
+    }
+    if (!typeName.trim()) return;
+    onAddTransactionType({ name: typeName.trim(), icon: typeIcon, flow: typeFlow });
+    setTypeName("");
+    setTypeIcon("🏷️");
+    setTypeFlow("expense");
+  };
+
+  const addModeToggleStyle = (active: boolean): React.CSSProperties => ({
+    padding: "6px 14px",
+    borderRadius: 99,
+    fontSize: 11,
+    fontWeight: 600,
+    border: "1px solid var(--border)",
+    cursor: "pointer",
+    background: active ? "var(--ink)" : "var(--surface)",
+    color: active ? "#fff" : "var(--ink-2)",
+  });
 
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
@@ -143,151 +262,284 @@ export function BudgetManageView({
         })}
       </div>
 
-      <div style={{ background: "var(--surface)", border: "1px solid var(--border)", borderRadius: 14, padding: "18px 20px" }}>
-        <p className="fety-label-strong" style={{ marginBottom: 12 }}>Bills</p>
-        <div style={{ display: "flex", flexDirection: "column", gap: 8, marginBottom: 14 }}>
-          {bills.map((b) => (
-            <div key={b.id} style={{ padding: "12px 0", borderBottom: "1px solid var(--border-soft)" }}>
-              <div style={{ display: "flex", alignItems: "flex-start", gap: 10 }}>
-                <span style={{ fontSize: 18, marginTop: 4 }}>{b.icon}</span>
-                <div style={{ flex: 1, minWidth: 0 }}>
-                  <EditableText label="Bill name" value={b.name} onSave={(name) => onUpdateBill(b.id, { name })} />
-                  <EditableNumber label="Amount" value={b.amount} format={usd} currency onSave={(amount) => onUpdateBill(b.id, { amount })} valueStyle={{ fontSize: 16 }} />
-                  <div style={{ marginTop: 8 }}>
-                    <BillScheduleFields
-                      compact
-                      frequency={b.frequency ?? "monthly"}
-                      dueDay={b.dueDay}
-                      onFrequencyChange={(frequency) => onUpdateBill(b.id, { frequency })}
-                      onDueDayChange={(dueDay) => onUpdateBill(b.id, { dueDay })}
-                      inputStyle={inputStyle}
-                    />
-                  </div>
-                  <EditableText label="Category" value={b.category} onSave={(category) => onUpdateBill(b.id, { category })} valueStyle={{ fontSize: 12 }} />
-                </div>
-                <button type="button" onClick={() => onDeleteBill(b.id)} style={{ border: "none", background: "transparent", color: "var(--ink-3)", cursor: "pointer", fontSize: 11, flexShrink: 0 }}>Remove</button>
+      <form
+        onSubmit={submitBudgetAdd}
+        style={{
+          background: "var(--surface)",
+          border: "1px solid var(--border)",
+          borderRadius: 14,
+          padding: "18px 20px",
+          display: "flex",
+          flexDirection: "column",
+          gap: 12,
+        }}
+      >
+        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12, flexWrap: "wrap" }}>
+          <p className="fety-label-strong" style={{ margin: 0 }}>Add bill or transaction type</p>
+          <div style={{ display: "inline-flex", gap: 6, flexWrap: "wrap" }}>
+            <button type="button" onClick={() => setBudgetAddMode("bill")} style={addModeToggleStyle(budgetAddMode === "bill")}>
+              Bill
+            </button>
+            <button type="button" onClick={() => setBudgetAddMode("type")} style={addModeToggleStyle(budgetAddMode === "type")}>
+              Transaction type
+            </button>
+          </div>
+        </div>
+
+        {budgetAddMode === "bill" ? (
+          <>
+            <div style={{ display: "grid", gridTemplateColumns: "2fr 1fr 1fr", gap: 8, alignItems: "end" }}>
+              <div className="fety-form-desc">
+                <label className="fety-label" style={{ display: "block", marginBottom: 4 }}>Bill name</label>
+                <input value={billName} onChange={(e) => setBillName(e.target.value)} style={inputStyle} placeholder="Electric" />
+              </div>
+              <div>
+                <label className="fety-label" style={{ display: "block", marginBottom: 4 }}>Amount</label>
+                <CurrencyInput value={billAmount} onChange={setBillAmount} placeholder="0.00" />
+              </div>
+              <div>
+                <label className="fety-label" style={{ display: "block", marginBottom: 4 }}>Category</label>
+                <input value={billCategory} onChange={(e) => setBillCategory(e.target.value)} style={inputStyle} />
               </div>
             </div>
-          ))}
-        </div>
-        <form onSubmit={submitBill} style={{ display: "flex", flexDirection: "column", gap: 12 }}>
-          <div style={{ display: "grid", gridTemplateColumns: "2fr 1fr 1fr", gap: 8, alignItems: "end" }}>
-            <div>
-              <label className="fety-label" style={{ display: "block", marginBottom: 4 }}>Bill name</label>
-              <input value={billName} onChange={(e) => setBillName(e.target.value)} style={inputStyle} placeholder="Electric" />
+            <BillScheduleFields
+              frequency={billFrequency}
+              dueDay={billDue}
+              onFrequencyChange={setBillFrequency}
+              onDueDayChange={setBillDue}
+              inputStyle={inputStyle}
+            />
+            <button type="submit" style={{ padding: "8px 14px", borderRadius: "var(--radius-ctrl)", border: "none", background: "var(--ink)", color: "#fff", fontWeight: 600, cursor: "pointer", alignSelf: "flex-start" }}>
+              Add bill
+            </button>
+          </>
+        ) : (
+          <>
+            <p style={{ fontSize: 12, color: "var(--ink-2)", lineHeight: 1.45, margin: 0 }}>
+              Custom types appear when you add or edit transactions on the calendar and Transactions page.
+            </p>
+            <div style={{ display: "flex", alignItems: "flex-end", gap: 10, flexWrap: "wrap" }}>
+              <EmojiIconPicker value={typeIcon} onChange={setTypeIcon} />
+              <div className="fety-form-desc" style={{ flex: "1 1 200px", minWidth: 160 }}>
+                <label className="fety-label" style={{ display: "block", marginBottom: 4 }}>Type name</label>
+                <input value={typeName} onChange={(e) => setTypeName(e.target.value)} style={inputStyle} placeholder="Refund" />
+              </div>
+              <div style={{ flex: "0 1 220px", minWidth: 160 }}>
+                <label className="fety-label" style={{ display: "block", marginBottom: 4 }}>Money direction</label>
+                <select value={typeFlow} onChange={(e) => setTypeFlow(e.target.value as TransactionFlow)} style={inputStyle}>
+                  <option value="expense">Money out (expense)</option>
+                  <option value="income">Money in (income)</option>
+                  <option value="bill">Bill / recurring due</option>
+                  <option value="transfer">Transfer (neutral)</option>
+                </select>
+              </div>
             </div>
-            <div>
-              <label className="fety-label" style={{ display: "block", marginBottom: 4 }}>Amount</label>
-              <CurrencyInput value={billAmount} onChange={setBillAmount} placeholder="0.00" />
-            </div>
-            <div>
-              <label className="fety-label" style={{ display: "block", marginBottom: 4 }}>Category</label>
-              <input value={billCategory} onChange={(e) => setBillCategory(e.target.value)} style={inputStyle} />
-            </div>
-          </div>
-          <BillScheduleFields
-            frequency={billFrequency}
-            dueDay={billDue}
-            onFrequencyChange={setBillFrequency}
-            onDueDayChange={setBillDue}
-            inputStyle={inputStyle}
-          />
-          <button type="submit" style={{ padding: "8px 14px", borderRadius: "var(--radius-ctrl)", border: "none", background: "var(--ink)", color: "#fff", fontWeight: 600, cursor: "pointer", alignSelf: "flex-start" }}>Add bill</button>
-        </form>
-      </div>
+            <button type="submit" style={{ padding: "8px 14px", borderRadius: "var(--radius-ctrl)", border: "none", background: "var(--ink)", color: "#fff", fontWeight: 600, cursor: "pointer", alignSelf: "flex-start" }}>
+              Add type
+            </button>
+          </>
+        )}
+      </form>
 
       <div style={{ background: "var(--surface)", border: "1px solid var(--border)", borderRadius: 14, padding: "18px 20px" }}>
-        <p className="fety-label-strong" style={{ marginBottom: 6 }}>Transaction types</p>
-        <p style={{ fontSize: 12, color: "var(--ink-2)", marginBottom: 14, lineHeight: 1.45 }}>
-          Types you define here appear when you add or edit transactions on the calendar and Transactions page.
-        </p>
-        <div style={{ display: "flex", flexDirection: "column", gap: 10, marginBottom: 16 }}>
-          {transactionTypes.map((tt) => {
-            const inUse = transactionTypeInUse(tt.id);
+        <p className="fety-label-strong" style={{ marginBottom: 12 }}>Bills</p>
+        <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+          {bills.map((b) => {
+            const isEditing = editingBillId === b.id && billEditDraft;
             return (
-              <div key={tt.id} style={{ padding: "12px 14px", border: "1px solid var(--border-soft)", borderRadius: 12 }}>
-                <div style={{ display: "flex", alignItems: "flex-start", gap: 10 }}>
-                  <EmojiIconPicker
-                    value={tt.icon}
-                    onChange={(icon) => onUpdateTransactionType(tt.id, { icon })}
-                  />
-                  <div style={{ flex: 1, minWidth: 0 }}>
-                    <label className="fety-label" style={{ display: "block", marginBottom: 4 }}>Name</label>
-                    <input
-                      value={typeNames[tt.id] ?? tt.name}
-                      onChange={(e) => setTypeNames((prev) => ({ ...prev, [tt.id]: e.target.value }))}
-                      onBlur={() => {
-                        const name = (typeNames[tt.id] ?? tt.name).trim();
-                        if (name && name !== tt.name) onUpdateTransactionType(tt.id, { name });
-                        else setTypeNames((prev) => ({ ...prev, [tt.id]: tt.name }));
-                      }}
-                      style={{ ...inputStyle, marginBottom: 8 }}
+              <div key={b.id} style={{ padding: "12px 14px", border: "1px solid var(--border-soft)", borderRadius: 12 }}>
+                {isEditing ? (
+                  <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+                    <div style={{ display: "flex", alignItems: "flex-end", gap: 10, flexWrap: "wrap" }}>
+                      <EmojiIconPicker
+                        value={billEditDraft.icon}
+                        onChange={(icon) => setBillEditDraft((d) => (d ? { ...d, icon } : d))}
+                      />
+                      <div className="fety-form-desc" style={{ flex: "1 1 160px", minWidth: 140 }}>
+                        <label className="fety-label" style={{ display: "block", marginBottom: 4 }}>Bill name</label>
+                        <input
+                          value={billEditDraft.name}
+                          onChange={(e) => setBillEditDraft((d) => (d ? { ...d, name: e.target.value } : d))}
+                          style={inputStyle}
+                          autoFocus
+                        />
+                      </div>
+                      <div style={{ flex: "0 1 140px", minWidth: 120 }}>
+                        <label className="fety-label" style={{ display: "block", marginBottom: 4 }}>Amount</label>
+                        <CurrencyInput value={billEditDraft.amount} onChange={(amount) => setBillEditDraft((d) => (d ? { ...d, amount } : d))} />
+                      </div>
+                      <div style={{ flex: "0 1 140px", minWidth: 120 }}>
+                        <label className="fety-label" style={{ display: "block", marginBottom: 4 }}>Category</label>
+                        <input
+                          value={billEditDraft.category}
+                          onChange={(e) => setBillEditDraft((d) => (d ? { ...d, category: e.target.value } : d))}
+                          style={inputStyle}
+                        />
+                      </div>
+                    </div>
+                    <BillScheduleFields
+                      compact
+                      frequency={billEditDraft.frequency}
+                      dueDay={billEditDraft.dueDay}
+                      onFrequencyChange={(frequency) => setBillEditDraft((d) => (d ? { ...d, frequency } : d))}
+                      onDueDayChange={(dueDay) => setBillEditDraft((d) => (d ? { ...d, dueDay } : d))}
+                      inputStyle={inputStyle}
                     />
-                    <label className="fety-label" style={{ display: "block", marginBottom: 4 }}>Money direction</label>
-                    <select
-                      value={tt.flow}
-                      disabled={tt.locked}
-                      onChange={(e) => onUpdateTransactionType(tt.id, { flow: e.target.value as TransactionFlow })}
-                      style={inputStyle}
-                    >
-                      <option value="income">Money in (income)</option>
-                      <option value="expense">Money out (expense)</option>
-                      <option value="bill">Bill / recurring due</option>
-                      <option value="transfer">Transfer (neutral)</option>
-                    </select>
-                    {tt.locked && (
-                      <p style={{ fontSize: 10, color: "var(--ink-3)", marginTop: 6 }}>Core type — you can rename and change the icon, but not remove it.</p>
-                    )}
+                    <div style={{ display: "flex", gap: 8 }}>
+                      <button
+                        type="button"
+                        onClick={saveEditBill}
+                        style={{ padding: "6px 14px", borderRadius: "var(--radius-ctrl)", border: "none", background: "var(--ink)", color: "#fff", fontSize: 11, fontWeight: 600, cursor: "pointer" }}
+                      >
+                        Save
+                      </button>
+                      <button
+                        type="button"
+                        onClick={cancelEditBill}
+                        style={{ padding: "6px 14px", borderRadius: "var(--radius-ctrl)", border: "1px solid var(--border)", background: "transparent", fontSize: 11, cursor: "pointer" }}
+                      >
+                        Cancel
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          onDeleteBill(b.id);
+                          cancelEditBill();
+                        }}
+                        style={{
+                          marginLeft: "auto",
+                          border: "none",
+                          background: "transparent",
+                          color: "var(--trouble-dk)",
+                          cursor: "pointer",
+                          fontSize: 11,
+                        }}
+                      >
+                        Remove
+                      </button>
+                    </div>
                   </div>
-                  {!tt.locked && (
-                    <button
-                      type="button"
-                      title={inUse ? "Remove after deleting transactions that use this type" : "Remove type"}
-                      disabled={inUse}
-                      onClick={() => onDeleteTransactionType(tt.id)}
-                      style={{
-                        border: "none",
-                        background: "transparent",
-                        color: inUse ? "var(--ink-3)" : "var(--trouble-dk)",
-                        cursor: inUse ? "not-allowed" : "pointer",
-                        fontSize: 11,
-                        flexShrink: 0,
-                      }}
-                    >
-                      Remove
+                ) : (
+                  <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+                    <span style={{ fontSize: 22, lineHeight: 1, flexShrink: 0 }}>{b.icon}</span>
+                    <div style={{ flex: 1, minWidth: 0 }}>
+                      <p style={{ fontSize: 14, fontWeight: 600, color: "var(--ink)" }}>{b.name}</p>
+                      <p style={{ fontSize: 11, color: "var(--ink-3)", marginTop: 2 }}>
+                        {usd(b.amount)} · {b.category} · {billDueSummary(b)}
+                      </p>
+                    </div>
+                    <button type="button" onClick={() => startEditBill(b)} style={editBtnStyle}>
+                      Edit
                     </button>
-                  )}
-                </div>
+                  </div>
+                )}
               </div>
             );
           })}
         </div>
-        <form
-          onSubmit={(e) => {
-            e.preventDefault();
-            if (!typeName.trim()) return;
-            onAddTransactionType({ name: typeName.trim(), icon: typeIcon, flow: typeFlow });
-            setTypeName("");
-            setTypeIcon("🏷️");
-            setTypeFlow("expense");
-          }}
-          style={{ display: "grid", gridTemplateColumns: "1fr auto auto auto", gap: 8, alignItems: "end" }}
-        >
-          <div>
-            <label className="fety-label" style={{ display: "block", marginBottom: 4 }}>New type name</label>
-            <input value={typeName} onChange={(e) => setTypeName(e.target.value)} style={inputStyle} placeholder="Refund" />
-          </div>
-          <EmojiIconPicker value={typeIcon} onChange={setTypeIcon} />
-          <div>
-            <label className="fety-label" style={{ display: "block", marginBottom: 4 }}>Direction</label>
-            <select value={typeFlow} onChange={(e) => setTypeFlow(e.target.value as TransactionFlow)} style={inputStyle}>
-              <option value="expense">Money out</option>
-              <option value="income">Money in</option>
-              <option value="transfer">Transfer</option>
-            </select>
-          </div>
-          <button type="submit" style={{ padding: "8px 14px", borderRadius: "var(--radius-ctrl)", border: "none", background: "var(--ink)", color: "#fff", fontWeight: 600, cursor: "pointer" }}>Add type</button>
-        </form>
+      </div>
+
+      <div style={{ background: "var(--surface)", border: "1px solid var(--border)", borderRadius: 14, padding: "18px 20px" }}>
+        <p className="fety-label-strong" style={{ marginBottom: 6 }}>Transaction types</p>
+        <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+          {transactionTypes.map((tt) => {
+            const inUse = transactionTypeInUse(tt.id);
+            const isEditing = editingTypeId === tt.id && typeEditDraft;
+            return (
+              <div key={tt.id} style={{ padding: "12px 14px", border: "1px solid var(--border-soft)", borderRadius: 12 }}>
+                {isEditing ? (
+                  <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+                    <div style={{ display: "flex", alignItems: "flex-end", gap: 10, flexWrap: "wrap" }}>
+                      <EmojiIconPicker
+                        value={typeEditDraft.icon}
+                        onChange={(icon) => setTypeEditDraft((d) => (d ? { ...d, icon } : d))}
+                      />
+                      <div className="fety-form-desc" style={{ flex: "1 1 200px", minWidth: 160 }}>
+                        <label className="fety-label" style={{ display: "block", marginBottom: 4 }}>Name</label>
+                        <input
+                          value={typeEditDraft.name}
+                          onChange={(e) => setTypeEditDraft((d) => (d ? { ...d, name: e.target.value } : d))}
+                          style={inputStyle}
+                          autoFocus
+                        />
+                      </div>
+                      <div style={{ flex: "0 1 200px", minWidth: 160 }}>
+                        <label className="fety-label" style={{ display: "block", marginBottom: 4 }}>Money direction</label>
+                        <select
+                          value={typeEditDraft.flow}
+                          disabled={tt.locked}
+                          onChange={(e) =>
+                            setTypeEditDraft((d) => (d ? { ...d, flow: e.target.value as TransactionFlow } : d))
+                          }
+                          style={inputStyle}
+                        >
+                          <option value="income">Money in (income)</option>
+                          <option value="expense">Money out (expense)</option>
+                          <option value="bill">Bill / recurring due</option>
+                          <option value="transfer">Transfer (neutral)</option>
+                        </select>
+                      </div>
+                    </div>
+                    {tt.locked && (
+                      <p style={{ fontSize: 10, color: "var(--ink-3)" }}>Core type — direction is fixed; you can rename and change the icon.</p>
+                    )}
+                    <div style={{ display: "flex", gap: 8 }}>
+                      <button
+                        type="button"
+                        onClick={saveEditTransactionType}
+                        style={{ padding: "6px 14px", borderRadius: "var(--radius-ctrl)", border: "none", background: "var(--ink)", color: "#fff", fontSize: 11, fontWeight: 600, cursor: "pointer" }}
+                      >
+                        Save
+                      </button>
+                      <button
+                        type="button"
+                        onClick={cancelEditTransactionType}
+                        style={{ padding: "6px 14px", borderRadius: "var(--radius-ctrl)", border: "1px solid var(--border)", background: "transparent", fontSize: 11, cursor: "pointer" }}
+                      >
+                        Cancel
+                      </button>
+                      {!tt.locked && (
+                        <button
+                          type="button"
+                          title={inUse ? "Remove after deleting transactions that use this type" : "Remove type"}
+                          disabled={inUse}
+                          onClick={() => {
+                            onDeleteTransactionType(tt.id);
+                            cancelEditTransactionType();
+                          }}
+                          style={{
+                            marginLeft: "auto",
+                            border: "none",
+                            background: "transparent",
+                            color: inUse ? "var(--ink-3)" : "var(--trouble-dk)",
+                            cursor: inUse ? "not-allowed" : "pointer",
+                            fontSize: 11,
+                          }}
+                        >
+                          Remove
+                        </button>
+                      )}
+                    </div>
+                  </div>
+                ) : (
+                  <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+                    <span style={{ fontSize: 22, lineHeight: 1, flexShrink: 0 }}>{tt.icon}</span>
+                    <div style={{ flex: 1, minWidth: 0 }}>
+                      <p style={{ fontSize: 14, fontWeight: 600, color: "var(--ink)" }}>{tt.name}</p>
+                      <p style={{ fontSize: 11, color: "var(--ink-3)", marginTop: 2 }}>
+                        {FLOW_LABELS[tt.flow]}
+                        {tt.locked ? " · Core type" : ""}
+                      </p>
+                    </div>
+                    <button type="button" onClick={() => startEditTransactionType(tt)} style={editBtnStyle}>
+                      Edit
+                    </button>
+                  </div>
+                )}
+              </div>
+            );
+          })}
+        </div>
       </div>
     </div>
   );
@@ -352,7 +604,7 @@ export function TransactionsManageView({
 
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
-      <form onSubmit={submit} style={{ background: "var(--surface)", border: "1px solid var(--border)", borderRadius: 14, padding: "16px 18px", display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(120px, 1fr))", gap: 10, alignItems: "end" }}>
+      <form onSubmit={submit} className="fety-txn-add-form" style={{ background: "var(--surface)", border: "1px solid var(--border)", borderRadius: 14, padding: "16px 18px", gap: 10, alignItems: "end" }}>
         <div style={{ gridColumn: "1 / -1" }}>
           <p className="fety-label-strong" style={{ marginBottom: 8 }}>Add transaction</p>
         </div>
@@ -361,7 +613,7 @@ export function TransactionsManageView({
           defaultEmoji={iconForType(type)}
           onChange={setAddIcon}
         />
-        <div>
+        <div className="fety-form-desc">
           <label className="fety-label" style={{ display: "block", marginBottom: 4 }}>Description</label>
           <input value={desc} onChange={(e) => setDesc(e.target.value)} style={inputStyle} />
         </div>
@@ -409,14 +661,14 @@ export function TransactionsManageView({
             {txns.map((t) => (
               <div key={t.id} style={{ display: "flex", alignItems: "center", padding: "12px 18px", borderTop: "1px solid var(--border)", gap: 12 }}>
                 {editId === t.id ? (
-                  <div style={{ flex: 1, display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(100px, 1fr))", gap: 8, alignItems: "end", overflow: "visible", position: "relative", zIndex: 2 }}>
+                  <div style={{ flex: 1, display: "grid", gridTemplateColumns: "auto minmax(140px, 2.5fr) minmax(100px, 1fr) minmax(100px, 1fr) minmax(100px, 1fr) auto auto", gap: 8, alignItems: "end", overflow: "visible", position: "relative", zIndex: 2 }}>
                     <EmojiIconPicker
                       value={editIcon}
                       defaultEmoji={iconForType(editType)}
                       onChange={setEditIcon}
                       compact
                     />
-                    <div>
+                    <div className="fety-form-desc">
                       <label className="fety-label" style={{ display: "block", marginBottom: 4 }}>Description</label>
                       <input value={editDesc} onChange={(e) => setEditDesc(e.target.value)} style={inputStyle} placeholder="Description" />
                     </div>

@@ -1,5 +1,5 @@
 import type { Bill, BudgetCategory, ChatMessage, FetyStore, Goal, Transaction, Account, TransactionType, TypeIconMap } from "../types/fety";
-import { applyBillScheduleToStore } from "./billScheduling";
+import { applyBillScheduleToStore, isScheduledBillTransaction } from "./billScheduling";
 import { defaultTransactionTypes, typeIconsFromTransactionTypes } from "./transactionTypes";
 
 export const DEFAULT_TYPE_ICONS: TypeIconMap = {
@@ -186,7 +186,11 @@ export function loadStore(): FetyStore {
 
 export function saveStore(store: FetyStore): void {
   if (typeof window === "undefined") return;
-  localStorage.setItem(STORAGE_KEY, JSON.stringify(store));
+  const toSave: FetyStore = {
+    ...store,
+    transactions: store.transactions.filter((t) => !isScheduledBillTransaction(t.id)),
+  };
+  localStorage.setItem(STORAGE_KEY, JSON.stringify(toSave));
 }
 
 export function resetStore(): FetyStore {

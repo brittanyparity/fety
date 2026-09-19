@@ -265,11 +265,11 @@ export function useFetyData() {
       patch((prev) => {
         const types = (prev.transactionTypes ?? []).map((t) => {
           if (t.id !== id) return t;
-          if (t.locked && updates.flow !== undefined) {
+            if (t.locked && updates.flow !== undefined) {
             const { flow: _flow, ...rest } = updates;
-            return { ...t, ...rest, name: rest.name?.trim() ?? t.name };
+            return { ...t, ...rest, name: rest.name !== undefined ? rest.name.trim() || t.name : t.name };
           }
-          return { ...t, ...updates, name: updates.name !== undefined ? updates.name.trim() : t.name };
+          return { ...t, ...updates, name: updates.name !== undefined ? updates.name.trim() || t.name : t.name };
         });
         return { ...prev, transactionTypes: types, typeIcons: typeIconsFromTransactionTypes(types) };
       });
