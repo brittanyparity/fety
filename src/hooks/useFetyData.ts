@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { computeSummary, todayISO } from "../lib/fetyCalculations";
 import {
   applyBillScheduleToStore,
+  billSignature,
   parseScheduledBillId,
   skipKeyForBillOccurrence,
 } from "../lib/billScheduling";
@@ -147,10 +148,20 @@ export function useFetyData() {
 
   const addBill = useCallback(
     (input: Omit<Bill, "id">) => {
-      patch((prev) => ({
-        ...prev,
-        bills: [...prev.bills, { ...input, id: newId("bill") }],
-      }));
+      patch((prev) => {
+        const candidate: Bill = {
+          ...input,
+          id: newId("bill"),
+          frequency: input.frequency ?? "monthly",
+          amount: Number(input.amount),
+          dueDay: Number(input.dueDay),
+        };
+        const sig = billSignature(candidate);
+        if (prev.bills.some((b) => billSignature(b) === sig)) {
+          return prev;
+        }
+        return { ...prev, bills: [...prev.bills, candidate] };
+      });
     },
     [patch],
   );

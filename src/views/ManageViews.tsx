@@ -11,7 +11,7 @@ import type {
   TransactionFlow,
   TransactionType,
 } from "../types/fety";
-import { formatDisplayDate, todayISO } from "../lib/fetyCalculations";
+import { formatTransactionGroupDate, todayISO } from "../lib/fetyCalculations";
 import { EditableNumber, EditableText } from "../components/EditableField";
 import EmojiIconPicker from "../components/EmojiIconPicker";
 import BillScheduleFields from "../components/BillScheduleFields";
@@ -586,11 +586,11 @@ export function TransactionsManageView({
           return tt?.name === filter || t.type === filter;
         });
   const filterLabels = ["All", ...transactionTypes.map((t) => t.name)];
-  const byDate: Record<string, Transaction[]> = {};
+  const byDateISO: Record<string, Transaction[]> = {};
   shown.forEach((t) => {
-    const label = formatDisplayDate(t.dateISO);
-    (byDate[label] ||= []).push(t);
+    (byDateISO[t.dateISO] ||= []).push(t);
   });
+  const dateGroups = Object.entries(byDateISO).sort(([a], [b]) => b.localeCompare(a));
 
   const submit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -653,10 +653,10 @@ export function TransactionsManageView({
       </div>
 
       <div style={{ background: "var(--surface)", borderRadius: 16, border: "1px solid var(--border)", overflow: "hidden" }}>
-        {Object.entries(byDate).map(([date, txns], gi) => (
-          <div key={date}>
+        {dateGroups.map(([dateISO, txns], gi) => (
+          <div key={dateISO}>
             <div style={{ padding: "9px 18px", background: "var(--bg)", borderTop: gi > 0 ? "1px solid var(--border)" : undefined }}>
-              <span className="fety-label">{date}</span>
+              <span className="fety-label">{formatTransactionGroupDate(dateISO)}</span>
             </div>
             {txns.map((t) => (
               <div key={t.id} style={{ display: "flex", alignItems: "center", padding: "12px 18px", borderTop: "1px solid var(--border)", gap: 12 }}>

@@ -1223,7 +1223,7 @@ function MonthlyCalGrid({ month, calendarMap, selected, onSelect }: { month: Dat
               style={{
                 borderRadius: 10, padding: "7px 6px",
                 border: isSelected ? "2px solid var(--ink)" : "1px solid var(--border)",
-                background: data ? calendarDailyBalanceBg(net, isSelected) : "var(--surface)",
+                background: data ? calendarEndingBalanceBg(data.endBal, isSelected) : "var(--surface)",
                 cursor: "pointer", textAlign: "left", minHeight: 82,
                 display: "flex", flexDirection: "column", gap: 3,
                 transition: "all 0.12s",
@@ -1283,6 +1283,18 @@ function MonthlyCalGrid({ month, calendarMap, selected, onSelect }: { month: Dat
         <div style={{ display: "flex", alignItems: "center", gap: 5, fontSize: 10, color: "var(--ink-3)" }}>
           <span>📋</span> Bill due
         </div>
+        <div style={{ display: "flex", alignItems: "center", gap: 5, fontSize: 10, color: "var(--ink-3)", marginLeft: 4 }}>
+          <div style={{ width: 14, height: 14, borderRadius: 4, background: "rgba(145, 216, 182, 0.55)", border: "1px solid var(--border)" }} />
+          Ending balance +
+        </div>
+        <div style={{ display: "flex", alignItems: "center", gap: 5, fontSize: 10, color: "var(--ink-3)" }}>
+          <div style={{ width: 14, height: 14, borderRadius: 4, background: "rgba(255, 217, 107, 0.58)", border: "1px solid var(--border)" }} />
+          Zero
+        </div>
+        <div style={{ display: "flex", alignItems: "center", gap: 5, fontSize: 10, color: "var(--ink-3)" }}>
+          <div style={{ width: 14, height: 14, borderRadius: 4, background: "rgba(255, 111, 94, 0.5)", border: "1px solid var(--border)" }} />
+          Ending balance −
+        </div>
       </div>
     </div>
   );
@@ -1316,7 +1328,7 @@ function WeeklyCalGrid({ anchor, days, calendarMap, selected, onSelect }: { anch
     const isToday     = date.toDateString() === today.toDateString();
     const net = data ? data.endBal - data.startBal : 0;
     return (
-      <button key={key} onClick={() => onSelect(key)} style={{ background: data ? calendarDailyBalanceBg(net, isSelected) : "var(--surface)", border: isSelected ? "2px solid var(--ink)" : "1px solid var(--border)", borderRadius: 12, padding: "12px 10px", cursor: "pointer", textAlign: "left", display: "flex", flexDirection: "column", gap: 8 }}>
+      <button key={key} onClick={() => onSelect(key)} style={{ background: data ? calendarEndingBalanceBg(data.endBal, isSelected) : "var(--surface)", border: isSelected ? "2px solid var(--ink)" : "1px solid var(--border)", borderRadius: 12, padding: "12px 10px", cursor: "pointer", textAlign: "left", display: "flex", flexDirection: "column", gap: 8 }}>
         <div>
           <p style={{ fontSize: 10, fontWeight: 600, color: isSelected ? "rgba(255,255,255,0.6)" : "var(--ink-3)", textTransform: "uppercase", letterSpacing: "0.16em" }}>{DAYS_SHORT[date.getDay()]}</p>
           <p style={{ fontSize: 18, fontWeight: 400, color: isSelected ? calSignedColor(net, true) : isToday ? "var(--lime-dk)" : "var(--ink)", letterSpacing: "-0.5px", lineHeight: 1.1 }}>{date.getDate()}</p>

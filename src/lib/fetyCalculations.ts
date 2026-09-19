@@ -24,6 +24,18 @@ export function formatDisplayDate(dateISO: string): string {
   return d.toLocaleDateString(undefined, { month: "short", day: "numeric" });
 }
 
+/** Group headers on the Transactions page — always include year so recurring bills do not stack by month/day alone. */
+export function formatTransactionGroupDate(dateISO: string): string {
+  const today = todayISO();
+  const d = new Date(dateISO + "T12:00:00");
+  const yesterday = new Date();
+  yesterday.setDate(yesterday.getDate() - 1);
+  const yISO = yesterday.toISOString().slice(0, 10);
+  if (dateISO === today) return "Today";
+  if (dateISO === yISO) return "Yesterday";
+  return d.toLocaleDateString(undefined, { month: "short", day: "numeric", year: "numeric" });
+}
+
 export function formatNavDate(d = new Date()): string {
   return d.toLocaleDateString(undefined, { month: "short", day: "numeric" });
 }

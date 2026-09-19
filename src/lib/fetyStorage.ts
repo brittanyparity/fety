@@ -1,5 +1,5 @@
 import type { Bill, BudgetCategory, ChatMessage, FetyStore, Goal, Transaction, Account, TransactionType, TypeIconMap } from "../types/fety";
-import { applyBillScheduleToStore, isScheduledBillTransaction } from "./billScheduling";
+import { applyBillScheduleToStore, dedupeBills, isScheduledBillTransaction } from "./billScheduling";
 import { defaultTransactionTypes, typeIconsFromTransactionTypes } from "./transactionTypes";
 
 export const DEFAULT_TYPE_ICONS: TypeIconMap = {
@@ -162,7 +162,7 @@ function migrateStore(store: FetyStore): FetyStore {
   }
   next = {
     ...next,
-    bills: next.bills.map((b) => ({ ...b, frequency: b.frequency ?? "monthly" })),
+    bills: dedupeBills(next.bills.map((b) => ({ ...b, frequency: b.frequency ?? "monthly" }))),
   };
   if (!next.transactionTypes?.length) {
     const types = defaultTransactionTypes(next.typeIcons);

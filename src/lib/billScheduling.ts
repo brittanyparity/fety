@@ -76,23 +76,52 @@ function isManualLineForAnyBill(t: Transaction, bills: Bill[]): boolean {
   return bills.some((bill) => billMatchesManualLine(t, bill));
 }
 
+export function billSignature(b: Bill): string {
+  return [
+    b.name.trim().toLowerCase(),
+    Number(b.amount),
+    Number(b.dueDay),
+    b.frequency ?? "monthly",
+  ].join("|");
+}
+
 /** Collapse accidental duplicate bill definitions (same name, amount, schedule). */
 export function dedupeBills(bills: Bill[]): Bill[] {
   const out: Bill[] = [];
   const seen = new Set<string>();
   for (const b of bills) {
-    const key = [
-      b.name.trim().toLowerCase(),
-      b.amount,
-      b.dueDay,
-      b.frequency ?? "monthly",
-      b.category.trim().toLowerCase(),
-    ].join("|");
+    const key = billSignature(b);
     if (seen.has(key)) continue;
     seen.add(key);
-    out.push(b);
+    out.push({
+      ...b,
+      amount: Number(b.amount),
+      dueDay: Number(b.dueDay),
+      frequency: b.frequency ?? "monthly",
+    });
   }
   return out;
+}
+
+function billOccurrenceDisplayKey(dateISO: string, bill: Bill): string {
+  return `${dateISO}|${bill.name.trim().toLowerCase()}|${Math.abs(Number(bill.amount))}`;
+}
+
+/** One visible transaction per bill due date (name + amount), even if duplicate bill rows exist. */
+function collapseDuplicateBillTransactions(transactions: Transaction[]): Transaction[] {
+  const bySig = new Map<string, Transaction>();
+  for (const t of transactions) {
+    const sig = `${t.dateISO}|${t.desc.trim().toLowerCase()}|${t.amount}|${t.type}`;
+    const existing = bySig.get(sig);
+    if (!existing) {
+      bySig.set(sig, t);
+      continue;
+    }
+    if (isScheduledBillTransaction(t.id) && !isScheduledBillTransaction(existing.id)) {
+      bySig.set(sig, t);
+    }
+  }
+  return [...bySig.values()];
 }
 
 export function rebuildTransactionsWithBillSchedule(
@@ -107,36 +136,41 @@ export function rebuildTransactionsWithBillSchedule(
   const to = new Date(ref.getFullYear() + 1, 11, 31);
 
   const consumedManualIds = new Set<string>();
-  const occurrenceLines: Transaction[] = [];
+  const occurrenceByDisplayKey = new Map<string, Transaction>();
 
   for (const bill of bills) {
     const dates = [...new Set(billOccurrencesInRange(bill, from, to))];
     for (const dateISO of dates) {
       if (skipped.has(skipKeyForBillOccurrence(bill.id, dateISO))) continue;
 
+      const displayKey = billOccurrenceDisplayKey(dateISO, bill);
+      if (occurrenceByDisplayKey.has(displayKey)) continue;
+
       const matchingManual = manual.filter(
         (t) => !consumedManualIds.has(t.id) && t.dateISO === dateISO && billMatchesManualLine(t, bill),
       );
 
       if (matchingManual.length > 0) {
-        occurrenceLines.push(matchingManual[0]);
+        occurrenceByDisplayKey.set(displayKey, matchingManual[0]);
         consumedManualIds.add(matchingManual[0].id);
         for (const extra of matchingManual.slice(1)) {
           consumedManualIds.add(extra.id);
         }
       } else {
-        occurrenceLines.push({
+        occurrenceByDisplayKey.set(displayKey, {
           id: scheduledBillTransactionId(bill.id, dateISO),
           dateISO,
           desc: bill.name,
           category: bill.category,
-          amount: -Math.abs(bill.amount),
+          amount: -Math.abs(Number(bill.amount)),
           type: "bill",
           icon: bill.icon || "📋",
         });
       }
     }
   }
+
+  const occurrenceLines = [...occurrenceByDisplayKey.values()];
 
   const unrelatedManual = manual.filter(
     (t) => !consumedManualIds.has(t.id) && !isManualLineForAnyBill(t, bills),
@@ -154,9 +188,8 @@ export function rebuildTransactionsWithBillSchedule(
       return true;
     });
 
-  return [...dedupePass(unrelatedManual), ...occurrenceLines, ...dedupePass(leftoverBillManual)].sort((a, b) =>
-    b.dateISO.localeCompare(a.dateISO),
-  );
+  const merged = [...dedupePass(unrelatedManual), ...occurrenceLines, ...dedupePass(leftoverBillManual)];
+  return collapseDuplicateBillTransactions(merged).sort((a, b) => b.dateISO.localeCompare(a.dateISO));
 }
 
 export function applyBillScheduleToStore(store: FetyStore, ref = new Date()): FetyStore {
