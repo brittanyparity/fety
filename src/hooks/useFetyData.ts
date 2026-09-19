@@ -3,8 +3,11 @@ import { computeSummary, todayISO } from "../lib/fetyCalculations";
 import {
   applyBillScheduleToStore,
   billSignature,
-  parseScheduledBillId,
-  skipKeyForBillOccurrence,
+  incomeStreamSignature,
+  parseScheduledTransactionId,
+  recurringTransactionSignature,
+  skipKeyForOccurrence,
+  normalizeSkippedOccurrences,
 } from "../lib/billScheduling";
 import { loadStore, newId, saveStore, resetStore as resetStored, resetToEmptyStore } from "../lib/fetyStorage";
 import { toggleWidgetPositionLock } from "../lib/widgetLayout";
@@ -22,11 +25,17 @@ import type {
   FetyStore,
   FetyTransactionType,
   Goal,
+  IncomeStream,
+  RecurringTransaction,
   Transaction,
   TransactionFlow,
   TransactionType,
   UserProfile,
 } from "../types/fety";
+
+function normalizeSkipped(prev: FetyStore): string[] {
+  return [...normalizeSkippedOccurrences(prev)];
+}
 
 export function useFetyData() {
   const [store, setStore] = useState<FetyStore>(() => loadStore());
@@ -74,15 +83,15 @@ export function useFetyData() {
   const deleteTransaction = useCallback(
     (id: string) => {
       patch((prev) => {
-        const parsed = parseScheduledBillId(id);
-        const skipped = [...(prev.skippedBillOccurrences ?? [])];
+        const parsed = parseScheduledTransactionId(id);
+        const skipped = normalizeSkipped(prev);
         if (parsed) {
-          const key = skipKeyForBillOccurrence(parsed.billId, parsed.dateISO);
+          const key = skipKeyForOccurrence(parsed.kind, parsed.sourceId, parsed.dateISO);
           if (!skipped.includes(key)) skipped.push(key);
         }
         return {
           ...prev,
-          skippedBillOccurrences: skipped,
+          skippedScheduledOccurrences: skipped,
           transactions: prev.transactions.filter((t) => t.id !== id),
         };
       });
@@ -169,6 +178,92 @@ export function useFetyData() {
   const deleteBill = useCallback(
     (id: string) => {
       patch((prev) => ({ ...prev, bills: prev.bills.filter((b) => b.id !== id) }));
+    },
+    [patch],
+  );
+
+  const updateIncomeStream = useCallback(
+    (id: string, updates: Partial<Pick<IncomeStream, "name" | "amount" | "dueDay" | "frequency" | "category" | "icon">>) => {
+      patch((prev) => ({
+        ...prev,
+        incomeStreams: (prev.incomeStreams ?? []).map((s) => (s.id === id ? { ...s, ...updates } : s)),
+      }));
+    },
+    [patch],
+  );
+
+  const addIncomeStream = useCallback(
+    (input: Omit<IncomeStream, "id">) => {
+      patch((prev) => {
+        const candidate: IncomeStream = {
+          ...input,
+          id: newId("income"),
+          frequency: input.frequency ?? "monthly",
+          amount: Number(input.amount),
+          dueDay: Number(input.dueDay),
+        };
+        const sig = incomeStreamSignature(candidate);
+        const streams = prev.incomeStreams ?? [];
+        if (streams.some((s) => incomeStreamSignature(s) === sig)) return prev;
+        return { ...prev, incomeStreams: [...streams, candidate] };
+      });
+    },
+    [patch],
+  );
+
+  const deleteIncomeStream = useCallback(
+    (id: string) => {
+      patch((prev) => ({
+        ...prev,
+        incomeStreams: (prev.incomeStreams ?? []).filter((s) => s.id !== id),
+      }));
+    },
+    [patch],
+  );
+
+  const updateRecurringTransaction = useCallback(
+    (
+      id: string,
+      updates: Partial<
+        Pick<RecurringTransaction, "name" | "amount" | "dueDay" | "frequency" | "category" | "icon" | "transactionType">
+      >,
+    ) => {
+      patch((prev) => ({
+        ...prev,
+        recurringTransactions: (prev.recurringTransactions ?? []).map((r) =>
+          r.id === id ? { ...r, ...updates } : r,
+        ),
+      }));
+    },
+    [patch],
+  );
+
+  const addRecurringTransaction = useCallback(
+    (input: Omit<RecurringTransaction, "id">) => {
+      patch((prev) => {
+        const candidate: RecurringTransaction = {
+          ...input,
+          id: newId("recur"),
+          frequency: input.frequency ?? "monthly",
+          amount: Number(input.amount),
+          dueDay: Number(input.dueDay),
+          transactionType: input.transactionType || "expense",
+        };
+        const sig = recurringTransactionSignature(candidate);
+        const items = prev.recurringTransactions ?? [];
+        if (items.some((r) => recurringTransactionSignature(r) === sig)) return prev;
+        return { ...prev, recurringTransactions: [...items, candidate] };
+      });
+    },
+    [patch],
+  );
+
+  const deleteRecurringTransaction = useCallback(
+    (id: string) => {
+      patch((prev) => ({
+        ...prev,
+        recurringTransactions: (prev.recurringTransactions ?? []).filter((r) => r.id !== id),
+      }));
     },
     [patch],
   );
@@ -314,6 +409,7 @@ export function useFetyData() {
     (id: string) => {
       patch((prev) => {
         if (prev.transactions.some((t) => t.type === id)) return prev;
+        if ((prev.recurringTransactions ?? []).some((r) => r.transactionType === id)) return prev;
         const target = (prev.transactionTypes ?? []).find((t) => t.id === id);
         if (!target || target.locked) return prev;
         const types = (prev.transactionTypes ?? []).filter((t) => t.id !== id);
@@ -350,6 +446,14 @@ export function useFetyData() {
     patch((prev) => ({ ...prev, bills }));
   }, [patch]);
 
+  const replaceIncomeStreams = useCallback((incomeStreams: IncomeStream[]) => {
+    patch((prev) => ({ ...prev, incomeStreams }));
+  }, [patch]);
+
+  const replaceRecurringTransactions = useCallback((recurringTransactions: RecurringTransaction[]) => {
+    patch((prev) => ({ ...prev, recurringTransactions }));
+  }, [patch]);
+
   const importTransactionsBulk = useCallback(
     (inputs: Omit<Transaction, "id">[]) => {
       patch((prev) => ({
@@ -374,6 +478,12 @@ export function useFetyData() {
     addCategory,
     addBill,
     deleteBill,
+    addIncomeStream,
+    updateIncomeStream,
+    deleteIncomeStream,
+    addRecurringTransaction,
+    updateRecurringTransaction,
+    deleteRecurringTransaction,
     addGoal,
     updateGoal,
     deleteGoal,
@@ -390,6 +500,8 @@ export function useFetyData() {
     completeOnboarding,
     replaceCategories,
     replaceBills,
+    replaceIncomeStreams,
+    replaceRecurringTransactions,
     importTransactionsBulk,
     updateTypeIcons,
     addTransactionType,

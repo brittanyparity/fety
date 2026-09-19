@@ -1,13 +1,50 @@
-import type { Bill, BillFrequency, FetyStore, Transaction } from "../types/fety";
+import type {
+  Bill,
+  BillFrequency,
+  FetyStore,
+  IncomeStream,
+  RecurringScheduleBase,
+  RecurringTransaction,
+  Transaction,
+} from "../types/fety";
+import { flowForTransactionType, signAmountForFlow } from "./transactionTypes";
 
 export const SCHEDULED_BILL_ID_PREFIX = "sched-bill-";
+export const SCHEDULED_INCOME_ID_PREFIX = "sched-income-";
+export const SCHEDULED_RECUR_ID_PREFIX = "sched-recur-";
+
+export type ScheduledKind = "bill" | "income" | "recur";
 
 export function isScheduledBillTransaction(id: string): boolean {
   return id.startsWith(SCHEDULED_BILL_ID_PREFIX);
 }
 
+export function isScheduledIncomeTransaction(id: string): boolean {
+  return id.startsWith(SCHEDULED_INCOME_ID_PREFIX);
+}
+
+export function isScheduledRecurringTransaction(id: string): boolean {
+  return id.startsWith(SCHEDULED_RECUR_ID_PREFIX);
+}
+
+export function isScheduledTransaction(id: string): boolean {
+  return (
+    isScheduledBillTransaction(id) ||
+    isScheduledIncomeTransaction(id) ||
+    isScheduledRecurringTransaction(id)
+  );
+}
+
 export function scheduledBillTransactionId(billId: string, dateISO: string): string {
   return `${SCHEDULED_BILL_ID_PREFIX}${billId}_${dateISO}`;
+}
+
+export function scheduledIncomeTransactionId(streamId: string, dateISO: string): string {
+  return `${SCHEDULED_INCOME_ID_PREFIX}${streamId}_${dateISO}`;
+}
+
+export function scheduledRecurringTransactionId(recurId: string, dateISO: string): string {
+  return `${SCHEDULED_RECUR_ID_PREFIX}${recurId}_${dateISO}`;
 }
 
 function isoDate(d: Date): string {
@@ -22,8 +59,7 @@ function clampMonthDay(year: number, month: number, day: number): Date {
   return new Date(year, month, Math.min(Math.max(1, day), last), 12, 0, 0, 0);
 }
 
-/** All due dates for a bill between from and to (inclusive). */
-export function billOccurrencesInRange(bill: Bill, from: Date, to: Date): string[] {
+export function occurrencesInRange(item: Pick<RecurringScheduleBase, "dueDay" | "frequency">, from: Date, to: Date): string[] {
   const out: string[] = [];
   const fromMs = new Date(from.getFullYear(), from.getMonth(), from.getDate()).getTime();
   const toMs = new Date(to.getFullYear(), to.getMonth(), to.getDate()).getTime();
@@ -33,20 +69,20 @@ export function billOccurrencesInRange(bill: Bill, from: Date, to: Date): string
     if (t >= fromMs && t <= toMs) out.push(isoDate(d));
   };
 
-  const freq: BillFrequency = bill.frequency ?? "monthly";
+  const freq: BillFrequency = item.frequency ?? "monthly";
 
   if (freq === "monthly" || freq === "quarterly") {
     for (let y = from.getFullYear() - 1; y <= to.getFullYear() + 1; y++) {
       for (let m = 0; m < 12; m++) {
         if (freq === "quarterly" && m % 3 !== 0) continue;
-        pushIfInRange(clampMonthDay(y, m, bill.dueDay));
+        pushIfInRange(clampMonthDay(y, m, item.dueDay));
       }
     }
     return [...new Set(out)].sort();
   }
 
   if (freq === "weekly" || freq === "biweekly") {
-    const weekday = Math.min(6, Math.max(0, bill.dueDay));
+    const weekday = Math.min(6, Math.max(0, item.dueDay));
     let cursor = new Date(from);
     cursor.setHours(12, 0, 0, 0);
     while (cursor.getDay() !== weekday) {
@@ -62,53 +98,130 @@ export function billOccurrencesInRange(bill: Bill, from: Date, to: Date): string
   return out;
 }
 
-export function billMatchesManualLine(t: Transaction, bill: Bill): boolean {
-  if (t.desc === bill.name || t.desc.toLowerCase() === bill.name.toLowerCase()) return true;
+/** @deprecated use occurrencesInRange */
+export function billOccurrencesInRange(bill: Bill, from: Date, to: Date): string[] {
+  return occurrencesInRange(bill, from, to);
+}
+
+export function skipKeyForOccurrence(kind: ScheduledKind, sourceId: string, dateISO: string): string {
+  return `${kind}|${sourceId}|${dateISO}`;
+}
+
+export function skipKeyForBillOccurrence(billId: string, dateISO: string): string {
+  return skipKeyForOccurrence("bill", billId, dateISO);
+}
+
+export function normalizeSkippedOccurrences(store: Pick<FetyStore, "skippedBillOccurrences" | "skippedScheduledOccurrences">): string[] {
+  const raw = [...(store.skippedScheduledOccurrences ?? []), ...(store.skippedBillOccurrences ?? [])];
+  const out = new Set<string>();
+  for (const key of raw) {
+    if (key.startsWith("bill|") || key.startsWith("income|") || key.startsWith("recur|")) {
+      out.add(key);
+      continue;
+    }
+    const legacy = key.match(/^(.+)\|(\d{4}-\d{2}-\d{2})$/);
+    if (legacy) out.add(skipKeyForOccurrence("bill", legacy[1], legacy[2]));
+  }
+  return [...out];
+}
+
+export function parseScheduledTransactionId(
+  id: string,
+): { kind: ScheduledKind; sourceId: string; dateISO: string } | null {
+  let prefix = "";
+  let kind: ScheduledKind | null = null;
+  if (id.startsWith(SCHEDULED_BILL_ID_PREFIX)) {
+    prefix = SCHEDULED_BILL_ID_PREFIX;
+    kind = "bill";
+  } else if (id.startsWith(SCHEDULED_INCOME_ID_PREFIX)) {
+    prefix = SCHEDULED_INCOME_ID_PREFIX;
+    kind = "income";
+  } else if (id.startsWith(SCHEDULED_RECUR_ID_PREFIX)) {
+    prefix = SCHEDULED_RECUR_ID_PREFIX;
+    kind = "recur";
+  } else return null;
+  const rest = id.slice(prefix.length);
+  const sep = rest.lastIndexOf("_");
+  if (sep <= 0) return null;
+  return { kind, sourceId: rest.slice(0, sep), dateISO: rest.slice(sep + 1) };
+}
+
+export function parseScheduledBillId(id: string): { billId: string; dateISO: string } | null {
+  const parsed = parseScheduledTransactionId(id);
+  if (!parsed || parsed.kind !== "bill") return null;
+  return { billId: parsed.sourceId, dateISO: parsed.dateISO };
+}
+
+function matchesManualLine(t: Transaction, item: Pick<RecurringScheduleBase, "name" | "amount">): boolean {
+  if (t.desc === item.name || t.desc.toLowerCase() === item.name.toLowerCase()) return true;
   const a = t.desc.toLowerCase();
-  const b = bill.name.toLowerCase();
+  const b = item.name.toLowerCase();
   if (a.includes(b) || b.includes(a)) {
-    return Math.abs(t.amount) === Math.abs(bill.amount);
+    return Math.abs(t.amount) === Math.abs(Number(item.amount));
   }
   return false;
 }
 
-function isManualLineForAnyBill(t: Transaction, bills: Bill[]): boolean {
-  return bills.some((bill) => billMatchesManualLine(t, bill));
+export function billMatchesManualLine(t: Transaction, bill: Bill): boolean {
+  return matchesManualLine(t, bill);
 }
 
-export function billSignature(b: Bill): string {
+function scheduleSignature(item: RecurringScheduleBase, extra = ""): string {
   return [
-    b.name.trim().toLowerCase(),
-    Number(b.amount),
-    Number(b.dueDay),
-    b.frequency ?? "monthly",
+    item.name.trim().toLowerCase(),
+    Number(item.amount),
+    Number(item.dueDay),
+    item.frequency ?? "monthly",
+    extra,
   ].join("|");
 }
 
-/** Collapse accidental duplicate bill definitions (same name, amount, schedule). */
-export function dedupeBills(bills: Bill[]): Bill[] {
-  const out: Bill[] = [];
+export function incomeStreamSignature(s: IncomeStream): string {
+  return scheduleSignature(s);
+}
+
+export function recurringTransactionSignature(r: RecurringTransaction): string {
+  return scheduleSignature(r, r.transactionType);
+}
+
+export function billSignature(b: Bill): string {
+  return scheduleSignature(b);
+}
+
+export function dedupeBySignature<T extends RecurringScheduleBase>(items: T[], extraKey: (t: T) => string = () => ""): T[] {
+  const out: T[] = [];
   const seen = new Set<string>();
-  for (const b of bills) {
-    const key = billSignature(b);
+  for (const item of items) {
+    const key = scheduleSignature(item, extraKey(item));
     if (seen.has(key)) continue;
     seen.add(key);
     out.push({
-      ...b,
-      amount: Number(b.amount),
-      dueDay: Number(b.dueDay),
-      frequency: b.frequency ?? "monthly",
+      ...item,
+      amount: Number(item.amount),
+      dueDay: Number(item.dueDay),
+      frequency: item.frequency ?? "monthly",
     });
   }
   return out;
 }
 
-function billOccurrenceDisplayKey(dateISO: string, bill: Bill): string {
-  return `${dateISO}|${bill.name.trim().toLowerCase()}|${Math.abs(Number(bill.amount))}`;
+export function dedupeBills(bills: Bill[]): Bill[] {
+  return dedupeBySignature(bills);
 }
 
-/** One visible transaction per bill due date (name + amount), even if duplicate bill rows exist. */
-function collapseDuplicateBillTransactions(transactions: Transaction[]): Transaction[] {
+export function dedupeIncomeStreams(streams: IncomeStream[]): IncomeStream[] {
+  return dedupeBySignature(streams);
+}
+
+export function dedupeRecurringTransactions(items: RecurringTransaction[]): RecurringTransaction[] {
+  return dedupeBySignature(items, (t) => t.transactionType);
+}
+
+function occurrenceDisplayKey(dateISO: string, item: RecurringScheduleBase, typeSuffix = ""): string {
+  return `${dateISO}|${item.name.trim().toLowerCase()}|${Math.abs(Number(item.amount))}|${typeSuffix}`;
+}
+
+function collapseDuplicateScheduledTransactions(transactions: Transaction[]): Transaction[] {
   const bySig = new Map<string, Transaction>();
   for (const t of transactions) {
     const sig = `${t.dateISO}|${t.desc.trim().toLowerCase()}|${t.amount}|${t.type}`;
@@ -117,20 +230,67 @@ function collapseDuplicateBillTransactions(transactions: Transaction[]): Transac
       bySig.set(sig, t);
       continue;
     }
-    if (isScheduledBillTransaction(t.id) && !isScheduledBillTransaction(existing.id)) {
+    if (isScheduledTransaction(t.id) && !isScheduledTransaction(existing.id)) {
       bySig.set(sig, t);
     }
   }
   return [...bySig.values()];
 }
 
-export function rebuildTransactionsWithBillSchedule(
-  store: Pick<FetyStore, "bills" | "transactions" | "skippedBillOccurrences">,
-  ref = new Date(),
-): Transaction[] {
-  const skipped = new Set(store.skippedBillOccurrences ?? []);
-  const bills = dedupeBills(store.bills);
-  let manual = store.transactions.filter((t) => !isScheduledBillTransaction(t.id));
+type RebuildStore = Pick<
+  FetyStore,
+  "bills" | "incomeStreams" | "recurringTransactions" | "transactions" | "skippedBillOccurrences" | "skippedScheduledOccurrences"
+>;
+
+function projectOccurrences(
+  store: RebuildStore,
+  manual: Transaction[],
+  skipped: Set<string>,
+  from: Date,
+  to: Date,
+  configs: {
+    kind: ScheduledKind;
+    items: RecurringScheduleBase[];
+    scheduledId: (id: string, dateISO: string) => string;
+    buildTx: (item: RecurringScheduleBase, dateISO: string, id: string) => Transaction;
+    typeSuffix: string;
+  },
+  consumedManualIds: Set<string>,
+  occurrenceByDisplayKey: Map<string, Transaction>,
+): void {
+  for (const item of configs.items) {
+    const dates = [...new Set(occurrencesInRange(item, from, to))];
+    for (const dateISO of dates) {
+      if (skipped.has(skipKeyForOccurrence(configs.kind, item.id, dateISO))) continue;
+
+      const displayKey = occurrenceDisplayKey(dateISO, item, configs.typeSuffix);
+      if (occurrenceByDisplayKey.has(displayKey)) continue;
+
+      const matchingManual = manual.filter(
+        (t) => !consumedManualIds.has(t.id) && t.dateISO === dateISO && matchesManualLine(t, item),
+      );
+
+      if (matchingManual.length > 0) {
+        occurrenceByDisplayKey.set(displayKey, matchingManual[0]);
+        consumedManualIds.add(matchingManual[0].id);
+        for (const extra of matchingManual.slice(1)) consumedManualIds.add(extra.id);
+      } else {
+        occurrenceByDisplayKey.set(
+          displayKey,
+          configs.buildTx(item, dateISO, configs.scheduledId(item.id, dateISO)),
+        );
+      }
+    }
+  }
+}
+
+export function rebuildTransactionsWithBillSchedule(store: RebuildStore, ref = new Date()): Transaction[] {
+  const skipped = new Set(normalizeSkippedOccurrences(store));
+  const bills = dedupeBills(store.bills ?? []);
+  const incomeStreams = dedupeIncomeStreams(store.incomeStreams ?? []);
+  const recurringTransactions = dedupeRecurringTransactions(store.recurringTransactions ?? []);
+
+  let manual = (store.transactions ?? []).filter((t) => !isScheduledTransaction(t.id));
 
   const from = new Date(ref.getFullYear() - 1, 0, 1);
   const to = new Date(ref.getFullYear() + 1, 11, 31);
@@ -138,46 +298,95 @@ export function rebuildTransactionsWithBillSchedule(
   const consumedManualIds = new Set<string>();
   const occurrenceByDisplayKey = new Map<string, Transaction>();
 
-  for (const bill of bills) {
-    const dates = [...new Set(billOccurrencesInRange(bill, from, to))];
-    for (const dateISO of dates) {
-      if (skipped.has(skipKeyForBillOccurrence(bill.id, dateISO))) continue;
+  const storeForFlow = store as FetyStore;
 
-      const displayKey = billOccurrenceDisplayKey(dateISO, bill);
-      if (occurrenceByDisplayKey.has(displayKey)) continue;
+  projectOccurrences(
+    store,
+    manual,
+    skipped,
+    from,
+    to,
+    {
+      kind: "bill",
+      items: bills,
+      scheduledId: scheduledBillTransactionId,
+      typeSuffix: "bill",
+      buildTx: (item, dateISO, id) => ({
+        id,
+        dateISO,
+        desc: item.name,
+        category: item.category,
+        amount: -Math.abs(Number(item.amount)),
+        type: "bill",
+        icon: item.icon || "📋",
+      }),
+    },
+    consumedManualIds,
+    occurrenceByDisplayKey,
+  );
 
-      const matchingManual = manual.filter(
-        (t) => !consumedManualIds.has(t.id) && t.dateISO === dateISO && billMatchesManualLine(t, bill),
-      );
+  projectOccurrences(
+    store,
+    manual,
+    skipped,
+    from,
+    to,
+    {
+      kind: "income",
+      items: incomeStreams,
+      scheduledId: scheduledIncomeTransactionId,
+      typeSuffix: "income",
+      buildTx: (item, dateISO, id) => ({
+        id,
+        dateISO,
+        desc: item.name,
+        category: item.category,
+        amount: Math.abs(Number(item.amount)),
+        type: "income",
+        icon: item.icon || "💵",
+      }),
+    },
+    consumedManualIds,
+    occurrenceByDisplayKey,
+  );
 
-      if (matchingManual.length > 0) {
-        occurrenceByDisplayKey.set(displayKey, matchingManual[0]);
-        consumedManualIds.add(matchingManual[0].id);
-        for (const extra of matchingManual.slice(1)) {
-          consumedManualIds.add(extra.id);
-        }
-      } else {
-        occurrenceByDisplayKey.set(displayKey, {
-          id: scheduledBillTransactionId(bill.id, dateISO),
+  projectOccurrences(
+    store,
+    manual,
+    skipped,
+    from,
+    to,
+    {
+      kind: "recur",
+      items: recurringTransactions,
+      scheduledId: scheduledRecurringTransactionId,
+      typeSuffix: "recur",
+      buildTx: (item, dateISO, id) => {
+        const recur = item as RecurringTransaction;
+        const typeId = recur.transactionType || "expense";
+        const flow = flowForTransactionType(storeForFlow, typeId);
+        return {
+          id,
           dateISO,
-          desc: bill.name,
-          category: bill.category,
-          amount: -Math.abs(Number(bill.amount)),
-          type: "bill",
-          icon: bill.icon || "📋",
-        });
-      }
-    }
-  }
+          desc: item.name,
+          category: item.category,
+          amount: signAmountForFlow(flow, Number(item.amount)),
+          type: typeId,
+          icon: item.icon || "🔄",
+        };
+      },
+    },
+    consumedManualIds,
+    occurrenceByDisplayKey,
+  );
 
   const occurrenceLines = [...occurrenceByDisplayKey.values()];
 
-  const unrelatedManual = manual.filter(
-    (t) => !consumedManualIds.has(t.id) && !isManualLineForAnyBill(t, bills),
-  );
-  const leftoverBillManual = manual.filter(
-    (t) => !consumedManualIds.has(t.id) && isManualLineForAnyBill(t, bills),
-  );
+  const allScheduledItems: RecurringScheduleBase[] = [...bills, ...incomeStreams, ...recurringTransactions];
+  const isManualForScheduled = (t: Transaction) => allScheduledItems.some((item) => matchesManualLine(t, item));
+
+  const unrelatedManual = manual.filter((t) => !consumedManualIds.has(t.id) && !isManualForScheduled(t));
+  const leftoverScheduledManual = manual.filter((t) => !consumedManualIds.has(t.id) && isManualForScheduled(t));
 
   const seenKey = new Set<string>();
   const dedupePass = (list: Transaction[]) =>
@@ -188,16 +397,24 @@ export function rebuildTransactionsWithBillSchedule(
       return true;
     });
 
-  const merged = [...dedupePass(unrelatedManual), ...occurrenceLines, ...dedupePass(leftoverBillManual)];
-  return collapseDuplicateBillTransactions(merged).sort((a, b) => b.dateISO.localeCompare(a.dateISO));
+  const merged = [...dedupePass(unrelatedManual), ...occurrenceLines, ...dedupePass(leftoverScheduledManual)];
+  return collapseDuplicateScheduledTransactions(merged).sort((a, b) => b.dateISO.localeCompare(a.dateISO));
 }
 
 export function applyBillScheduleToStore(store: FetyStore, ref = new Date()): FetyStore {
-  const bills = dedupeBills(store.bills);
-  const base = {
+  const bills = dedupeBills(store.bills ?? []);
+  const incomeStreams = dedupeIncomeStreams(store.incomeStreams ?? []);
+  const recurringTransactions = dedupeRecurringTransactions(store.recurringTransactions ?? []);
+  const skippedScheduledOccurrences = normalizeSkippedOccurrences(store);
+
+  const base: FetyStore = {
     ...store,
     bills,
-    transactions: store.transactions.filter((t) => !isScheduledBillTransaction(t.id)),
+    incomeStreams,
+    recurringTransactions,
+    skippedScheduledOccurrences,
+    skippedBillOccurrences: undefined,
+    transactions: (store.transactions ?? []).filter((t) => !isScheduledTransaction(t.id)),
   };
   return {
     ...base,
@@ -205,23 +422,18 @@ export function applyBillScheduleToStore(store: FetyStore, ref = new Date()): Fe
   };
 }
 
-export function skipKeyForBillOccurrence(billId: string, dateISO: string): string {
-  return `${billId}|${dateISO}`;
-}
-
-export function parseScheduledBillId(id: string): { billId: string; dateISO: string } | null {
-  if (!isScheduledBillTransaction(id)) return null;
-  const rest = id.slice(SCHEDULED_BILL_ID_PREFIX.length);
-  const sep = rest.lastIndexOf("_");
-  if (sep <= 0) return null;
-  return { billId: rest.slice(0, sep), dateISO: rest.slice(sep + 1) };
-}
-
 export function nextBillOccurrenceOnOrAfter(bill: Bill, ref = new Date()): string | null {
   const from = new Date(ref.getFullYear(), ref.getMonth(), ref.getDate());
   const to = new Date(from.getFullYear() + 2, 11, 31);
   const todayIso = isoDate(from);
-  return billOccurrencesInRange(bill, from, to).find((d) => d >= todayIso) ?? null;
+  return occurrencesInRange(bill, from, to).find((d) => d >= todayIso) ?? null;
+}
+
+export function nextIncomeOccurrenceOnOrAfter(stream: IncomeStream, ref = new Date()): string | null {
+  const from = new Date(ref.getFullYear(), ref.getMonth(), ref.getDate());
+  const to = new Date(from.getFullYear() + 2, 11, 31);
+  const todayIso = isoDate(from);
+  return occurrencesInRange(stream, from, to).find((d) => d >= todayIso) ?? null;
 }
 
 export const BILL_FREQUENCY_LABELS: Record<BillFrequency, string> = {

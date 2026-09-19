@@ -11,33 +11,62 @@ import {
   type ParsedCsv,
 } from "../lib/fetyCsvImport";
 import { CsvColumnMapper } from "../components/CsvColumnMapper";
-import CurrencyInput from "../components/CurrencyInput";
+import CurrencyInput, { amountToEditString } from "../components/CurrencyInput";
 import { newId } from "../lib/fetyStorage";
 import BillScheduleFields from "../components/BillScheduleFields";
-import type { Bill, BudgetCategory, FetyStore, Transaction, TransactionType, UserProfile, BillFrequency } from "../types/fety";
+import { getTransactionTypes } from "../lib/transactionTypes";
+import type {
+  Bill,
+  BudgetCategory,
+  FetyStore,
+  IncomeStream,
+  RecurringTransaction,
+  Transaction,
+  TransactionType,
+  UserProfile,
+  BillFrequency,
+} from "../types/fety";
 
-type StepId = "welcome" | "profile" | "budget" | "bills" | "import" | "map" | "review" | "finish";
+type StepId = "welcome" | "profile" | "budget" | "bills" | "income" | "recurring" | "import" | "map" | "review" | "finish";
 
 const STEPS: { id: StepId; label: string }[] = [
   { id: "welcome", label: "Welcome" },
   { id: "profile", label: "You" },
   { id: "budget", label: "Budget" },
   { id: "bills", label: "Bills" },
+  { id: "income", label: "Income" },
+  { id: "recurring", label: "Recurring" },
   { id: "import", label: "Import" },
   { id: "map", label: "Map" },
   { id: "review", label: "Review" },
   { id: "finish", label: "Done" },
 ];
 
-const STARTER_BUDGET_ROWS = [
-  { name: "Housing", icon: "🏠", monthlyBudget: 0 },
-  { name: "Groceries", icon: "🛒", monthlyBudget: 0 },
-  { name: "Dining Out", icon: "🍽️", monthlyBudget: 0 },
-  { name: "Transportation", icon: "🚗", monthlyBudget: 0 },
-  { name: "Shopping", icon: "🛍️", monthlyBudget: 0 },
-  { name: "Bills", icon: "⚡", monthlyBudget: 0 },
-  { name: "Entertainment", icon: "🎬", monthlyBudget: 0 },
-  { name: "Personal", icon: "💆", monthlyBudget: 0 },
+type ScheduleDraftRow = {
+  name: string;
+  amount: string;
+  dueDay: number;
+  frequency: BillFrequency;
+  category: string;
+};
+
+type RecurringDraftRow = ScheduleDraftRow & { transactionType: TransactionType };
+
+type BudgetDraftRow = {
+  name: string;
+  icon: string;
+  monthlyBudget: string;
+};
+
+const STARTER_BUDGET_ROWS: BudgetDraftRow[] = [
+  { name: "Housing", icon: "🏠", monthlyBudget: "" },
+  { name: "Groceries", icon: "🛒", monthlyBudget: "" },
+  { name: "Dining Out", icon: "🍽️", monthlyBudget: "" },
+  { name: "Transportation", icon: "🚗", monthlyBudget: "" },
+  { name: "Shopping", icon: "🛍️", monthlyBudget: "" },
+  { name: "Bills", icon: "⚡", monthlyBudget: "" },
+  { name: "Entertainment", icon: "🎬", monthlyBudget: "" },
+  { name: "Personal", icon: "💆", monthlyBudget: "" },
 ];
 
 const inputStyle: React.CSSProperties = {
@@ -77,6 +106,8 @@ export function OnboardingView({
   onUpdateProfile,
   onReplaceCategories,
   onReplaceBills,
+  onReplaceIncomeStreams,
+  onReplaceRecurringTransactions,
   onImportTransactionsBulk,
   onComplete,
 }: {
@@ -84,6 +115,8 @@ export function OnboardingView({
   onUpdateProfile: (u: Partial<UserProfile>) => void;
   onReplaceCategories: (categories: BudgetCategory[]) => void;
   onReplaceBills: (bills: Bill[]) => void;
+  onReplaceIncomeStreams: (streams: IncomeStream[]) => void;
+  onReplaceRecurringTransactions: (items: RecurringTransaction[]) => void;
   onImportTransactionsBulk: (txns: Omit<Transaction, "id">[]) => void;
   onComplete: () => void;
 }) {
@@ -91,17 +124,26 @@ export function OnboardingView({
   const [displayName, setDisplayName] = useState(store.profile.displayName);
   const [email, setEmail] = useState(store.profile.email);
   const [currency, setCurrency] = useState(store.profile.currency || "USD");
-  const [startingBalance, setStartingBalance] = useState(String(store.profile.startingBalance || ""));
+  const [startingBalance, setStartingBalance] = useState(() => amountToEditString(store.profile.startingBalance));
 
-  const [budgetRows, setBudgetRows] = useState(
+  const [budgetRows, setBudgetRows] = useState<BudgetDraftRow[]>(() =>
     store.categories.length > 0
-      ? store.categories.map((c) => ({ name: c.name, icon: c.icon, monthlyBudget: c.monthlyBudget }))
+      ? store.categories.map((c) => ({
+          name: c.name,
+          icon: c.icon,
+          monthlyBudget: amountToEditString(c.monthlyBudget),
+        }))
       : STARTER_BUDGET_ROWS,
   );
 
-  const [billRows, setBillRows] = useState<
-    { name: string; amount: string; dueDay: number; frequency: BillFrequency; category: string }[]
-  >([]);
+  const [billRows, setBillRows] = useState<ScheduleDraftRow[]>([]);
+  const [incomeRows, setIncomeRows] = useState<ScheduleDraftRow[]>([]);
+  const [recurringRows, setRecurringRows] = useState<RecurringDraftRow[]>([]);
+
+  const recurringTypeOptions = useMemo(
+    () => getTransactionTypes(store).filter((t) => t.id !== "bill"),
+    [store],
+  );
 
   const [rawCsvText, setRawCsvText] = useState<string | null>(null);
   const [parsedCsv, setParsedCsv] = useState<ParsedCsv | null>(null);
@@ -166,7 +208,7 @@ export function OnboardingView({
         id: newId("cat"),
         name: r.name.trim(),
         icon: r.icon || "📁",
-        monthlyBudget: parseFloat(String(r.monthlyBudget)) || 0,
+        monthlyBudget: parseFloat(r.monthlyBudget) || 0,
       }));
     onReplaceCategories(categories);
     goNext();
@@ -185,6 +227,39 @@ export function OnboardingView({
         icon: "📄",
       }));
     onReplaceBills(bills);
+    goNext();
+  };
+
+  const saveIncomeStreams = () => {
+    const streams: IncomeStream[] = incomeRows
+      .filter((b) => b.name.trim() && parseFloat(b.amount))
+      .map((b) => ({
+        id: newId("income"),
+        name: b.name.trim(),
+        amount: parseFloat(b.amount) || 0,
+        dueDay: b.dueDay,
+        frequency: b.frequency,
+        category: b.category.trim() || "Income",
+        icon: "💵",
+      }));
+    onReplaceIncomeStreams(streams);
+    goNext();
+  };
+
+  const saveRecurringTransactions = () => {
+    const items: RecurringTransaction[] = recurringRows
+      .filter((b) => b.name.trim() && parseFloat(b.amount))
+      .map((b) => ({
+        id: newId("recur"),
+        name: b.name.trim(),
+        amount: parseFloat(b.amount) || 0,
+        dueDay: b.dueDay,
+        frequency: b.frequency,
+        category: b.category.trim() || "Other",
+        icon: "🔄",
+        transactionType: b.transactionType || "expense",
+      }));
+    onReplaceRecurringTransactions(items);
     goNext();
   };
 
@@ -281,13 +356,13 @@ export function OnboardingView({
                   Set up Fety from scratch
                 </h1>
                 <p style={{ fontSize: 15, color: "var(--ink-2)", lineHeight: 1.55, marginBottom: 20 }}>
-                  We will walk you through your baseline balance, monthly budget categories, recurring bills, and optional CSV import.
+                  We will walk you through your baseline balance, monthly budget categories, recurring bills and income, other repeating transactions, and optional CSV import.
                   Everything stays on this device until you change it.
                 </p>
                 <ul style={{ fontSize: 14, color: "var(--ink-2)", lineHeight: 1.7, marginBottom: 24, paddingLeft: 18 }}>
                   <li>Profile and starting balance</li>
                   <li>Monthly category caps</li>
-                  <li>Bills you pay on a schedule</li>
+                  <li>Bills, paychecks, and other schedules</li>
                   <li>Import past transactions from a bank CSV</li>
                 </ul>
                 <button type="button" style={btnPrimary} onClick={goNext}>
@@ -312,7 +387,7 @@ export function OnboardingView({
                   <div style={{ display: "grid", gridTemplateColumns: "1fr 120px", gap: 12 }}>
                     <div>
                       <label className="fety-label" style={{ display: "block", marginBottom: 6 }}>Starting balance</label>
-                      <input value={startingBalance} onChange={(e) => setStartingBalance(e.target.value)} style={inputStyle} placeholder="Optional" />
+                      <CurrencyInput value={startingBalance} onChange={setStartingBalance} placeholder="0.00" />
                     </div>
                     <div>
                       <label className="fety-label" style={{ display: "block", marginBottom: 6 }}>Currency</label>
@@ -333,7 +408,7 @@ export function OnboardingView({
                 <p style={{ fontSize: 14, color: "var(--ink-2)", marginBottom: 16 }}>Set a monthly cap per category. You can edit these anytime in Budget.</p>
                 <div style={{ display: "flex", flexDirection: "column", gap: 8, maxHeight: 340, overflowY: "auto" }}>
                   {budgetRows.map((row, i) => (
-                    <div key={i} style={{ display: "grid", gridTemplateColumns: "40px 1fr 120px", gap: 8, alignItems: "center" }}>
+                    <div key={i} style={{ display: "grid", gridTemplateColumns: "40px 1fr minmax(120px, 140px)", gap: 8, alignItems: "center" }}>
                       <input
                         value={row.icon}
                         onChange={(e) => {
@@ -354,17 +429,15 @@ export function OnboardingView({
                         style={inputStyle}
                         placeholder="Category name"
                       />
-                      <input
-                        type="number"
-                        min={0}
+                      <CurrencyInput
+                        compact
                         value={row.monthlyBudget}
-                        onChange={(e) => {
+                        onChange={(monthlyBudget) => {
                           const next = [...budgetRows];
-                          next[i] = { ...next[i], monthlyBudget: parseFloat(e.target.value) || 0 };
+                          next[i] = { ...next[i], monthlyBudget };
                           setBudgetRows(next);
                         }}
-                        style={inputStyle}
-                        placeholder="Monthly $"
+                        placeholder="0.00"
                       />
                     </div>
                   ))}
@@ -372,7 +445,7 @@ export function OnboardingView({
                 <button
                   type="button"
                   style={{ ...btnSecondary, marginTop: 12 }}
-                  onClick={() => setBudgetRows((r) => [...r, { name: "", icon: "📁", monthlyBudget: 0 }])}
+                  onClick={() => setBudgetRows((r) => [...r, { name: "", icon: "📁", monthlyBudget: "" }])}
                 >
                   + Add category
                 </button>
@@ -397,7 +470,16 @@ export function OnboardingView({
                       <div key={i} style={{ padding: "12px 14px", border: "1px solid var(--border)", borderRadius: 12, background: "var(--surface)" }}>
                         <div style={{ display: "grid", gridTemplateColumns: "1.2fr 100px 1fr auto", gap: 8, marginBottom: 10 }}>
                           <input value={b.name} onChange={(e) => { const n = [...billRows]; n[i].name = e.target.value; setBillRows(n); }} style={inputStyle} placeholder="Rent" />
-                          <input value={b.amount} onChange={(e) => { const n = [...billRows]; n[i].amount = e.target.value; setBillRows(n); }} style={inputStyle} placeholder="$" />
+                          <CurrencyInput
+                            compact
+                            value={b.amount}
+                            onChange={(amount) => {
+                              const n = [...billRows];
+                              n[i].amount = amount;
+                              setBillRows(n);
+                            }}
+                            placeholder="0.00"
+                          />
                           <input value={b.category} onChange={(e) => { const n = [...billRows]; n[i].category = e.target.value; setBillRows(n); }} style={inputStyle} placeholder="Category" />
                           <button type="button" onClick={() => setBillRows(billRows.filter((_, j) => j !== i))} style={{ border: "none", background: "transparent", cursor: "pointer", color: "var(--ink-3)" }}>×</button>
                         </div>
@@ -428,6 +510,152 @@ export function OnboardingView({
                   <button type="button" style={btnSecondary} onClick={goBack}>Back</button>
                   <button type="button" style={btnSecondary} onClick={() => { onReplaceBills([]); goNext(); }}>Skip</button>
                   <button type="button" style={btnPrimary} onClick={saveBills}>Continue</button>
+                </div>
+              </>
+            )}
+
+            {step === "income" && (
+              <>
+                <h2 style={{ fontSize: 22, fontWeight: 600, marginBottom: 8 }}>Income streams</h2>
+                <p style={{ fontSize: 14, color: "var(--ink-2)", marginBottom: 16 }}>
+                  Optional — add paychecks, freelance deposits, or other money that arrives on a schedule. These show up on your calendar and Transactions list like bills.
+                </p>
+                {incomeRows.length === 0 ? (
+                  <p style={{ fontSize: 13, color: "var(--ink-3)", marginBottom: 12 }}>No income streams yet.</p>
+                ) : (
+                  <div style={{ display: "flex", flexDirection: "column", gap: 14, marginBottom: 12 }}>
+                    {incomeRows.map((b, i) => (
+                      <div key={i} style={{ padding: "12px 14px", border: "1px solid var(--border)", borderRadius: 12, background: "var(--surface)" }}>
+                        <div style={{ display: "grid", gridTemplateColumns: "1.2fr 100px 1fr auto", gap: 8, marginBottom: 10 }}>
+                          <input value={b.name} onChange={(e) => { const n = [...incomeRows]; n[i].name = e.target.value; setIncomeRows(n); }} style={inputStyle} placeholder="Paycheck" />
+                          <CurrencyInput
+                            compact
+                            value={b.amount}
+                            onChange={(amount) => {
+                              const n = [...incomeRows];
+                              n[i].amount = amount;
+                              setIncomeRows(n);
+                            }}
+                            placeholder="0.00"
+                          />
+                          <input value={b.category} onChange={(e) => { const n = [...incomeRows]; n[i].category = e.target.value; setIncomeRows(n); }} style={inputStyle} placeholder="Category" />
+                          <button type="button" onClick={() => setIncomeRows(incomeRows.filter((_, j) => j !== i))} style={{ border: "none", background: "transparent", cursor: "pointer", color: "var(--ink-3)" }}>×</button>
+                        </div>
+                        <BillScheduleFields
+                          compact
+                          frequency={b.frequency}
+                          dueDay={b.dueDay}
+                          onFrequencyChange={(frequency) => {
+                            const n = [...incomeRows];
+                            n[i].frequency = frequency;
+                            setIncomeRows(n);
+                          }}
+                          onDueDayChange={(dueDay) => {
+                            const n = [...incomeRows];
+                            n[i].dueDay = dueDay;
+                            setIncomeRows(n);
+                          }}
+                          inputStyle={inputStyle}
+                        />
+                      </div>
+                    ))}
+                  </div>
+                )}
+                <button
+                  type="button"
+                  style={btnSecondary}
+                  onClick={() =>
+                    setIncomeRows((r) => [...r, { name: "", amount: "", dueDay: 1, frequency: "biweekly", category: "Income" }])
+                  }
+                >
+                  + Add income stream
+                </button>
+                <div style={{ display: "flex", gap: 10, marginTop: 24 }}>
+                  <button type="button" style={btnSecondary} onClick={goBack}>Back</button>
+                  <button type="button" style={btnSecondary} onClick={() => { onReplaceIncomeStreams([]); goNext(); }}>Skip</button>
+                  <button type="button" style={btnPrimary} onClick={saveIncomeStreams}>Continue</button>
+                </div>
+              </>
+            )}
+
+            {step === "recurring" && (
+              <>
+                <h2 style={{ fontSize: 22, fontWeight: 600, marginBottom: 8 }}>Recurring transactions</h2>
+                <p style={{ fontSize: 14, color: "var(--ink-2)", marginBottom: 16 }}>
+                  Optional — subscriptions, gym memberships, transfers, or anything else that repeats but is not a bill. Pick the transaction type so amounts flow the right way.
+                </p>
+                {recurringRows.length === 0 ? (
+                  <p style={{ fontSize: 13, color: "var(--ink-3)", marginBottom: 12 }}>No recurring transactions yet.</p>
+                ) : (
+                  <div style={{ display: "flex", flexDirection: "column", gap: 14, marginBottom: 12 }}>
+                    {recurringRows.map((b, i) => (
+                      <div key={i} style={{ padding: "12px 14px", border: "1px solid var(--border)", borderRadius: 12, background: "var(--surface)" }}>
+                        <div style={{ display: "grid", gridTemplateColumns: "1.2fr 100px 1fr 140px auto", gap: 8, marginBottom: 10 }}>
+                          <input value={b.name} onChange={(e) => { const n = [...recurringRows]; n[i].name = e.target.value; setRecurringRows(n); }} style={inputStyle} placeholder="Gym" />
+                          <CurrencyInput
+                            compact
+                            value={b.amount}
+                            onChange={(amount) => {
+                              const n = [...recurringRows];
+                              n[i].amount = amount;
+                              setRecurringRows(n);
+                            }}
+                            placeholder="0.00"
+                          />
+                          <input value={b.category} onChange={(e) => { const n = [...recurringRows]; n[i].category = e.target.value; setRecurringRows(n); }} style={inputStyle} placeholder="Category" />
+                          <select
+                            value={b.transactionType}
+                            onChange={(e) => {
+                              const n = [...recurringRows];
+                              n[i].transactionType = e.target.value;
+                              setRecurringRows(n);
+                            }}
+                            style={inputStyle}
+                          >
+                            {recurringTypeOptions.map((t) => (
+                              <option key={t.id} value={t.id}>
+                                {t.icon} {t.name}
+                              </option>
+                            ))}
+                          </select>
+                          <button type="button" onClick={() => setRecurringRows(recurringRows.filter((_, j) => j !== i))} style={{ border: "none", background: "transparent", cursor: "pointer", color: "var(--ink-3)" }}>×</button>
+                        </div>
+                        <BillScheduleFields
+                          compact
+                          frequency={b.frequency}
+                          dueDay={b.dueDay}
+                          onFrequencyChange={(frequency) => {
+                            const n = [...recurringRows];
+                            n[i].frequency = frequency;
+                            setRecurringRows(n);
+                          }}
+                          onDueDayChange={(dueDay) => {
+                            const n = [...recurringRows];
+                            n[i].dueDay = dueDay;
+                            setRecurringRows(n);
+                          }}
+                          inputStyle={inputStyle}
+                        />
+                      </div>
+                    ))}
+                  </div>
+                )}
+                <button
+                  type="button"
+                  style={btnSecondary}
+                  onClick={() =>
+                    setRecurringRows((r) => [
+                      ...r,
+                      { name: "", amount: "", dueDay: 1, frequency: "monthly", category: "Other", transactionType: "expense" },
+                    ])
+                  }
+                >
+                  + Add recurring transaction
+                </button>
+                <div style={{ display: "flex", gap: 10, marginTop: 24 }}>
+                  <button type="button" style={btnSecondary} onClick={goBack}>Back</button>
+                  <button type="button" style={btnSecondary} onClick={() => { onReplaceRecurringTransactions([]); goNext(); }}>Skip</button>
+                  <button type="button" style={btnPrimary} onClick={saveRecurringTransactions}>Continue</button>
                 </div>
               </>
             )}
@@ -650,7 +878,7 @@ export function OnboardingView({
               <>
                 <h2 style={{ fontSize: 22, fontWeight: 600, marginBottom: 8 }}>You are ready</h2>
                 <p style={{ fontSize: 14, color: "var(--ink-2)", lineHeight: 1.55, marginBottom: 20 }}>
-                  Your profile, budget{importDrafts.length ? ", and imported transactions" : ""} are saved locally.
+                  Your profile, budget, scheduled bills and income{importDrafts.length ? ", and imported transactions" : ""} are saved locally.
                   Use the chat to log new spending, or open Transactions and Calendar anytime.
                 </p>
                 <button type="button" style={btnPrimary} onClick={finishSetup}>

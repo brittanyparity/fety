@@ -1,5 +1,5 @@
 import type { Bill, BudgetCategory, ChatMessage, FetyStore, Goal, Transaction, Account, TransactionType, TypeIconMap } from "../types/fety";
-import { applyBillScheduleToStore, dedupeBills, isScheduledBillTransaction } from "./billScheduling";
+import { applyBillScheduleToStore, dedupeBills, isScheduledTransaction } from "./billScheduling";
 import { defaultTransactionTypes, typeIconsFromTransactionTypes } from "./transactionTypes";
 
 export const DEFAULT_TYPE_ICONS: TypeIconMap = {
@@ -104,6 +104,8 @@ export function createEmptyStore(): FetyStore {
     categories: [],
     transactions: [],
     bills: [],
+    incomeStreams: [],
+    recurringTransactions: [],
     goals: [],
     accounts: [],
     messages: [
@@ -171,9 +173,11 @@ function migrateStore(store: FetyStore): FetyStore {
   if (!next.lockedDashboardWidgets) {
     next = { ...next, lockedDashboardWidgets: [] };
   }
+  if (!next.incomeStreams) next = { ...next, incomeStreams: [] };
+  if (!next.recurringTransactions) next = { ...next, recurringTransactions: [] };
   next = {
     ...next,
-    transactions: next.transactions.filter((t) => !isScheduledBillTransaction(t.id)),
+    transactions: next.transactions.filter((t) => !isScheduledTransaction(t.id)),
   };
   return applyBillScheduleToStore(next);
 }
@@ -195,7 +199,7 @@ export function saveStore(store: FetyStore): void {
   if (typeof window === "undefined") return;
   const toSave: FetyStore = {
     ...store,
-    transactions: store.transactions.filter((t) => !isScheduledBillTransaction(t.id)),
+    transactions: store.transactions.filter((t) => !isScheduledTransaction(t.id)),
   };
   localStorage.setItem(STORAGE_KEY, JSON.stringify(toSave));
 }

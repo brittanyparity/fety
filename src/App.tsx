@@ -2023,6 +2023,12 @@ export default function App() {
     updateCategoryBudget,
     addBill,
     deleteBill,
+    addIncomeStream,
+    updateIncomeStream,
+    deleteIncomeStream,
+    addRecurringTransaction,
+    updateRecurringTransaction,
+    deleteRecurringTransaction,
     addGoal,
     updateGoal,
     deleteGoal,
@@ -2039,6 +2045,8 @@ export default function App() {
     completeOnboarding,
     replaceCategories,
     replaceBills,
+    replaceIncomeStreams,
+    replaceRecurringTransactions,
     importTransactionsBulk,
     addTransactionType,
     updateTransactionType,
@@ -2046,7 +2054,12 @@ export default function App() {
   } = useFetyData();
 
   const transactionTypes = useMemo(() => getTransactionTypes(store), [store]);
-  const transactionTypeInUse = useCallback((id: string) => store.transactions.some((t) => t.type === id), [store.transactions]);
+  const transactionTypeInUse = useCallback(
+    (id: string) =>
+      store.transactions.some((t) => t.type === id) ||
+      (store.recurringTransactions ?? []).some((r) => r.transactionType === id),
+    [store.transactions, store.recurringTransactions],
+  );
 
   const [page, setPage] = useState<Page>("dashboard");
   const [viewMode, setViewMode] = useState<ViewMode>("cards");
@@ -2155,12 +2168,20 @@ export default function App() {
           <BudgetManageView
             categories={summary.categoriesWithSpent}
             bills={store.bills}
+            incomeStreams={store.incomeStreams ?? []}
+            recurringTransactions={store.recurringTransactions ?? []}
             transactionTypes={transactionTypes}
             viewMode={viewMode}
             onUpdateBudget={updateCategoryBudget}
             onUpdateBill={updateBill}
             onAddBill={addBill}
             onDeleteBill={deleteBill}
+            onUpdateIncomeStream={updateIncomeStream}
+            onAddIncomeStream={addIncomeStream}
+            onDeleteIncomeStream={deleteIncomeStream}
+            onUpdateRecurringTransaction={updateRecurringTransaction}
+            onAddRecurringTransaction={addRecurringTransaction}
+            onDeleteRecurringTransaction={deleteRecurringTransaction}
             onAddTransactionType={addTransactionType}
             onUpdateTransactionType={updateTransactionType}
             onDeleteTransactionType={deleteTransactionType}
@@ -2228,6 +2249,8 @@ export default function App() {
         onUpdateProfile={updateProfile}
         onReplaceCategories={replaceCategories}
         onReplaceBills={replaceBills}
+        onReplaceIncomeStreams={replaceIncomeStreams}
+        onReplaceRecurringTransactions={replaceRecurringTransactions}
         onImportTransactionsBulk={importTransactionsBulk}
         onComplete={completeOnboarding}
       />

@@ -7,6 +7,8 @@ import type {
   CategoryWithSpent,
   FetyTransactionType,
   Goal,
+  IncomeStream,
+  RecurringTransaction,
   Transaction,
   TransactionFlow,
   TransactionType,
@@ -61,12 +63,20 @@ type ViewMode = "cards" | "list";
 export function BudgetManageView({
   categories,
   bills,
+  incomeStreams,
+  recurringTransactions,
   transactionTypes,
   viewMode,
   onUpdateBudget,
   onUpdateBill,
   onAddBill,
   onDeleteBill,
+  onUpdateIncomeStream,
+  onAddIncomeStream,
+  onDeleteIncomeStream,
+  onUpdateRecurringTransaction,
+  onAddRecurringTransaction,
+  onDeleteRecurringTransaction,
   onAddTransactionType,
   onUpdateTransactionType,
   onDeleteTransactionType,
@@ -74,12 +84,23 @@ export function BudgetManageView({
 }: {
   categories: CategoryWithSpent[];
   bills: Bill[];
+  incomeStreams: IncomeStream[];
+  recurringTransactions: RecurringTransaction[];
   transactionTypes: FetyTransactionType[];
   viewMode: ViewMode;
   onUpdateBudget: (id: string, monthlyBudget: number) => void;
-  onUpdateBill: (id: string, updates: Partial<Pick<Bill, "name" | "amount" | "dueDay" | "frequency" | "category">>) => void;
+  onUpdateBill: (id: string, updates: Partial<Pick<Bill, "name" | "amount" | "dueDay" | "frequency" | "category" | "icon">>) => void;
   onAddBill: (bill: Omit<Bill, "id">) => void;
   onDeleteBill: (id: string) => void;
+  onUpdateIncomeStream: (id: string, updates: Partial<Pick<IncomeStream, "name" | "amount" | "dueDay" | "frequency" | "category" | "icon">>) => void;
+  onAddIncomeStream: (stream: Omit<IncomeStream, "id">) => void;
+  onDeleteIncomeStream: (id: string) => void;
+  onUpdateRecurringTransaction: (
+    id: string,
+    updates: Partial<Pick<RecurringTransaction, "name" | "amount" | "dueDay" | "frequency" | "category" | "icon" | "transactionType">>,
+  ) => void;
+  onAddRecurringTransaction: (item: Omit<RecurringTransaction, "id">) => void;
+  onDeleteRecurringTransaction: (id: string) => void;
   onAddTransactionType: (input: { name: string; icon: string; flow: TransactionFlow }) => void;
   onUpdateTransactionType: (id: string, updates: Partial<Pick<FetyTransactionType, "name" | "icon" | "flow">>) => void;
   onDeleteTransactionType: (id: string) => void;
@@ -93,7 +114,18 @@ export function BudgetManageView({
   const [typeName, setTypeName] = useState("");
   const [typeIcon, setTypeIcon] = useState("🏷️");
   const [typeFlow, setTypeFlow] = useState<TransactionFlow>("expense");
-  const [budgetAddMode, setBudgetAddMode] = useState<"bill" | "type">("bill");
+  const [budgetAddMode, setBudgetAddMode] = useState<"bill" | "income" | "recur" | "type">("bill");
+  const [incomeName, setIncomeName] = useState("");
+  const [incomeAmount, setIncomeAmount] = useState("");
+  const [incomeDue, setIncomeDue] = useState(1);
+  const [incomeFrequency, setIncomeFrequency] = useState<BillFrequency>("biweekly");
+  const [incomeCategory, setIncomeCategory] = useState("Income");
+  const [recurName, setRecurName] = useState("");
+  const [recurAmount, setRecurAmount] = useState("");
+  const [recurDue, setRecurDue] = useState(1);
+  const [recurFrequency, setRecurFrequency] = useState<BillFrequency>("monthly");
+  const [recurCategory, setRecurCategory] = useState("Other");
+  const [recurTransactionType, setRecurTransactionType] = useState<TransactionType>("expense");
   const [editingTypeId, setEditingTypeId] = useState<string | null>(null);
   const [typeEditDraft, setTypeEditDraft] = useState<{ name: string; icon: string; flow: TransactionFlow } | null>(null);
 
@@ -164,14 +196,110 @@ export function BudgetManageView({
     setBillEditDraft(null);
   };
 
-  const billDueSummary = (b: Bill) => {
-    const freq = BILL_FREQUENCY_LABELS[b.frequency ?? "monthly"];
-    if (b.frequency === "weekly" || b.frequency === "biweekly") {
-      const days = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
-      return `${freq} · ${days[b.dueDay] ?? "Mon"}`;
-    }
-    return `${freq} · day ${b.dueDay}`;
+  const [editingIncomeId, setEditingIncomeId] = useState<string | null>(null);
+  const [incomeEditDraft, setIncomeEditDraft] = useState<{
+    name: string;
+    amount: string;
+    category: string;
+    frequency: BillFrequency;
+    dueDay: number;
+    icon: string;
+  } | null>(null);
+
+  const startEditIncome = (s: IncomeStream) => {
+    setEditingIncomeId(s.id);
+    setIncomeEditDraft({
+      name: s.name,
+      amount: s.amount === 0 ? "" : String(s.amount),
+      category: s.category,
+      frequency: s.frequency ?? "monthly",
+      dueDay: s.dueDay,
+      icon: s.icon || "💵",
+    });
   };
+
+  const saveEditIncome = () => {
+    if (!editingIncomeId || !incomeEditDraft) return;
+    const name = incomeEditDraft.name.trim();
+    const amount = parseFloat(incomeEditDraft.amount);
+    if (!name || !Number.isFinite(amount)) return;
+    onUpdateIncomeStream(editingIncomeId, {
+      name,
+      amount,
+      category: incomeEditDraft.category.trim() || "Income",
+      frequency: incomeEditDraft.frequency,
+      dueDay: incomeEditDraft.dueDay,
+      icon: incomeEditDraft.icon,
+    });
+    setEditingIncomeId(null);
+    setIncomeEditDraft(null);
+  };
+
+  const cancelEditIncome = () => {
+    setEditingIncomeId(null);
+    setIncomeEditDraft(null);
+  };
+
+  const [editingRecurId, setEditingRecurId] = useState<string | null>(null);
+  const [recurEditDraft, setRecurEditDraft] = useState<{
+    name: string;
+    amount: string;
+    category: string;
+    frequency: BillFrequency;
+    dueDay: number;
+    icon: string;
+    transactionType: TransactionType;
+  } | null>(null);
+
+  const startEditRecur = (r: RecurringTransaction) => {
+    setEditingRecurId(r.id);
+    setRecurEditDraft({
+      name: r.name,
+      amount: r.amount === 0 ? "" : String(r.amount),
+      category: r.category,
+      frequency: r.frequency ?? "monthly",
+      dueDay: r.dueDay,
+      icon: r.icon || "🔄",
+      transactionType: r.transactionType || "expense",
+    });
+  };
+
+  const saveEditRecur = () => {
+    if (!editingRecurId || !recurEditDraft) return;
+    const name = recurEditDraft.name.trim();
+    const amount = parseFloat(recurEditDraft.amount);
+    if (!name || !Number.isFinite(amount)) return;
+    onUpdateRecurringTransaction(editingRecurId, {
+      name,
+      amount,
+      category: recurEditDraft.category.trim() || "Other",
+      frequency: recurEditDraft.frequency,
+      dueDay: recurEditDraft.dueDay,
+      icon: recurEditDraft.icon,
+      transactionType: recurEditDraft.transactionType,
+    });
+    setEditingRecurId(null);
+    setRecurEditDraft(null);
+  };
+
+  const cancelEditRecur = () => {
+    setEditingRecurId(null);
+    setRecurEditDraft(null);
+  };
+
+  const scheduleDueSummary = (item: Pick<Bill, "frequency" | "dueDay">) => {
+    const freq = BILL_FREQUENCY_LABELS[item.frequency ?? "monthly"];
+    if (item.frequency === "weekly" || item.frequency === "biweekly") {
+      const days = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
+      return `${freq} · ${days[item.dueDay] ?? "Mon"}`;
+    }
+    return `${freq} · day ${item.dueDay}`;
+  };
+
+  const billDueSummary = (b: Bill) => scheduleDueSummary(b);
+
+  const recurringTypeOptions = transactionTypes.filter((t) => t.id !== "bill");
+  const typeLabel = (id: TransactionType) => transactionTypes.find((t) => t.id === id)?.name ?? id;
 
   const totalBudget = categories.reduce((s, c) => s + c.monthlyBudget, 0);
   const totalSpent = categories.reduce((s, c) => s + c.spent, 0);
@@ -194,10 +322,53 @@ export function BudgetManageView({
     setBillFrequency("monthly");
   };
 
+  const submitIncome = () => {
+    const amount = parseFloat(incomeAmount);
+    if (!incomeName.trim() || !Number.isFinite(amount)) return;
+    onAddIncomeStream({
+      name: incomeName.trim(),
+      amount,
+      dueDay: incomeDue,
+      frequency: incomeFrequency,
+      category: incomeCategory,
+      icon: "💵",
+    });
+    setIncomeName("");
+    setIncomeAmount("");
+    setIncomeDue(1);
+    setIncomeFrequency("biweekly");
+  };
+
+  const submitRecur = () => {
+    const amount = parseFloat(recurAmount);
+    if (!recurName.trim() || !Number.isFinite(amount)) return;
+    onAddRecurringTransaction({
+      name: recurName.trim(),
+      amount,
+      dueDay: recurDue,
+      frequency: recurFrequency,
+      category: recurCategory,
+      icon: "🔄",
+      transactionType: recurTransactionType,
+    });
+    setRecurName("");
+    setRecurAmount("");
+    setRecurDue(1);
+    setRecurFrequency("monthly");
+  };
+
   const submitBudgetAdd = (e: React.FormEvent) => {
     e.preventDefault();
     if (budgetAddMode === "bill") {
       submitBill(e);
+      return;
+    }
+    if (budgetAddMode === "income") {
+      submitIncome();
+      return;
+    }
+    if (budgetAddMode === "recur") {
+      submitRecur();
       return;
     }
     if (!typeName.trim()) return;
@@ -275,10 +446,16 @@ export function BudgetManageView({
         }}
       >
         <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12, flexWrap: "wrap" }}>
-          <p className="fety-label-strong" style={{ margin: 0 }}>Add bill or transaction type</p>
+          <p className="fety-label-strong" style={{ margin: 0 }}>Add scheduled item or type</p>
           <div style={{ display: "inline-flex", gap: 6, flexWrap: "wrap" }}>
             <button type="button" onClick={() => setBudgetAddMode("bill")} style={addModeToggleStyle(budgetAddMode === "bill")}>
               Bill
+            </button>
+            <button type="button" onClick={() => setBudgetAddMode("income")} style={addModeToggleStyle(budgetAddMode === "income")}>
+              Income
+            </button>
+            <button type="button" onClick={() => setBudgetAddMode("recur")} style={addModeToggleStyle(budgetAddMode === "recur")}>
+              Recurring
             </button>
             <button type="button" onClick={() => setBudgetAddMode("type")} style={addModeToggleStyle(budgetAddMode === "type")}>
               Transaction type
@@ -311,6 +488,80 @@ export function BudgetManageView({
             />
             <button type="submit" style={{ padding: "8px 14px", borderRadius: "var(--radius-ctrl)", border: "none", background: "var(--ink)", color: "#fff", fontWeight: 600, cursor: "pointer", alignSelf: "flex-start" }}>
               Add bill
+            </button>
+          </>
+        ) : budgetAddMode === "income" ? (
+          <>
+            <p style={{ fontSize: 12, color: "var(--ink-2)", lineHeight: 1.45, margin: 0 }}>
+              Paychecks and other recurring money in — projected on your calendar and Transactions page.
+            </p>
+            <div style={{ display: "grid", gridTemplateColumns: "2fr 1fr 1fr", gap: 8, alignItems: "end" }}>
+              <div className="fety-form-desc">
+                <label className="fety-label" style={{ display: "block", marginBottom: 4 }}>Income name</label>
+                <input value={incomeName} onChange={(e) => setIncomeName(e.target.value)} style={inputStyle} placeholder="Paycheck" />
+              </div>
+              <div>
+                <label className="fety-label" style={{ display: "block", marginBottom: 4 }}>Amount</label>
+                <CurrencyInput value={incomeAmount} onChange={setIncomeAmount} placeholder="0.00" />
+              </div>
+              <div>
+                <label className="fety-label" style={{ display: "block", marginBottom: 4 }}>Category</label>
+                <input value={incomeCategory} onChange={(e) => setIncomeCategory(e.target.value)} style={inputStyle} />
+              </div>
+            </div>
+            <BillScheduleFields
+              frequency={incomeFrequency}
+              dueDay={incomeDue}
+              onFrequencyChange={setIncomeFrequency}
+              onDueDayChange={setIncomeDue}
+              inputStyle={inputStyle}
+            />
+            <button type="submit" style={{ padding: "8px 14px", borderRadius: "var(--radius-ctrl)", border: "none", background: "var(--ink)", color: "#fff", fontWeight: 600, cursor: "pointer", alignSelf: "flex-start" }}>
+              Add income stream
+            </button>
+          </>
+        ) : budgetAddMode === "recur" ? (
+          <>
+            <p style={{ fontSize: 12, color: "var(--ink-2)", lineHeight: 1.45, margin: 0 }}>
+              Other repeating transactions (subscriptions, transfers, etc.) — not bills.
+            </p>
+            <div style={{ display: "grid", gridTemplateColumns: "2fr 1fr 1fr", gap: 8, alignItems: "end" }}>
+              <div className="fety-form-desc">
+                <label className="fety-label" style={{ display: "block", marginBottom: 4 }}>Name</label>
+                <input value={recurName} onChange={(e) => setRecurName(e.target.value)} style={inputStyle} placeholder="Gym membership" />
+              </div>
+              <div>
+                <label className="fety-label" style={{ display: "block", marginBottom: 4 }}>Amount</label>
+                <CurrencyInput value={recurAmount} onChange={setRecurAmount} placeholder="0.00" />
+              </div>
+              <div>
+                <label className="fety-label" style={{ display: "block", marginBottom: 4 }}>Category</label>
+                <input value={recurCategory} onChange={(e) => setRecurCategory(e.target.value)} style={inputStyle} />
+              </div>
+            </div>
+            <div style={{ maxWidth: 280 }}>
+              <label className="fety-label" style={{ display: "block", marginBottom: 4 }}>Transaction type</label>
+              <select
+                value={recurTransactionType}
+                onChange={(e) => setRecurTransactionType(e.target.value)}
+                style={inputStyle}
+              >
+                {recurringTypeOptions.map((t) => (
+                  <option key={t.id} value={t.id}>
+                    {t.icon} {t.name}
+                  </option>
+                ))}
+              </select>
+            </div>
+            <BillScheduleFields
+              frequency={recurFrequency}
+              dueDay={recurDue}
+              onFrequencyChange={setRecurFrequency}
+              onDueDayChange={setRecurDue}
+              inputStyle={inputStyle}
+            />
+            <button type="submit" style={{ padding: "8px 14px", borderRadius: "var(--radius-ctrl)", border: "none", background: "var(--ink)", color: "#fff", fontWeight: 600, cursor: "pointer", alignSelf: "flex-start" }}>
+              Add recurring transaction
             </button>
           </>
         ) : (
@@ -436,6 +687,195 @@ export function BudgetManageView({
               </div>
             );
           })}
+          {bills.length === 0 && (
+            <p style={{ fontSize: 12, color: "var(--ink-3)", margin: 0 }}>No bills yet — add one above.</p>
+          )}
+        </div>
+      </div>
+
+      <div style={{ background: "var(--surface)", border: "1px solid var(--border)", borderRadius: 14, padding: "18px 20px" }}>
+        <p className="fety-label-strong" style={{ marginBottom: 12 }}>Income streams</p>
+        <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+          {incomeStreams.map((s) => {
+            const isEditing = editingIncomeId === s.id && incomeEditDraft;
+            return (
+              <div key={s.id} style={{ padding: "12px 14px", border: "1px solid var(--border-soft)", borderRadius: 12 }}>
+                {isEditing ? (
+                  <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+                    <div style={{ display: "flex", alignItems: "flex-end", gap: 10, flexWrap: "wrap" }}>
+                      <EmojiIconPicker
+                        value={incomeEditDraft.icon}
+                        onChange={(icon) => setIncomeEditDraft((d) => (d ? { ...d, icon } : d))}
+                      />
+                      <div className="fety-form-desc" style={{ flex: "1 1 160px", minWidth: 140 }}>
+                        <label className="fety-label" style={{ display: "block", marginBottom: 4 }}>Name</label>
+                        <input
+                          value={incomeEditDraft.name}
+                          onChange={(e) => setIncomeEditDraft((d) => (d ? { ...d, name: e.target.value } : d))}
+                          style={inputStyle}
+                          autoFocus
+                        />
+                      </div>
+                      <div style={{ flex: "0 1 140px", minWidth: 120 }}>
+                        <label className="fety-label" style={{ display: "block", marginBottom: 4 }}>Amount</label>
+                        <CurrencyInput value={incomeEditDraft.amount} onChange={(amount) => setIncomeEditDraft((d) => (d ? { ...d, amount } : d))} />
+                      </div>
+                      <div style={{ flex: "0 1 140px", minWidth: 120 }}>
+                        <label className="fety-label" style={{ display: "block", marginBottom: 4 }}>Category</label>
+                        <input
+                          value={incomeEditDraft.category}
+                          onChange={(e) => setIncomeEditDraft((d) => (d ? { ...d, category: e.target.value } : d))}
+                          style={inputStyle}
+                        />
+                      </div>
+                    </div>
+                    <BillScheduleFields
+                      compact
+                      frequency={incomeEditDraft.frequency}
+                      dueDay={incomeEditDraft.dueDay}
+                      onFrequencyChange={(frequency) => setIncomeEditDraft((d) => (d ? { ...d, frequency } : d))}
+                      onDueDayChange={(dueDay) => setIncomeEditDraft((d) => (d ? { ...d, dueDay } : d))}
+                      inputStyle={inputStyle}
+                    />
+                    <div style={{ display: "flex", gap: 8 }}>
+                      <button type="button" onClick={saveEditIncome} style={{ padding: "6px 14px", borderRadius: "var(--radius-ctrl)", border: "none", background: "var(--ink)", color: "#fff", fontSize: 11, fontWeight: 600, cursor: "pointer" }}>
+                        Save
+                      </button>
+                      <button type="button" onClick={cancelEditIncome} style={{ padding: "6px 14px", borderRadius: "var(--radius-ctrl)", border: "1px solid var(--border)", background: "transparent", fontSize: 11, cursor: "pointer" }}>
+                        Cancel
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          onDeleteIncomeStream(s.id);
+                          cancelEditIncome();
+                        }}
+                        style={{ marginLeft: "auto", border: "none", background: "transparent", color: "var(--trouble-dk)", cursor: "pointer", fontSize: 11 }}
+                      >
+                        Remove
+                      </button>
+                    </div>
+                  </div>
+                ) : (
+                  <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+                    <span style={{ fontSize: 22, lineHeight: 1, flexShrink: 0 }}>{s.icon}</span>
+                    <div style={{ flex: 1, minWidth: 0 }}>
+                      <p style={{ fontSize: 14, fontWeight: 600, color: "var(--ink)" }}>{s.name}</p>
+                      <p style={{ fontSize: 11, color: "var(--ink-3)", marginTop: 2 }}>
+                        {usd(s.amount)} · {s.category} · {scheduleDueSummary(s)}
+                      </p>
+                    </div>
+                    <button type="button" onClick={() => startEditIncome(s)} style={editBtnStyle}>
+                      Edit
+                    </button>
+                  </div>
+                )}
+              </div>
+            );
+          })}
+          {incomeStreams.length === 0 && (
+            <p style={{ fontSize: 12, color: "var(--ink-3)", margin: 0 }}>No income streams — add paychecks or other recurring deposits above.</p>
+          )}
+        </div>
+      </div>
+
+      <div style={{ background: "var(--surface)", border: "1px solid var(--border)", borderRadius: 14, padding: "18px 20px" }}>
+        <p className="fety-label-strong" style={{ marginBottom: 12 }}>Recurring transactions</p>
+        <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+          {recurringTransactions.map((r) => {
+            const isEditing = editingRecurId === r.id && recurEditDraft;
+            return (
+              <div key={r.id} style={{ padding: "12px 14px", border: "1px solid var(--border-soft)", borderRadius: 12 }}>
+                {isEditing ? (
+                  <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+                    <div style={{ display: "flex", alignItems: "flex-end", gap: 10, flexWrap: "wrap" }}>
+                      <EmojiIconPicker
+                        value={recurEditDraft.icon}
+                        onChange={(icon) => setRecurEditDraft((d) => (d ? { ...d, icon } : d))}
+                      />
+                      <div className="fety-form-desc" style={{ flex: "1 1 160px", minWidth: 140 }}>
+                        <label className="fety-label" style={{ display: "block", marginBottom: 4 }}>Name</label>
+                        <input
+                          value={recurEditDraft.name}
+                          onChange={(e) => setRecurEditDraft((d) => (d ? { ...d, name: e.target.value } : d))}
+                          style={inputStyle}
+                          autoFocus
+                        />
+                      </div>
+                      <div style={{ flex: "0 1 140px", minWidth: 120 }}>
+                        <label className="fety-label" style={{ display: "block", marginBottom: 4 }}>Amount</label>
+                        <CurrencyInput value={recurEditDraft.amount} onChange={(amount) => setRecurEditDraft((d) => (d ? { ...d, amount } : d))} />
+                      </div>
+                      <div style={{ flex: "0 1 140px", minWidth: 120 }}>
+                        <label className="fety-label" style={{ display: "block", marginBottom: 4 }}>Category</label>
+                        <input
+                          value={recurEditDraft.category}
+                          onChange={(e) => setRecurEditDraft((d) => (d ? { ...d, category: e.target.value } : d))}
+                          style={inputStyle}
+                        />
+                      </div>
+                      <div style={{ flex: "0 1 180px", minWidth: 140 }}>
+                        <label className="fety-label" style={{ display: "block", marginBottom: 4 }}>Type</label>
+                        <select
+                          value={recurEditDraft.transactionType}
+                          onChange={(e) => setRecurEditDraft((d) => (d ? { ...d, transactionType: e.target.value } : d))}
+                          style={inputStyle}
+                        >
+                          {recurringTypeOptions.map((t) => (
+                            <option key={t.id} value={t.id}>
+                              {t.icon} {t.name}
+                            </option>
+                          ))}
+                        </select>
+                      </div>
+                    </div>
+                    <BillScheduleFields
+                      compact
+                      frequency={recurEditDraft.frequency}
+                      dueDay={recurEditDraft.dueDay}
+                      onFrequencyChange={(frequency) => setRecurEditDraft((d) => (d ? { ...d, frequency } : d))}
+                      onDueDayChange={(dueDay) => setRecurEditDraft((d) => (d ? { ...d, dueDay } : d))}
+                      inputStyle={inputStyle}
+                    />
+                    <div style={{ display: "flex", gap: 8 }}>
+                      <button type="button" onClick={saveEditRecur} style={{ padding: "6px 14px", borderRadius: "var(--radius-ctrl)", border: "none", background: "var(--ink)", color: "#fff", fontSize: 11, fontWeight: 600, cursor: "pointer" }}>
+                        Save
+                      </button>
+                      <button type="button" onClick={cancelEditRecur} style={{ padding: "6px 14px", borderRadius: "var(--radius-ctrl)", border: "1px solid var(--border)", background: "transparent", fontSize: 11, cursor: "pointer" }}>
+                        Cancel
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          onDeleteRecurringTransaction(r.id);
+                          cancelEditRecur();
+                        }}
+                        style={{ marginLeft: "auto", border: "none", background: "transparent", color: "var(--trouble-dk)", cursor: "pointer", fontSize: 11 }}
+                      >
+                        Remove
+                      </button>
+                    </div>
+                  </div>
+                ) : (
+                  <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+                    <span style={{ fontSize: 22, lineHeight: 1, flexShrink: 0 }}>{r.icon}</span>
+                    <div style={{ flex: 1, minWidth: 0 }}>
+                      <p style={{ fontSize: 14, fontWeight: 600, color: "var(--ink)" }}>{r.name}</p>
+                      <p style={{ fontSize: 11, color: "var(--ink-3)", marginTop: 2 }}>
+                        {usd(r.amount)} · {r.category} · {typeLabel(r.transactionType)} · {scheduleDueSummary(r)}
+                      </p>
+                    </div>
+                    <button type="button" onClick={() => startEditRecur(r)} style={editBtnStyle}>
+                      Edit
+                    </button>
+                  </div>
+                )}
+              </div>
+            );
+          })}
+          {recurringTransactions.length === 0 && (
+            <p style={{ fontSize: 12, color: "var(--ink-3)", margin: 0 }}>No recurring transactions yet.</p>
+          )}
         </div>
       </div>
 

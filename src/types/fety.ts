@@ -31,16 +31,27 @@ export interface BudgetCategory {
 
 export type BillFrequency = "monthly" | "weekly" | "biweekly" | "quarterly";
 
-export interface Bill {
+/** Shared schedule fields for bills, income streams, and recurring transactions. */
+export interface RecurringScheduleBase {
   id: string;
   name: string;
   amount: number;
-  /** Day of month (1–31) for monthly/quarterly; weekday 0–6 (Sun–Sat) for weekly/biweekly. */
   dueDay: number;
   frequency: BillFrequency;
   category: string;
   icon: string;
+}
+
+export interface Bill extends RecurringScheduleBase {
   autopay?: boolean;
+}
+
+/** Recurring money in (paycheck, freelance, etc.) — projects as income transactions. */
+export interface IncomeStream extends RecurringScheduleBase {}
+
+/** Recurring expense/transfer/custom type — not bills or core income. */
+export interface RecurringTransaction extends RecurringScheduleBase {
+  transactionType: TransactionType;
 }
 
 export interface Goal {
@@ -91,6 +102,8 @@ export interface FetyStore {
   categories: BudgetCategory[];
   transactions: Transaction[];
   bills: Bill[];
+  incomeStreams?: IncomeStream[];
+  recurringTransactions?: RecurringTransaction[];
   goals: Goal[];
   accounts: Account[];
   messages: ChatMessage[];
@@ -101,8 +114,9 @@ export interface FetyStore {
   transactionTypes?: FetyTransactionType[];
   /** One-time: former fixed hero blocks are optional widgets, not auto-pinned. */
   heroBlocksOptional?: boolean;
-  /** billId|dateISO occurrences removed when user deletes a scheduled bill line */
+  /** bill|sourceId|dateISO — skipped scheduled occurrence (legacy billId|dateISO migrated on load) */
   skippedBillOccurrences?: string[];
+  skippedScheduledOccurrences?: string[];
   /** Widget ids locked in place (only valid while in the top dashboard row). */
   lockedDashboardWidgets?: string[];
 }
