@@ -212,16 +212,18 @@ html, body, #root {
 }
 
 .fety-assistant-rail {
-  width: 32px;
+  width: 48px;
   flex-shrink: 0;
   display: flex;
   flex-direction: column;
   align-items: center;
-  padding-top: 14px;
+  justify-content: flex-start;
+  padding: 14px 8px;
   background: var(--surface);
   border-right: 1px solid var(--border);
   cursor: pointer;
   align-self: stretch;
+  box-sizing: border-box;
 }
 
 .fety-chat-panel {
@@ -260,10 +262,91 @@ html, body, #root {
   position: sticky;
   top: 0;
   z-index: 2;
-  background: var(--bg);
+  background: var(--surface);
   padding: 6px 0 8px;
   margin-bottom: 4px;
   border-bottom: 1px solid var(--border);
+  box-shadow: 0 6px 12px rgba(0, 0, 0, 0.04);
+}
+
+.fety-widget-row > div {
+  min-width: 0;
+}
+
+.fety-widget-row-grid {
+  min-width: 0;
+}
+
+.fety-row-drag-handle {
+  flex-shrink: 0;
+  width: 22px;
+  align-self: center;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--ink-3);
+  cursor: grab;
+  border-radius: 8px;
+  padding: 8px 4px;
+  background: var(--bg);
+  border: 1px solid var(--border);
+}
+
+.fety-row-drag-handle:active {
+  cursor: grabbing;
+}
+
+.fety-widget-cell {
+  min-width: 0;
+}
+
+/* Smaller desktop / tablet: stack compact tiles; full-width as large tiles */
+@media (max-width: 1024px) {
+  .fety-widget-row-grid {
+    grid-template-columns: 1fr !important;
+    gap: 10px !important;
+  }
+
+  .fety-widget-cell--small,
+  .fety-widget-cell--half {
+    grid-column: 1 / -1 !important;
+  }
+
+  .fety-widget-cell--full {
+    grid-column: 1 / -1 !important;
+    aspect-ratio: 1 / 1;
+    max-height: min(56vw, 380px);
+    overflow: hidden;
+  }
+}
+
+@media (max-width: 1024px) and (orientation: landscape) {
+  .fety-widget-cell--full {
+    aspect-ratio: 5 / 4;
+    max-height: min(42vh, 360px);
+  }
+}
+
+@media (max-width: 1280px) {
+  .fety-main-scroll {
+    padding: 20px 18px 40px !important;
+  }
+}
+
+@media (max-width: 1024px) {
+  .fety-nav-links {
+    overflow-x: auto;
+    max-width: min(52vw, 420px);
+    scrollbar-width: none;
+  }
+
+  .fety-nav-links::-webkit-scrollbar {
+    display: none;
+  }
+
+  .fety-main-scroll {
+    padding: 18px 16px 36px !important;
+  }
 }
 
 @media (max-width: 768px) {
@@ -278,6 +361,50 @@ html, body, #root {
   .fety-logo-mark {
     display: block;
     font-size: 28px;
+  }
+
+  .fety-main-scroll {
+    padding: 16px 14px 40px !important;
+  }
+
+  .fety-shell {
+    flex-direction: column;
+  }
+
+  .fety-assistant-rail {
+    width: 100%;
+    height: 48px;
+    flex-direction: row;
+    justify-content: center;
+    border-right: none;
+    border-bottom: 1px solid var(--border);
+    padding: 8px 12px;
+  }
+
+  .fety-calendar-body {
+    flex-direction: column !important;
+  }
+
+  .fety-widget-row-grid {
+    grid-template-columns: 1fr !important;
+  }
+
+  .fety-widget-cell--small,
+  .fety-widget-cell--half,
+  .fety-widget-cell--full {
+    grid-column: 1 / -1 !important;
+  }
+
+  .fety-widget-cell--full {
+    aspect-ratio: 1 / 1;
+    max-height: min(88vw, 440px);
+    overflow: hidden;
+  }
+
+  .fety-row-drag-handle {
+    width: 100%;
+    height: 28px;
+    padding: 4px;
   }
 }
 

@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import type { Bill, BudgetCategory, CategoryWithSpent, Goal, Transaction, TransactionType } from "../types/fety";
 import { formatDisplayDate, todayISO } from "../lib/fetyCalculations";
 import { EditableNumber, EditableText } from "../components/EditableField";
@@ -151,6 +151,7 @@ export function BudgetManageView({
 export function TransactionsManageView({
   transactions,
   categories,
+  typeIcons,
   viewMode,
   onAdd,
   onUpdate,
@@ -158,9 +159,10 @@ export function TransactionsManageView({
 }: {
   transactions: Transaction[];
   categories: BudgetCategory[];
+  typeIcons: Record<TransactionType, string>;
   viewMode: ViewMode;
   onAdd: (input: { desc: string; amount: number; type: TransactionType; category: string; dateISO?: string; icon?: string }) => void;
-  onUpdate: (id: string, updates: Partial<Pick<Transaction, "desc" | "amount" | "type" | "category" | "dateISO">>) => void;
+  onUpdate: (id: string, updates: Partial<Pick<Transaction, "desc" | "amount" | "type" | "category" | "dateISO" | "icon">>) => void;
   onDelete: (id: string) => void;
 }) {
   const [filter, setFilter] = useState("All");
@@ -174,6 +176,8 @@ export function TransactionsManageView({
   const [type, setType] = useState<TransactionType>("expense");
   const [category, setCategory] = useState(categories[0]?.name ?? "Other");
   const [dateISO, setDateISO] = useState(todayISO());
+  const [addIcon, setAddIcon] = useState("");
+  const [editIcon, setEditIcon] = useState("");
 
   const shown =
     filter === "All" ? transactions : transactions.filter((t) => t.type === filter.toLowerCase());
@@ -187,9 +191,10 @@ export function TransactionsManageView({
     e.preventDefault();
     const n = parseFloat(amount);
     if (!desc.trim() || !Number.isFinite(n)) return;
-    onAdd({ desc: desc.trim(), amount: n, type, category, dateISO });
+    onAdd({ desc: desc.trim(), amount: n, type, category, dateISO, icon: addIcon.trim() || undefined });
     setDesc("");
     setAmount("");
+    setAddIcon("");
   };
 
   return (
@@ -207,7 +212,7 @@ export function TransactionsManageView({
           <input value={amount} onChange={(e) => setAmount(e.target.value)} style={inputStyle} type="number" step="0.01" />
         </div>
         <div>
-          <label className="fety-label" style={{ display: "block", marginBottom: 4 }}>Type</label>
+          <label className="fety-label" style={{ display: "block", marginBottom: 4 }}>Transaction type</label>
           <select value={type} onChange={(e) => setType(e.target.value as TransactionType)} style={inputStyle}>
             <option value="expense">Expense</option>
             <option value="income">Income</option>
@@ -216,12 +221,16 @@ export function TransactionsManageView({
           </select>
         </div>
         <div>
-          <label className="fety-label" style={{ display: "block", marginBottom: 4 }}>Category</label>
+          <label className="fety-label" style={{ display: "block", marginBottom: 4 }}>Transaction category</label>
           <select value={category} onChange={(e) => setCategory(e.target.value)} style={inputStyle}>
             {[...categories.map((c) => c.name), "Income", "Savings", "Other"].filter((v, i, a) => a.indexOf(v) === i).map((name) => (
               <option key={name} value={name}>{name}</option>
             ))}
           </select>
+        </div>
+        <div>
+          <label className="fety-label" style={{ display: "block", marginBottom: 4 }}>Emoji</label>
+          <input value={addIcon} onChange={(e) => setAddIcon(e.target.value)} style={inputStyle} placeholder={typeIcons[type]} maxLength={4} />
         </div>
         <div>
           <label className="fety-label" style={{ display: "block", marginBottom: 4 }}>Date</label>
@@ -248,23 +257,39 @@ export function TransactionsManageView({
                   <div style={{ flex: 1, display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(100px, 1fr))", gap: 8, alignItems: "end" }}>
                     <input value={editDesc} onChange={(e) => setEditDesc(e.target.value)} style={inputStyle} placeholder="Description" />
                     <input value={editAmount} onChange={(e) => setEditAmount(e.target.value)} type="number" step="0.01" style={inputStyle} />
-                    <select value={editType} onChange={(e) => setEditType(e.target.value as TransactionType)} style={inputStyle}>
-                      <option value="expense">Expense</option>
-                      <option value="income">Income</option>
-                      <option value="transfer">Transfer</option>
-                      <option value="bill">Bill</option>
-                    </select>
-                    <select value={editCategory} onChange={(e) => setEditCategory(e.target.value)} style={inputStyle}>
-                      {[...categories.map((c) => c.name), "Income", "Savings", "Other"].filter((v, i, a) => a.indexOf(v) === i).map((name) => (
-                        <option key={name} value={name}>{name}</option>
-                      ))}
-                    </select>
+                    <div>
+                      <label className="fety-label" style={{ display: "block", marginBottom: 4 }}>Transaction type</label>
+                      <select value={editType} onChange={(e) => setEditType(e.target.value as TransactionType)} style={inputStyle}>
+                        <option value="expense">Expense</option>
+                        <option value="income">Income</option>
+                        <option value="transfer">Transfer</option>
+                        <option value="bill">Bill</option>
+                      </select>
+                    </div>
+                    <div>
+                      <label className="fety-label" style={{ display: "block", marginBottom: 4 }}>Transaction category</label>
+                      <select value={editCategory} onChange={(e) => setEditCategory(e.target.value)} style={inputStyle}>
+                        {[...categories.map((c) => c.name), "Income", "Savings", "Other"].filter((v, i, a) => a.indexOf(v) === i).map((name) => (
+                          <option key={name} value={name}>{name}</option>
+                        ))}
+                      </select>
+                    </div>
+                    <div>
+                      <label className="fety-label" style={{ display: "block", marginBottom: 4 }}>Emoji</label>
+                      <input value={editIcon} onChange={(e) => setEditIcon(e.target.value)} style={inputStyle} placeholder={typeIcons[editType]} maxLength={4} />
+                    </div>
                     <button
                       type="button"
                       onClick={() => {
                         const n = parseFloat(editAmount);
                         if (editDesc.trim() && Number.isFinite(n)) {
-                          onUpdate(t.id, { desc: editDesc.trim(), amount: n, type: editType, category: editCategory });
+                          onUpdate(t.id, {
+                            desc: editDesc.trim(),
+                            amount: n,
+                            type: editType,
+                            category: editCategory,
+                            icon: editIcon.trim() || typeIcons[editType],
+                          });
                           setEditId(null);
                         }
                       }}
@@ -292,6 +317,7 @@ export function TransactionsManageView({
                         setEditAmount(String(Math.abs(t.amount)));
                         setEditType(t.type);
                         setEditCategory(t.category);
+                        setEditIcon(t.icon);
                       }}
                       style={{ border: "none", background: "transparent", color: "var(--ink-3)", cursor: "pointer", fontSize: 11 }}
                     >
@@ -324,6 +350,10 @@ export function GoalsManageView({
   onDelete: (id: string) => void;
 }) {
   const [showForm, setShowForm] = useState(false);
+  const [editGoalId, setEditGoalId] = useState<string | null>(null);
+  const [editName, setEditName] = useState("");
+  const [editSaved, setEditSaved] = useState("");
+  const [editTarget, setEditTarget] = useState("");
   const [name, setName] = useState("");
   const [target, setTarget] = useState("");
   const [saved, setSaved] = useState("0");
@@ -356,21 +386,45 @@ export function GoalsManageView({
       <div style={{ display: "grid", gridTemplateColumns: viewMode === "cards" ? "repeat(auto-fill, minmax(240px, 1fr))" : "1fr", gap: 12 }}>
         {goals.map((g) => {
           const pct = g.target > 0 ? Math.round((g.saved / g.target) * 100) : 0;
+          const editing = editGoalId === g.id;
           return (
             <div key={g.id} style={{ background: "var(--surface)", borderRadius: 16, padding: "20px 22px", border: "1px solid var(--border)" }}>
               <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 12 }}>
                 <span style={{ fontSize: 22 }}>{g.icon}</span>
-              <div style={{ flex: 1 }}>
-                  <EditableText label="Goal name" value={g.name} onSave={(name) => onUpdate(g.id, { name })} valueStyle={{ fontSize: 14, fontWeight: 600 }} />
-                  <p style={{ fontSize: 10, color: "var(--ink-3)", marginTop: -4, marginBottom: 8 }}>Target {g.targetDate}</p>
+                <div style={{ flex: 1 }}>
+                  {editing ? (
+                    <input value={editName} onChange={(e) => setEditName(e.target.value)} style={inputStyle} placeholder="Goal name" />
+                  ) : (
+                    <>
+                      <p style={{ fontSize: 14, fontWeight: 600, color: "var(--ink)" }}>{g.name}</p>
+                      <p style={{ fontSize: 10, color: "var(--ink-3)", marginTop: 2 }}>Target {g.targetDate}</p>
+                    </>
+                  )}
                 </div>
+                {!editing ? (
+                  <button type="button" onClick={() => { setEditGoalId(g.id); setEditName(g.name); setEditSaved(String(g.saved)); setEditTarget(String(g.target)); }} style={{ border: "none", background: "transparent", color: "var(--ink-2)", cursor: "pointer", fontSize: 11, fontWeight: 600 }}>Edit</button>
+                ) : (
+                  <button type="button" onClick={() => { const s = parseFloat(editSaved); const t = parseFloat(editTarget); if (editName.trim() && Number.isFinite(s) && Number.isFinite(t)) { onUpdate(g.id, { name: editName.trim(), saved: s, target: t }); setEditGoalId(null); } }} style={{ border: "none", background: "var(--ink)", color: "#fff", cursor: "pointer", fontSize: 11, fontWeight: 600, padding: "6px 10px", borderRadius: 8 }}>Save</button>
+                )}
                 <button type="button" onClick={() => onDelete(g.id)} style={{ border: "none", background: "transparent", color: "var(--ink-3)", cursor: "pointer", fontSize: 11 }}>Remove</button>
               </div>
-              <EditableNumber label="Saved" value={g.saved} format={usd} onSave={(saved) => onUpdate(g.id, { saved })} valueStyle={{ fontSize: 18 }} />
-              <div style={{ marginTop: 8 }}>
-                <EditableNumber label="Target" value={g.target} format={usd} onSave={(target) => onUpdate(g.id, { target })} valueStyle={{ fontSize: 16 }} />
-              </div>
-              <p style={{ fontSize: 12, color: "var(--ink-2)", marginTop: 8 }}>{pct}% of target</p>
+              {editing ? (
+                <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8 }}>
+                  <div>
+                    <label className="fety-label" style={{ display: "block", marginBottom: 4 }}>Saved</label>
+                    <input value={editSaved} onChange={(e) => setEditSaved(e.target.value)} type="number" style={inputStyle} />
+                  </div>
+                  <div>
+                    <label className="fety-label" style={{ display: "block", marginBottom: 4 }}>Target</label>
+                    <input value={editTarget} onChange={(e) => setEditTarget(e.target.value)} type="number" style={inputStyle} />
+                  </div>
+                </div>
+              ) : (
+                <>
+                  <p style={{ fontSize: 18, fontWeight: 400, color: "var(--ink)" }}>{usd(g.saved)} <span style={{ fontSize: 12, color: "var(--ink-3)" }}>of {usd(g.target)}</span></p>
+                  <p style={{ fontSize: 12, color: "var(--ink-2)", marginTop: 8 }}>{pct}% of target</p>
+                </>
+              )}
               <div style={{ height: 6, background: "var(--paper)", borderRadius: 99, marginTop: 8, overflow: "hidden" }}>
                 <div style={{ width: `${Math.min(pct, 100)}%`, height: "100%", background: "var(--later)" }} />
               </div>
@@ -398,39 +452,111 @@ export function GoalsManageView({
 export function SettingsManageView({
   profile,
   accounts,
+  typeIcons,
   onUpdateProfile,
   onUpdateAccount,
+  onUpdateTypeIcons,
   onReset,
   onRestartSetup,
 }: {
   profile: { displayName: string; email: string; currency: string; startingBalance: number };
   accounts: { id: string; name: string; type: string; balance: number; icon: string }[];
+  typeIcons: Record<TransactionType, string>;
   onUpdateProfile: (u: Partial<{ displayName: string; email: string; currency: string; startingBalance: number }>) => void;
   onUpdateAccount: (id: string, u: Partial<{ name: string; type: string; balance: number }>) => void;
+  onUpdateTypeIcons: (icons: Record<TransactionType, string>) => void;
   onReset: () => void;
   onRestartSetup?: () => void;
 }) {
+  const [profileEdit, setProfileEdit] = useState(false);
+  const [pName, setPName] = useState(profile.displayName);
+  const [pEmail, setPEmail] = useState(profile.email);
+  const [pCurrency, setPCurrency] = useState(profile.currency);
+  const [pStart, setPStart] = useState(String(profile.startingBalance));
+  const [accountsEdit, setAccountsEdit] = useState(false);
+  const [accountDrafts, setAccountDrafts] = useState(accounts.map((a) => ({ ...a })));
+  const [iconDrafts, setIconDrafts] = useState({ ...typeIcons });
+
+  useEffect(() => {
+    setIconDrafts({ ...typeIcons });
+  }, [typeIcons]);
+
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 16, maxWidth: 560 }}>
       <div style={{ background: "var(--surface)", borderRadius: 14, border: "1px solid var(--border)", padding: "18px 20px" }}>
-        <p className="fety-label-strong" style={{ marginBottom: 12 }}>Profile</p>
-        <EditableText label="Display name" value={profile.displayName} onSave={(displayName) => onUpdateProfile({ displayName })} />
-        <EditableText label="Email" value={profile.email} type="email" onSave={(email) => onUpdateProfile({ email })} />
-        <EditableText label="Currency" value={profile.currency} onSave={(currency) => onUpdateProfile({ currency })} />
-        <EditableNumber label="Starting balance (baseline)" value={profile.startingBalance} format={usd} onSave={(startingBalance) => onUpdateProfile({ startingBalance })} />
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 12 }}>
+          <p className="fety-label-strong">Profile</p>
+          {!profileEdit ? (
+            <button type="button" onClick={() => { setProfileEdit(true); setPName(profile.displayName); setPEmail(profile.email); setPCurrency(profile.currency); setPStart(String(profile.startingBalance)); }} style={{ border: "none", background: "transparent", color: "var(--ink-2)", cursor: "pointer", fontSize: 11, fontWeight: 600 }}>Edit</button>
+          ) : (
+            <button type="button" onClick={() => { onUpdateProfile({ displayName: pName, email: pEmail, currency: pCurrency, startingBalance: parseFloat(pStart) || 0 }); setProfileEdit(false); }} style={{ border: "none", background: "var(--ink)", color: "#fff", cursor: "pointer", fontSize: 11, fontWeight: 600, padding: "6px 10px", borderRadius: 8 }}>Save</button>
+          )}
+        </div>
+        {profileEdit ? (
+          <>
+            <label className="fety-label" style={{ display: "block", marginBottom: 4 }}>Display name</label>
+            <input value={pName} onChange={(e) => setPName(e.target.value)} style={{ ...inputStyle, marginBottom: 10 }} />
+            <label className="fety-label" style={{ display: "block", marginBottom: 4 }}>Email</label>
+            <input value={pEmail} onChange={(e) => setPEmail(e.target.value)} style={{ ...inputStyle, marginBottom: 10 }} type="email" />
+            <label className="fety-label" style={{ display: "block", marginBottom: 4 }}>Currency</label>
+            <input value={pCurrency} onChange={(e) => setPCurrency(e.target.value)} style={{ ...inputStyle, marginBottom: 10 }} />
+            <label className="fety-label" style={{ display: "block", marginBottom: 4 }}>Starting balance</label>
+            <input value={pStart} onChange={(e) => setPStart(e.target.value)} style={inputStyle} type="number" />
+          </>
+        ) : (
+          <>
+            <p style={{ fontSize: 13, color: "var(--ink)" }}>{profile.displayName || "—"}</p>
+            <p style={{ fontSize: 12, color: "var(--ink-3)", marginTop: 4 }}>{profile.email}</p>
+            <p style={{ fontSize: 12, color: "var(--ink-3)", marginTop: 4 }}>{profile.currency} · Starting {usd(profile.startingBalance)}</p>
+          </>
+        )}
       </div>
 
       <div style={{ background: "var(--surface)", borderRadius: 14, border: "1px solid var(--border)", overflow: "hidden" }}>
-        <div style={{ padding: "12px 18px", borderBottom: "1px solid var(--border)" }}>
+        <div style={{ padding: "12px 18px", borderBottom: "1px solid var(--border)", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
           <p className="fety-label-strong">Accounts</p>
+          {!accountsEdit ? (
+            <button type="button" onClick={() => { setAccountsEdit(true); setAccountDrafts(accounts.map((a) => ({ ...a }))); }} style={{ border: "none", background: "transparent", color: "var(--ink-2)", cursor: "pointer", fontSize: 11, fontWeight: 600 }}>Edit</button>
+          ) : (
+            <button type="button" onClick={() => { accountDrafts.forEach((a) => onUpdateAccount(a.id, { name: a.name, type: a.type, balance: a.balance })); setAccountsEdit(false); }} style={{ border: "none", background: "var(--ink)", color: "#fff", cursor: "pointer", fontSize: 11, fontWeight: 600, padding: "6px 10px", borderRadius: 8 }}>Save</button>
+          )}
         </div>
-        {accounts.map((a, i) => (
+        {(accountsEdit ? accountDrafts : accounts).map((a, i) => (
           <div key={a.id} style={{ padding: "14px 18px", borderTop: i > 0 ? "1px solid var(--border)" : undefined }}>
-            <EditableText label="Account name" value={a.name} onSave={(name) => onUpdateAccount(a.id, { name })} />
-            <EditableText label="Type" value={a.type} onSave={(type) => onUpdateAccount(a.id, { type })} valueStyle={{ fontSize: 12 }} />
-            <EditableNumber label="Balance" value={a.balance} format={usd} onSave={(balance) => onUpdateAccount(a.id, { balance })} valueStyle={{ fontSize: 18 }} />
+            {accountsEdit ? (
+              <>
+                <input value={a.name} onChange={(e) => setAccountDrafts((prev) => prev.map((x) => x.id === a.id ? { ...x, name: e.target.value } : x))} style={{ ...inputStyle, marginBottom: 8 }} />
+                <input value={a.type} onChange={(e) => setAccountDrafts((prev) => prev.map((x) => x.id === a.id ? { ...x, type: e.target.value } : x))} style={{ ...inputStyle, marginBottom: 8 }} />
+                <input value={String(a.balance)} onChange={(e) => setAccountDrafts((prev) => prev.map((x) => x.id === a.id ? { ...x, balance: parseFloat(e.target.value) || 0 } : x))} style={inputStyle} type="number" />
+              </>
+            ) : (
+              <>
+                <p style={{ fontSize: 13, fontWeight: 600 }}>{a.name}</p>
+                <p style={{ fontSize: 12, color: "var(--ink-3)" }}>{a.type}</p>
+                <p style={{ fontSize: 18, marginTop: 4 }}>{usd(a.balance)}</p>
+              </>
+            )}
           </div>
         ))}
+      </div>
+
+      <div style={{ background: "var(--surface)", borderRadius: 14, border: "1px solid var(--border)", padding: "18px 20px" }}>
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 12 }}>
+          <p className="fety-label-strong">Transaction type emojis</p>
+          <button type="button" onClick={() => onUpdateTypeIcons(iconDrafts)} style={{ border: "none", background: "var(--ink)", color: "#fff", cursor: "pointer", fontSize: 11, fontWeight: 600, padding: "6px 10px", borderRadius: 8 }}>Save</button>
+        </div>
+        {(["income", "expense", "bill", "transfer"] as TransactionType[]).map((t) => (
+          <div key={t} style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 8 }}>
+            <span style={{ fontSize: 12, width: 72, textTransform: "capitalize", color: "var(--ink-2)" }}>{t}</span>
+            <input
+              value={iconDrafts[t]}
+              onChange={(e) => setIconDrafts((prev) => ({ ...prev, [t]: e.target.value }))}
+              style={{ ...inputStyle, maxWidth: 80 }}
+              maxLength={4}
+            />
+          </div>
+        ))}
+        <p style={{ fontSize: 10, color: "var(--ink-3)", marginTop: 6 }}>Used for new transactions unless you pick a custom emoji on each entry.</p>
       </div>
 
       <button type="button" onClick={() => { if (confirm("Reset all local data to demo sample data?")) onReset(); }} style={{ padding: "10px 16px", borderRadius: "var(--radius-ctrl)", border: "1px solid var(--trouble-dk)", background: "transparent", color: "var(--trouble-dk)", cursor: "pointer", fontWeight: 600 }}>

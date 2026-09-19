@@ -177,7 +177,6 @@ export function ChatPanel({
             </svg>
           </button>
         </div>
-        <p style={{ fontSize: 9, color: "var(--ink-3)", textAlign: "center", marginTop: 6 }}>Local-first · no cloud AI in Phase 1</p>
       </div>
     </div>
   );

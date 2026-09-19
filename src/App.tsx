@@ -2,11 +2,14 @@ import { useState, useRef, useEffect, useCallback, useMemo } from "react";
 import { FetyLogo } from "./FetyLogo";
 import { DashboardHero } from "./components/DashboardHero";
 import { useFetyData } from "./hooks/useFetyData";
-import { buildCalendarMap, calendarFlowHeat, formatNavDate, maxAbsDailyNet, todayISO } from "./lib/fetyCalculations";
+import { buildCalendarMap, formatNavDate, last6MonthsSpending, last7DayEndingBalances, categorySpendShares, todayISO } from "./lib/fetyCalculations";
+import { calendarDailyBalanceBg, calendarDailyBalanceBgStrong, calSignedColor } from "./lib/calendarUi";
+import { CalendarPeriodMenu } from "./components/CalendarPeriodMenu";
+import { flattenRows, moveRow, packWidgetsIntoRows, reorderWidget } from "./lib/widgetLayout";
 import { ChatPanel, ChatExpandIcon } from "./components/ChatPanel";
 import { confirmAssistantAction, handleAssistantMessageWithDeps } from "./assistant/router";
 import type { ToolAction } from "./assistant/types";
-import type { BudgetCategory, CalDay, CalendarMap, ChatMessage, FinanceSummary, TransactionType } from "./types/fety";
+import type { BudgetCategory, CalDay, CalendarMap, ChatMessage, FinanceSummary, FetyStore, TransactionType } from "./types/fety";
 import {
   BudgetManageView,
   TransactionsManageView,
@@ -90,17 +93,29 @@ const NAV_ITEMS: { id: Page; label: string }[] = [
   { id: "spending",  label: "Transactions" },
   { id: "budget",    label: "Budget"       },
   { id: "goals",     label: "Goals"        },
-  { id: "settings",  label: "Settings"     },
 ];
+
+type LiveWidgetBundle = { store: FetyStore; summary: FinanceSummary };
+let liveWidgets: LiveWidgetBundle | null = null;
+function widgetLive(): LiveWidgetBundle {
+  if (!liveWidgets) {
+    throw new Error("Dashboard widgets not initialized");
+  }
+  return liveWidgets;
+}
 
 function TopNav({
   page,
   setPage,
   navDate,
+  profileInitial,
+  onOpenSettings,
 }: {
   page: Page;
   setPage: (p: Page) => void;
   navDate: string;
+  profileInitial: string;
+  onOpenSettings: () => void;
 }) {
   return (
     <header className="fety-nav">
@@ -119,7 +134,11 @@ function TopNav({
       </div>
       <div style={{ display: "flex", alignItems: "center", gap: 10, flexShrink: 0 }}>
         <span style={{ fontSize: 12, color: "var(--ink-3)", whiteSpace: "nowrap" }}>{navDate}</span>
-        <div
+        <button
+          type="button"
+          title="Settings"
+          aria-label="Open settings"
+          onClick={onOpenSettings}
           style={{
             width: 30,
             height: 30,
@@ -135,8 +154,8 @@ function TopNav({
             cursor: "pointer",
           }}
         >
-          A
-        </div>
+          {profileInitial}
+        </button>
       </div>
     </header>
   );
@@ -169,15 +188,18 @@ const ALL_WIDGETS: WidgetDef[] = [
   {
     id: "stat-balance", label: "Today's Balance", color: "var(--surface)", size: "small",
     preview: () => statPreview("var(--clear)", "Today's Balance", "$2,612", "All accounts"),
-    render: () => (
+    render: () => {
+      const { summary: s } = widgetLive();
+      return (
       <div style={{ display: "flex", alignItems: "center", gap: 8, height: "100%" }}>
         <div style={{ width: 9, height: 9, borderRadius: "var(--radius-marker)", background: "var(--clear)", flexShrink: 0 }} />
         <div style={{ flex: 1, minWidth: 0 }}>
           <p style={{ fontSize: 10, fontWeight: 400, color: "var(--ink-3)", fontFamily: "var(--font-mono)", textTransform: "uppercase", letterSpacing: "0.16em", marginBottom: 4 }}>Today's Balance</p>
-          <p style={{ fontSize: 22, fontWeight: 400, color: "var(--ink)", letterSpacing: "-0.8px", fontFamily: "var(--font-sans)", lineHeight: 1 }}>$2,612</p>
+          <p style={{ fontSize: 22, fontWeight: 400, color: "var(--ink)", letterSpacing: "-0.8px", fontFamily: "var(--font-sans)", lineHeight: 1 }}>{usd(s.balance)}</p>
         </div>
       </div>
-    ),
+      );
+    },
   },
   {
     id: "stat-money-in", label: "Money In Today", color: "var(--surface)", size: "small",
@@ -249,20 +271,23 @@ const ALL_WIDGETS: WidgetDef[] = [
   {
     id: "weekly-power", label: "Weekly spending power", color: "var(--amber)", size: "half",
     preview: () => statPreview("var(--amber-dk)", "Spending power", "$140", "22% of $640 budget"),
-    render: () => (
+    render: () => {
+      const { summary: s } = widgetLive();
+      return (
       <div style={{ display: "flex", flexDirection: "column", height: "100%" }}>
         <p className="fety-label" style={{ marginBottom: 8 }}>Spending power · this week</p>
-        <p className="fety-figure" style={{ fontSize: 48 }}>$140</p>
+        <p className="fety-figure" style={{ fontSize: 48 }}>{usd(s.weeklySpendingPower)}</p>
         <p style={{ fontSize: 13, color: "var(--ink-2)", marginTop: 8 }}>Available after bills you have on file</p>
         <div style={{ marginTop: 16, height: 6, background: "rgba(17,17,17,0.12)", borderRadius: "var(--radius-track)" }}>
-          <div style={{ width: "22%", height: "100%", background: "var(--amber-dk)", borderRadius: "var(--radius-track)" }} />
+          <div style={{ width: `${s.weeklyUsedPct}%`, height: "100%", background: "var(--amber-dk)", borderRadius: "var(--radius-track)" }} />
         </div>
         <div style={{ display: "flex", justifyContent: "space-between", marginTop: 6 }}>
-          <span style={{ fontSize: 10, fontFamily: "var(--font-sans)", color: "var(--ink-3)" }}>$140 of $640 weekly budget</span>
-          <span style={{ fontSize: 10, fontFamily: "var(--font-sans)", color: "var(--ink-2)" }}>22%</span>
+          <span style={{ fontSize: 10, fontFamily: "var(--font-sans)", color: "var(--ink-3)" }}>{usd(s.weeklySpendingPower)} of {usd(s.weeklyBudget)} weekly budget</span>
+          <span style={{ fontSize: 10, fontFamily: "var(--font-sans)", color: "var(--ink-2)" }}>{s.weeklyUsedPct}%</span>
         </div>
       </div>
-    ),
+      );
+    },
   },
   {
     id: "daily-limit", label: "Daily spending limit", color: "var(--surface)", size: "half",
@@ -286,17 +311,21 @@ const ALL_WIDGETS: WidgetDef[] = [
   {
     id: "balance-chart", label: "Balance This Week", color: "var(--surface)", size: "full",
     preview: () => statPreview("var(--clear-dk)", "Balance This Week", "$2,612", "Daily ending balance · area chart"),
-    render: () => (
+    render: () => {
+      const { store, summary: s } = widgetLive();
+      const weekData = last7DayEndingBalances(store);
+      const endBal = weekData[weekData.length - 1]?.bal ?? s.balance;
+      return (
       <div>
         <div style={{ display: "flex", alignItems: "baseline", justifyContent: "space-between", marginBottom: 16 }}>
           <div>
             <p style={{ fontSize: 12, fontWeight: 600, color: "var(--ink)" }}>Balance This Week</p>
-            <p style={{ fontSize: 11, color: "var(--ink-3)", marginTop: 2 }}>Daily ending balance · Sep 7–13</p>
+            <p style={{ fontSize: 11, color: "var(--ink-3)", marginTop: 2 }}>Daily ending balance</p>
           </div>
-          <p style={{ fontSize: 22, fontWeight: 400, color: "var(--ink)", letterSpacing: "-0.8px", fontFamily: "var(--font-sans)" }}>$2,612</p>
+          <p style={{ fontSize: 22, fontWeight: 400, color: "var(--ink)", letterSpacing: "-0.8px", fontFamily: "var(--font-sans)" }}>{usd(endBal)}</p>
         </div>
         <ResponsiveContainer width="100%" height={160}>
-          <AreaChart data={cashFlow}>
+          <AreaChart data={weekData}>
             <defs><linearGradient id="wg1" x1="0" y1="0" x2="0" y2="1"><stop offset="5%" stopColor="var(--clear)" stopOpacity={0.45}/><stop offset="95%" stopColor="var(--clear)" stopOpacity={0}/></linearGradient></defs>
             <CartesianGrid strokeDasharray="3 3" stroke="var(--border-soft)" vertical={false}/>
             <XAxis dataKey="d" tick={{ fontSize: 10, fill: "var(--ink-3)", fontFamily: "var(--font-sans)" }} axisLine={false} tickLine={false}/>
@@ -306,17 +335,21 @@ const ALL_WIDGETS: WidgetDef[] = [
           </AreaChart>
         </ResponsiveContainer>
       </div>
-    ),
+      );
+    },
   },
   {
     id: "monthly-spend-chart", label: "Monthly Spending Trend", color: "var(--surface)", size: "half",
     preview: () => statPreview("var(--ink)", "Monthly Spending Trend", "$3,650", "Bar chart · last 6 months"),
-    render: () => (
+    render: () => {
+      const { store } = widgetLive();
+      const monthlySpendLive = last6MonthsSpending(store);
+      return (
       <div>
         <p style={{ fontSize: 12, fontWeight: 600, color: "var(--ink)", marginBottom: 2 }}>Monthly Spending</p>
         <p style={{ fontSize: 11, color: "var(--ink-3)", marginBottom: 16 }}>Last 6 months</p>
         <ResponsiveContainer width="100%" height={150}>
-          <BarChart data={monthlySpend} barSize={20}>
+          <BarChart data={monthlySpendLive} barSize={20}>
             <CartesianGrid strokeDasharray="3 3" stroke="var(--border-soft)" vertical={false}/>
             <XAxis dataKey="m" tick={{ fontSize: 10, fill: "var(--ink-3)", fontFamily: "var(--font-sans)" }} axisLine={false} tickLine={false}/>
             <YAxis tick={{ fontSize: 10, fill: "var(--ink-3)", fontFamily: "var(--font-sans)" }} axisLine={false} tickLine={false} tickFormatter={v => `$${Number(v)/1000}k`} width={36}/>
@@ -325,22 +358,26 @@ const ALL_WIDGETS: WidgetDef[] = [
           </BarChart>
         </ResponsiveContainer>
       </div>
-    ),
+      );
+    },
   },
   {
     id: "spending-breakdown", label: "Spending Breakdown", color: "var(--surface)", size: "half",
     preview: () => statPreview("var(--ink-3)", "Spending Breakdown", "5 categories", "Donut chart · where money goes"),
-    render: () => (
+    render: () => {
+      const { store } = widgetLive();
+      const donutLive = categorySpendShares(store);
+      return (
       <div>
         <p style={{ fontSize: 12, fontWeight: 600, color: "var(--ink)", marginBottom: 16 }}>Where Your Money Is Going</p>
         <div style={{ display: "flex", gap: 20, alignItems: "center" }}>
           <ResponsiveContainer width={110} height={110}>
-            <PieChart><Pie data={donutData} dataKey="value" innerRadius={32} outerRadius={52} paddingAngle={2} startAngle={90} endAngle={-270}>{donutData.map((_, i) => <Cell key={i} fill={DONUT_COLORS[i]}/>)}</Pie></PieChart>
+            <PieChart><Pie data={donutLive.length ? donutLive : [{ name: "None", value: 100 }]} dataKey="value" innerRadius={32} outerRadius={52} paddingAngle={2} startAngle={90} endAngle={-270}>{(donutLive.length ? donutLive : [{ name: "None", value: 100 }]).map((_, i) => <Cell key={i} fill={DONUT_COLORS[i % DONUT_COLORS.length]}/>)}</Pie></PieChart>
           </ResponsiveContainer>
           <div style={{ flex: 1, display: "flex", flexDirection: "column", gap: 5 }}>
-            {donutData.map((d, i) => (
+            {(donutLive.length ? donutLive : [{ name: "No spend yet", value: 0 }]).map((d, i) => (
               <div key={d.name} style={{ display: "flex", alignItems: "center", gap: 7 }}>
-                <div style={{ width: 7, height: 7, borderRadius: 2, background: DONUT_COLORS[i], flexShrink: 0 }}/>
+                <div style={{ width: 7, height: 7, borderRadius: 2, background: DONUT_COLORS[i % DONUT_COLORS.length], flexShrink: 0 }}/>
                 <span style={{ fontSize: 11, color: "var(--ink-2)", flex: 1 }}>{d.name}</span>
                 <span style={{ fontSize: 11, fontWeight: 600, color: "var(--ink)", fontFamily: "var(--font-sans)" }}>{d.value}%</span>
               </div>
@@ -348,7 +385,8 @@ const ALL_WIDGETS: WidgetDef[] = [
           </div>
         </div>
       </div>
-    ),
+      );
+    },
   },
   {
     id: "today-balance", label: "Today's Balance (Card)", color: "var(--sky)", size: "half",
@@ -431,19 +469,25 @@ const ALL_WIDGETS: WidgetDef[] = [
   {
     id: "budget-remaining", label: "Budget Health", color: "var(--surface)", size: "half",
     preview: () => statPreview("var(--ink)", "Budget Health", "$477 left", "Progress bars · top 4 categories"),
-    render: () => (
+    render: () => {
+      const { summary: s } = widgetLive();
+      const cats = s.categoriesWithSpent.slice().sort((a, b) => b.spent / Math.max(b.monthlyBudget, 1) - a.spent / Math.max(a.monthlyBudget, 1)).slice(0, 4);
+      const totalBudget = s.categoriesWithSpent.reduce((acc, c) => acc + c.monthlyBudget, 0);
+      const totalSpent = s.categoriesWithSpent.reduce((acc, c) => acc + c.spent, 0);
+      const left = Math.max(0, totalBudget - totalSpent);
+      return (
       <div>
         <div style={{ display: "flex", alignItems: "baseline", justifyContent: "space-between", marginBottom: 14 }}>
           <p style={{ fontSize: 12, fontWeight: 600, color: "var(--ink)" }}>Budget Health</p>
-          <span style={{ fontSize: 11, fontWeight: 600, color: "var(--lime-dk)", background: "var(--lime)", borderRadius: 99, padding: "2px 9px" }}>$477 left</span>
+          <span style={{ fontSize: 11, fontWeight: 600, color: "var(--lime-dk)", background: "var(--lime)", borderRadius: 99, padding: "2px 9px" }}>{usd(left)} left</span>
         </div>
-        {budgetCategories.slice(0, 4).map(c => {
-          const pct = Math.min(100, Math.round((c.spent / c.budget) * 100));
+        {cats.map(c => {
+          const pct = Math.min(100, Math.round((c.spent / Math.max(c.monthlyBudget, 1)) * 100));
           return (
-            <div key={c.name} style={{ marginBottom: 10 }}>
+            <div key={c.id} style={{ marginBottom: 10 }}>
               <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 4 }}>
                 <span style={{ fontSize: 11, color: "var(--ink-2)" }}>{c.icon} {c.name}</span>
-                <span style={{ fontSize: 10, fontFamily: "var(--font-sans)", color: pct >= 100 ? "var(--peach-dk)" : "var(--ink-3)" }}>{usd(c.spent)} / {usd(c.budget)}</span>
+                <span style={{ fontSize: 10, fontFamily: "var(--font-sans)", color: pct >= 100 ? "var(--peach-dk)" : "var(--ink-3)" }}>{usd(c.spent)} / {usd(c.monthlyBudget)}</span>
               </div>
               <div style={{ height: 5, background: "var(--bg)", borderRadius: 99 }}>
                 <div style={{ width: `${pct}%`, height: "100%", background: pct >= 100 ? "var(--trouble-dk)" : pct >= 80 ? "var(--amber-dk)" : "var(--ink)", borderRadius: "var(--radius-track)" }} />
@@ -452,40 +496,53 @@ const ALL_WIDGETS: WidgetDef[] = [
           );
         })}
       </div>
-    ),
+      );
+    },
   },
   {
     id: "next-paycheck", label: "Next Paycheck", color: "var(--later)", size: "half",
     preview: () => statPreview("var(--lav-dk)", "Next Paycheck", "Sept 15", "$2,800 · 2 days away"),
-    render: () => (
+    render: () => {
+      const { store, summary: s } = widgetLive();
+      const nextIncome = store.transactions
+        .filter((t) => t.type === "income" && t.dateISO >= todayISO())
+        .sort((a, b) => a.dateISO.localeCompare(b.dateISO))[0];
+      const payDate = nextIncome ? new Date(`${nextIncome.dateISO}T12:00:00`) : null;
+      const payLabel = payDate ? payDate.toLocaleDateString("en-US", { month: "short", day: "numeric" }) : "—";
+      const payAmt = nextIncome ? Math.abs(nextIncome.amount) : 0;
+      return (
       <div style={{ display: "flex", flexDirection: "column", height: "100%" }}>
         <p style={{ fontSize: 11, fontWeight: 600, color: "rgba(0,0,0,0.5)", marginBottom: 6, textTransform: "uppercase", letterSpacing: "0.16em" }}>Next Paycheck</p>
-        <p style={{ fontSize: 36, fontWeight: 400, color: "var(--ink)", letterSpacing: "-1.5px", lineHeight: 1 }}>Sept 15</p>
-        <p style={{ fontSize: 28, fontWeight: 400, color: "var(--lav-dk)", letterSpacing: "-1px", lineHeight: 1, marginTop: 4 }}>$2,800</p>
-        <p style={{ fontSize: 12, color: "rgba(0,0,0,0.5)", marginTop: 8 }}>2 days away · Employer direct deposit</p>
+        <p style={{ fontSize: 36, fontWeight: 400, color: "var(--ink)", letterSpacing: "-1.5px", lineHeight: 1 }}>{payLabel}</p>
+        <p style={{ fontSize: 28, fontWeight: 400, color: "var(--lav-dk)", letterSpacing: "-1px", lineHeight: 1, marginTop: 4 }}>{nextIncome ? usd(payAmt) : "—"}</p>
+        <p style={{ fontSize: 12, color: "rgba(0,0,0,0.5)", marginTop: 8 }}>{nextIncome ? nextIncome.desc : "No upcoming income on file"}</p>
         <div style={{ background: "rgba(255,255,255,0.4)", borderRadius: 10, padding: "10px 12px", marginTop: 16 }}>
-          <p style={{ fontSize: 10, color: "rgba(0,0,0,0.5)", marginBottom: 2 }}>Projected balance after deposit</p>
-          <p style={{ fontSize: 18, fontWeight: 400, color: "var(--lav-dk)", fontFamily: "var(--font-sans)" }}>$5,412</p>
+          <p style={{ fontSize: 10, color: "rgba(0,0,0,0.5)", marginBottom: 2 }}>Balance after next income</p>
+          <p style={{ fontSize: 18, fontWeight: 400, color: "var(--lav-dk)", fontFamily: "var(--font-sans)" }}>{nextIncome ? usd(s.balance + payAmt) : usd(s.balance)}</p>
         </div>
       </div>
-    ),
+      );
+    },
   },
   {
     id: "savings-goal", label: "Savings Goals", color: "var(--surface)", size: "full",
     preview: () => statPreview("var(--mint-dk)", "Savings Goals", "4 goals", "Emergency 65% · Vacation 48%"),
-    render: () => (
+    render: () => {
+      const { store } = widgetLive();
+      const goalRows = store.goals;
+      return (
       <div>
         <p style={{ fontSize: 12, fontWeight: 600, color: "var(--ink)", marginBottom: 16 }}>Savings Goals</p>
         <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(200px, 1fr))", gap: 12 }}>
-          {goals.map(g => {
-            const pct = Math.round((g.saved / g.target) * 100);
+          {goalRows.map(g => {
+            const pct = g.target > 0 ? Math.round((g.saved / g.target) * 100) : 0;
             return (
-              <div key={g.name} style={{ background: "var(--bg)", borderRadius: 12, padding: "14px 16px" }}>
+              <div key={g.id} style={{ background: "var(--bg)", borderRadius: 12, padding: "14px 16px" }}>
                 <div style={{ display: "flex", gap: 8, alignItems: "center", marginBottom: 10 }}>
                   <span style={{ fontSize: 18 }}>{g.icon}</span>
                   <div>
                     <p style={{ fontSize: 12, fontWeight: 600, color: "var(--ink)" }}>{g.name}</p>
-                    <p style={{ fontSize: 10, color: "var(--ink-3)" }}>Target: {g.date}</p>
+                    <p style={{ fontSize: 10, color: "var(--ink-3)" }}>Target: {g.targetDate}</p>
                   </div>
                 </div>
                 <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 6 }}>
@@ -493,7 +550,7 @@ const ALL_WIDGETS: WidgetDef[] = [
                   <span style={{ fontSize: 10, color: "var(--ink-3)", alignSelf: "flex-end" }}>of {usd(g.target)}</span>
                 </div>
                 <div style={{ height: 5, background: "var(--border)", borderRadius: 99 }}>
-                  <div style={{ width: `${pct}%`, height: "100%", background: g.color, borderRadius: 99 }} />
+                  <div style={{ width: `${Math.min(pct, 100)}%`, height: "100%", background: "var(--later)", borderRadius: 99 }} />
                 </div>
                 <p style={{ fontSize: 10, color: "var(--ink-3)", marginTop: 4 }}>{pct}% complete</p>
               </div>
@@ -501,30 +558,44 @@ const ALL_WIDGETS: WidgetDef[] = [
           })}
         </div>
       </div>
-    ),
+      );
+    },
   },
   {
     id: "biggest-bill", label: "Largest Upcoming Bill", color: "var(--peach)", size: "half",
     preview: () => statPreview("var(--peach-dk)", "Largest Upcoming Bill", "$2,000", "Rent · due Oct 1"),
-    render: () => (
+    render: () => {
+      const { store } = widgetLive();
+      const now = new Date();
+      const upcoming = store.bills
+        .map((b) => {
+          const due = new Date(now.getFullYear(), now.getMonth(), b.dueDay);
+          if (due < now) due.setMonth(due.getMonth() + 1);
+          return { ...b, due };
+        })
+        .sort((a, b) => a.due.getTime() - b.due.getTime());
+      const top = upcoming[0];
+      const list = upcoming.slice(0, 3);
+      return (
       <div style={{ display: "flex", flexDirection: "column", height: "100%" }}>
         <p style={{ fontSize: 11, fontWeight: 600, color: "rgba(0,0,0,0.5)", marginBottom: 6, textTransform: "uppercase", letterSpacing: "0.16em" }}>Largest Upcoming Bill</p>
-        <p style={{ fontSize: 42, fontWeight: 400, color: "var(--ink)", letterSpacing: "-2px", lineHeight: 1 }}>$2,000</p>
-        <p style={{ fontSize: 14, fontWeight: 600, color: "rgba(0,0,0,0.6)", marginTop: 6 }}>Rent</p>
-        <p style={{ fontSize: 12, color: "rgba(0,0,0,0.45)", marginTop: 2 }}>Due Oct 1 · 18 days away</p>
+        <p style={{ fontSize: 42, fontWeight: 400, color: "var(--ink)", letterSpacing: "-2px", lineHeight: 1 }}>{top ? usd(top.amount) : "—"}</p>
+        <p style={{ fontSize: 14, fontWeight: 600, color: "rgba(0,0,0,0.6)", marginTop: 6 }}>{top?.name ?? "No bills"}</p>
+        <p style={{ fontSize: 12, color: "rgba(0,0,0,0.45)", marginTop: 2 }}>{top ? `Due ${top.due.toLocaleDateString("en-US", { month: "short", day: "numeric" })}` : "Add bills in Budget"}</p>
         <div style={{ marginTop: "auto", paddingTop: 16, display: "flex", flexDirection: "column", gap: 6 }}>
-          {[{ name: "Rent", amt: "$2,000", due: "Oct 1" }, { name: "Electric", amt: "$142", due: "Sep 18" }, { name: "Internet", amt: "$65", due: "Sep 22" }].map(b => (
-            <div key={b.name} style={{ display: "flex", justifyContent: "space-between", borderTop: "1px solid rgba(0,0,0,0.08)", paddingTop: 6 }}>
+          {list.map(b => (
+            <div key={b.id} style={{ display: "flex", justifyContent: "space-between", borderTop: "1px solid rgba(0,0,0,0.08)", paddingTop: 6 }}>
               <span style={{ fontSize: 11, color: "rgba(0,0,0,0.6)" }}>{b.name}</span>
               <div style={{ textAlign: "right" }}>
-                <span style={{ fontSize: 11, fontWeight: 600, color: "var(--ink)", fontFamily: "var(--font-sans)" }}>{b.amt}</span>
-                <span style={{ fontSize: 10, color: "rgba(0,0,0,0.4)", marginLeft: 6 }}>{b.due}</span>
+                <span style={{ fontSize: 11, fontWeight: 600, color: "var(--ink)", fontFamily: "var(--font-sans)" }}>{usd(b.amount)}</span>
+                <span style={{ fontSize: 10, color: "rgba(0,0,0,0.4)", marginLeft: 6 }}>{b.due.toLocaleDateString("en-US", { month: "short", day: "numeric" })}</span>
               </div>
             </div>
           ))}
         </div>
       </div>
-    ),
+      );
+    },
   },
 ];
 
@@ -688,7 +759,6 @@ function CalendarView({ onBack: _onBack }: { onBack: () => void }) {
   const fmt = (d: Date) => `${MONTHS[d.getMonth()]} ${d.getFullYear()}`;
   const year = focusDate.getFullYear();
   const calendarMap = useMemo(() => buildCalendarMap(store, year), [store, year]);
-  const maxAbsNet = useMemo(() => maxAbsDailyNet(calendarMap, year), [calendarMap, year]);
 
   useEffect(() => {
     if (!scrollToKey || calView !== "yearly") return;
@@ -756,23 +826,15 @@ function CalendarView({ onBack: _onBack }: { onBack: () => void }) {
             <svg width="13" height="13" viewBox="0 0 13 13" fill="none"><path d="M8 2.5L5 6.5L8 10.5" stroke="#5A5A55" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/></svg>
           </button>
           <span style={{ fontSize: 12, fontWeight: 600, color: "var(--ink)", minWidth: 140, textAlign: "center" }}>
-            {calView === "daily"
-              ? focusDate.toLocaleDateString("en-US", { weekday: "long", month: "long", day: "numeric", year: "numeric" })
-              : calView === "yearly"
-              ? String(year)
-              : calView === "weekly"
-              ? (() => {
-                  const mon = new Date(focusDate); mon.setDate(focusDate.getDate() - focusDate.getDay() + 1);
-                  const sun = new Date(mon); sun.setDate(mon.getDate() + 6);
-                  return `${mon.toLocaleDateString("en-US", { month: "short", day: "numeric" })} – ${sun.toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })}`;
-                })()
-              : calView === "biweekly"
-              ? (() => {
-                  const mon = new Date(focusDate); mon.setDate(focusDate.getDate() - focusDate.getDay() + 1);
-                  const end = new Date(mon); end.setDate(mon.getDate() + 13);
-                  return `${mon.toLocaleDateString("en-US", { month: "short", day: "numeric" })} – ${end.toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })}`;
-                })()
-              : fmt(focusDate)}
+            <CalendarPeriodMenu
+              calView={calView}
+              focusDate={focusDate}
+              year={year}
+              onFocusDate={(d) => {
+                setFocusDate(d);
+                if (calView === "daily" || calView === "monthly") setSelected(CAL_KEY(d));
+              }}
+            />
           </span>
           <button onClick={navForward} style={{ width: 30, height: 30, borderRadius: 8, border: "1px solid var(--border)", background: "var(--surface)", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center" }}>
             <svg width="13" height="13" viewBox="0 0 13 13" fill="none"><path d="M5 2.5L8 6.5L5 10.5" stroke="#5A5A55" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/></svg>
@@ -780,7 +842,7 @@ function CalendarView({ onBack: _onBack }: { onBack: () => void }) {
         </div>
       </div>
 
-      <div style={{ flex: 1, overflow: "hidden", display: "flex" }}>
+      <div className="fety-calendar-body" style={{ flex: 1, overflow: "hidden", display: "flex", minHeight: 0 }}>
         <div style={{ flex: 1, overflowY: "auto", padding: calView === "yearly" ? "12px 16px" : "16px 20px" }}>
           {calView === "monthly" && <MonthlyCalGrid month={focusDate} calendarMap={calendarMap} selected={selected} onSelect={setSelected} />}
           {calView === "weekly" && <WeeklyCalGrid anchor={focusDate} days={7} calendarMap={calendarMap} selected={selected} onSelect={setSelected} />}
@@ -790,7 +852,6 @@ function CalendarView({ onBack: _onBack }: { onBack: () => void }) {
             <YearlyCalGrid
               year={year}
               calendarMap={calendarMap}
-              maxAbsNet={maxAbsNet}
               selected={selected}
               onSelect={setSelected}
               registerDayRef={registerDayRef}
@@ -821,14 +882,12 @@ function CalendarView({ onBack: _onBack }: { onBack: () => void }) {
 function YearlyCalGrid({
   year,
   calendarMap,
-  maxAbsNet,
   selected,
   onSelect,
   registerDayRef,
 }: {
   year: number;
   calendarMap: CalendarMap;
-  maxAbsNet: number;
   selected: string | null;
   onSelect: (k: string) => void;
   registerDayRef?: (key: string, el: HTMLButtonElement | null) => void;
@@ -874,8 +933,7 @@ function YearlyCalGrid({
           const isSelected = selected === key;
           const isToday = date.toDateString() === today.toDateString();
           const isFirstOfMonth = date.getDate() === 1;
-          const netPositive = (data?.endBal ?? 0) >= (data?.startBal ?? 0);
-          const tileBg = isSelected ? "var(--ink)" : isToday ? "#E8F5EE" : data ? calendarFlowHeat(net, maxAbsNet) : "var(--surface)";
+          const tileBg = data ? calendarDailyBalanceBg(net, isSelected) : "var(--surface)";
 
           return (
             <button
@@ -896,7 +954,6 @@ function YearlyCalGrid({
                 flexDirection: "column",
                 gap: 2,
                 transition: "border-color 0.12s, box-shadow 0.12s",
-                boxShadow: !isSelected && data && net !== 0 ? "inset 0 0 0 1px rgba(0,0,0,0.04)" : undefined,
               }}
             >
               <div style={{ display: "flex", alignItems: "baseline", gap: 4, lineHeight: 1 }}>
@@ -905,7 +962,7 @@ function YearlyCalGrid({
                     {MONTHS[date.getMonth()].slice(0, 3)}
                   </span>
                 )}
-                <span style={{ fontSize: 10, fontWeight: 600, color: isSelected ? "#fff" : isToday ? "var(--clear-dk)" : "var(--ink)" }}>
+                <span style={{ fontSize: 10, fontWeight: 600, color: isSelected ? calSignedColor(net, true) : isToday ? "var(--clear-dk)" : "var(--ink)" }}>
                   {date.getDate()}
                 </span>
               </div>
@@ -913,13 +970,13 @@ function YearlyCalGrid({
                 <div style={{ display: "flex", flexDirection: "column", gap: 1, marginTop: "auto" }}>
                   <div style={{ fontSize: 7.5, lineHeight: 1.2, color: isSelected ? "rgba(255,255,255,0.55)" : "var(--ink-3)" }}>
                     S{" "}
-                    <span style={{ fontFamily: "var(--font-sans)", fontWeight: 600, color: isSelected ? "rgba(255,255,255,0.85)" : "var(--ink-2)" }}>
+                    <span style={{ fontFamily: "var(--font-sans)", fontWeight: 600, color: calSignedColor(data.startBal) }}>
                       {compactUsd(data.startBal)}
                     </span>
                   </div>
                   <div style={{ fontSize: 7.5, lineHeight: 1.2, color: isSelected ? "rgba(255,255,255,0.55)" : "var(--ink-3)" }}>
                     E{" "}
-                    <span style={{ fontFamily: "var(--font-sans)", fontWeight: 700, color: isSelected ? "#fff" : netPositive ? "var(--clear-dk)" : "var(--trouble-dk)" }}>
+                    <span style={{ fontFamily: "var(--font-sans)", fontWeight: 700, color: calSignedColor(net, isSelected) }}>
                       {compactUsd(data.endBal)}
                     </span>
                   </div>
@@ -931,18 +988,18 @@ function YearlyCalGrid({
       </div>
 
       <div style={{ display: "flex", gap: 16, marginTop: 14, flexWrap: "wrap", alignItems: "center" }}>
-        <span style={{ fontSize: 10, fontWeight: 600, color: "var(--ink-2)" }}>Daily cash flow</span>
+        <span style={{ fontSize: 10, fontWeight: 600, color: "var(--ink-2)" }}>Daily balance</span>
         <div style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 10, color: "var(--ink-3)" }}>
-          <div style={{ width: 48, height: 10, borderRadius: 4, background: "linear-gradient(90deg, var(--surface), rgba(145, 216, 182, 0.75))", border: "1px solid var(--border)" }} />
-          Inflow
+          <div style={{ width: 14, height: 14, borderRadius: 4, background: "rgba(145, 216, 182, 0.55)", border: "1px solid var(--border)" }} />
+          Positive day (end above start)
         </div>
         <div style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 10, color: "var(--ink-3)" }}>
-          <div style={{ width: 48, height: 10, borderRadius: 4, background: "linear-gradient(90deg, var(--surface), rgba(255, 111, 94, 0.65))", border: "1px solid var(--border)" }} />
-          Outflow
+          <div style={{ width: 14, height: 14, borderRadius: 4, background: "rgba(255, 111, 94, 0.5)", border: "1px solid var(--border)" }} />
+          Negative day (end below start)
         </div>
         <div style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 10, color: "var(--ink-3)" }}>
-          <span style={{ fontWeight: 700, color: "var(--clear-dk)" }}>E</span> End above start
-          <span style={{ marginLeft: 4, fontWeight: 700, color: "var(--trouble-dk)" }}>E</span> End below start
+          <div style={{ width: 14, height: 14, borderRadius: 4, background: "var(--ink)", border: "1px solid var(--border)" }} />
+          Selected day
         </div>
       </div>
     </div>
@@ -978,7 +1035,7 @@ function MonthlyCalGrid({ month, calendarMap, selected, onSelect }: { month: Dat
           const isSelected = selected === key;
           const isToday    = date.toDateString() === today.toDateString();
           const hasItems   = (data?.items.length ?? 0) > 0;
-          const netPositive = (data?.endBal ?? 0) >= (data?.startBal ?? 0);
+          const net = data ? data.endBal - data.startBal : 0;
           const hasBill    = data?.items.some(i => i.type === "bill") ?? false;
           const hasPayday  = data?.items.some(i => i.type === "paycheck") ?? false;
 
@@ -989,7 +1046,7 @@ function MonthlyCalGrid({ month, calendarMap, selected, onSelect }: { month: Dat
               style={{
                 borderRadius: 10, padding: "7px 6px",
                 border: isSelected ? "2px solid var(--ink)" : "1px solid var(--border)",
-                background: isSelected ? "var(--ink)" : isToday ? "#F0F7F0" : "var(--surface)",
+                background: data ? calendarDailyBalanceBg(net, isSelected) : "var(--surface)",
                 cursor: "pointer", textAlign: "left", minHeight: 82,
                 display: "flex", flexDirection: "column", gap: 3,
                 transition: "all 0.12s",
@@ -997,7 +1054,7 @@ function MonthlyCalGrid({ month, calendarMap, selected, onSelect }: { month: Dat
             >
               {/* Date number */}
               <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
-                <span style={{ fontSize: 12, fontWeight: 600, color: isSelected ? "#fff" : isToday ? "var(--lime-dk)" : "var(--ink)", lineHeight: 1 }}>
+                <span style={{ fontSize: 12, fontWeight: 600, color: isSelected ? calSignedColor(net, true) : isToday ? "var(--lime-dk)" : "var(--ink)", lineHeight: 1 }}>
                   {date.getDate()}
                 </span>
                 <div style={{ display: "flex", gap: 2 }}>
@@ -1010,10 +1067,10 @@ function MonthlyCalGrid({ month, calendarMap, selected, onSelect }: { month: Dat
               {data && (
                 <div style={{ flex: 1, display: "flex", flexDirection: "column", justifyContent: "flex-end", gap: 1 }}>
                   <div style={{ fontSize: 9, color: isSelected ? "rgba(255,255,255,0.6)" : "var(--ink-3)" }}>
-                    Start <span style={{ fontFamily: "var(--font-sans)", fontWeight: 600, color: isSelected ? "rgba(255,255,255,0.85)" : "var(--ink-2)" }}>{usd(data.startBal)}</span>
+                    Start <span style={{ fontFamily: "var(--font-sans)", fontWeight: 600, color: calSignedColor(data.startBal, isSelected) }}>{usd(data.startBal)}</span>
                   </div>
                   <div style={{ fontSize: 9, color: isSelected ? "rgba(255,255,255,0.6)" : "var(--ink-3)" }}>
-                    End <span style={{ fontFamily: "var(--font-sans)", fontWeight: 600, color: isSelected ? "#fff" : netPositive ? "var(--clear-dk)" : "var(--trouble-dk)" }}>{usd(data.endBal)}</span>
+                    End <span style={{ fontFamily: "var(--font-sans)", fontWeight: 600, color: calSignedColor(net, isSelected) }}>{usd(data.endBal)}</span>
                   </div>
                   {/* Mini dots for transactions */}
                   {hasItems && (
@@ -1080,34 +1137,34 @@ function WeeklyCalGrid({ anchor, days, calendarMap, selected, onSelect }: { anch
     const data = calendarMap.get(key);
     const isSelected  = selected === key;
     const isToday     = date.toDateString() === today.toDateString();
-    const netPositive = (data?.endBal ?? 0) >= (data?.startBal ?? 0);
+    const net = data ? data.endBal - data.startBal : 0;
     return (
-      <button key={key} onClick={() => onSelect(key)} style={{ background: isSelected ? "var(--ink)" : isToday ? "#F0F7F0" : "var(--surface)", border: isSelected ? "2px solid var(--ink)" : "1px solid var(--border)", borderRadius: 12, padding: "12px 10px", cursor: "pointer", textAlign: "left", display: "flex", flexDirection: "column", gap: 8 }}>
+      <button key={key} onClick={() => onSelect(key)} style={{ background: data ? calendarDailyBalanceBg(net, isSelected) : "var(--surface)", border: isSelected ? "2px solid var(--ink)" : "1px solid var(--border)", borderRadius: 12, padding: "12px 10px", cursor: "pointer", textAlign: "left", display: "flex", flexDirection: "column", gap: 8 }}>
         <div>
           <p style={{ fontSize: 10, fontWeight: 600, color: isSelected ? "rgba(255,255,255,0.6)" : "var(--ink-3)", textTransform: "uppercase", letterSpacing: "0.16em" }}>{DAYS_SHORT[date.getDay()]}</p>
-          <p style={{ fontSize: 18, fontWeight: 400, color: isSelected ? "#fff" : isToday ? "var(--lime-dk)" : "var(--ink)", letterSpacing: "-0.5px", lineHeight: 1.1 }}>{date.getDate()}</p>
+          <p style={{ fontSize: 18, fontWeight: 400, color: isSelected ? calSignedColor(net, true) : isToday ? "var(--lime-dk)" : "var(--ink)", letterSpacing: "-0.5px", lineHeight: 1.1 }}>{date.getDate()}</p>
         </div>
         {data ? (
           <div style={{ display: "flex", flexDirection: "column", gap: 3, borderTop: `1px solid ${isSelected ? "rgba(255,255,255,0.15)" : "var(--border)"}`, paddingTop: 8 }}>
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-              <span style={{ fontSize: 9, color: isSelected ? "rgba(255,255,255,0.55)" : "var(--ink-3)" }}>Open</span>
-              <span style={{ fontSize: 10, fontWeight: 600, fontFamily: "var(--font-sans)", color: isSelected ? "rgba(255,255,255,0.8)" : "var(--ink-2)" }}>{usd(data.startBal)}</span>
+              <span style={{ fontSize: 9, color: isSelected ? "rgba(255,255,255,0.55)" : "var(--ink-3)" }}>Start</span>
+              <span style={{ fontSize: 10, fontWeight: 600, fontFamily: "var(--font-sans)", color: calSignedColor(data.startBal, isSelected) }}>{usd(data.startBal)}</span>
             </div>
             {data.income > 0 && (
               <div style={{ display: "flex", justifyContent: "space-between" }}>
                 <span style={{ fontSize: 9, color: isSelected ? "rgba(255,255,255,0.55)" : "var(--ink-3)" }}>In</span>
-                <span style={{ fontSize: 10, fontWeight: 600, fontFamily: "var(--font-sans)", color: isSelected ? "var(--clear)" : "var(--clear-dk)" }}>+{usd(data.income)}</span>
+                <span style={{ fontSize: 10, fontWeight: 600, fontFamily: "var(--font-sans)", color: calSignedColor(data.income, isSelected) }}>+{usd(data.income)}</span>
               </div>
             )}
             {data.expenses < 0 && (
               <div style={{ display: "flex", justifyContent: "space-between" }}>
                 <span style={{ fontSize: 9, color: isSelected ? "rgba(255,255,255,0.55)" : "var(--ink-3)" }}>Out</span>
-                <span style={{ fontSize: 10, fontWeight: 600, fontFamily: "var(--font-sans)", color: isSelected ? "var(--trouble)" : "var(--trouble-dk)" }}>-{usd(data.expenses)}</span>
+                <span style={{ fontSize: 10, fontWeight: 600, fontFamily: "var(--font-sans)", color: calSignedColor(data.expenses, isSelected) }}>-{usd(data.expenses)}</span>
               </div>
             )}
             <div style={{ display: "flex", justifyContent: "space-between", borderTop: `1px solid ${isSelected ? "rgba(255,255,255,0.12)" : "var(--border)"}`, paddingTop: 3 }}>
-              <span style={{ fontSize: 9, fontWeight: 600, color: isSelected ? "rgba(255,255,255,0.7)" : "var(--ink-2)" }}>Close</span>
-              <span style={{ fontSize: 10, fontWeight: 400, fontFamily: "var(--font-sans)", color: isSelected ? "#fff" : netPositive ? "var(--clear-dk)" : "var(--trouble-dk)" }}>{usd(data.endBal)}</span>
+              <span style={{ fontSize: 9, fontWeight: 600, color: isSelected ? "rgba(255,255,255,0.7)" : "var(--ink-2)" }}>End</span>
+              <span style={{ fontSize: 10, fontWeight: 400, fontFamily: "var(--font-sans)", color: calSignedColor(net, isSelected) }}>{usd(data.endBal)}</span>
             </div>
           </div>
         ) : (
@@ -1144,16 +1201,15 @@ function DailyCalView({ date, calendarMap }: { date: Date; calendarMap: Calendar
 
   return (
     <div style={{ maxWidth: 680, width: "100%", margin: "0 auto", display: "flex", flexDirection: "column", gap: 14 }}>
-      {/* Balance sheet hero */}
-      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 10 }}>
+      <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
         {[
-          { label: "Opening Balance", value: data ? usd(data.startBal) : "—", color: "var(--sky)", textColor: "#1050A0" },
-          { label: "Closing Balance", value: data ? usd(data.endBal)   : "—", color: net >= 0 ? "var(--lime)" : "var(--peach)", textColor: net >= 0 ? "var(--lime-dk)" : "var(--trouble-dk)" },
-          { label: "Net Cash Flow",   value: data ? `${net >= 0 ? "+" : ""}${usd(net)}` : "—", color: "var(--lavender)", textColor: "var(--lav-dk)" },
+          { label: "Starting Balance", value: data ? usd(data.startBal) : "—", bg: "var(--surface)", amount: data?.startBal ?? 0 },
+          { label: "Ending Balance", value: data ? usd(data.endBal) : "—", bg: data ? calendarDailyBalanceBgStrong(net) : "var(--surface)", amount: data?.endBal ?? 0 },
+          { label: "Net Cash Flow", value: data ? `${net >= 0 ? "+" : ""}${usd(net)}` : "—", bg: calendarDailyBalanceBgStrong(net), amount: net },
         ].map(card => (
-          <div key={card.label} style={{ background: card.color, borderRadius: 16, padding: "18px 20px" }}>
-            <p style={{ fontSize: 10, fontWeight: 600, color: "rgba(0,0,0,0.5)", marginBottom: 6, textTransform: "uppercase", letterSpacing: "0.16em" }}>{card.label}</p>
-            <p style={{ fontSize: 24, fontWeight: 400, color: card.textColor, letterSpacing: "-0.8px", fontFamily: "var(--font-sans)" }}>{card.value}</p>
+          <div key={card.label} style={{ background: card.bg, borderRadius: 16, padding: "18px 20px", border: "1px solid var(--border)" }}>
+            <p style={{ fontSize: 10, fontWeight: 600, color: "var(--ink-3)", marginBottom: 6, textTransform: "uppercase", letterSpacing: "0.16em" }}>{card.label}</p>
+            <p style={{ fontSize: 24, fontWeight: 400, color: calSignedColor(card.amount), letterSpacing: "-0.8px", fontFamily: "var(--font-sans)" }}>{card.value}</p>
           </div>
         ))}
       </div>
@@ -1221,8 +1277,8 @@ function DailyCalView({ date, calendarMap }: { date: Date; calendarMap: Calendar
             })()}
           </div>
           <div style={{ display: "flex", justifyContent: "space-between", marginTop: 6, fontSize: 9, color: "var(--ink-3)" }}>
-            <span>Open · {usd(data.startBal)}</span>
-            <span>Close · {usd(data.endBal)}</span>
+            <span>Start · <span style={{ color: calSignedColor(data.startBal) }}>{usd(data.startBal)}</span></span>
+            <span>End · <span style={{ color: calSignedColor(net) }}>{usd(data.endBal)}</span></span>
           </div>
         </div>
       )}
@@ -1371,10 +1427,10 @@ function CalendarSidePanel({
             <div style={{ background: "var(--bg)", border: "1px solid var(--border)", borderRadius: 12, padding: "12px 14px", marginBottom: 12 }}>
               <p className="fety-label" style={{ marginBottom: 10 }}>Balance sheet</p>
               {[
-                { label: "Opening", value: usd(day.startBal), color: "var(--ink)" },
-                { label: "Income", value: day.income > 0 ? `+${usd(day.income)}` : "—", color: "var(--clear-dk)" },
-                { label: "Expenses", value: day.expenses < 0 ? `-${usd(day.expenses)}` : "—", color: "var(--trouble-dk)" },
-                { label: "Closing", value: usd(day.endBal), color: net >= 0 ? "var(--clear-dk)" : "var(--trouble-dk)" },
+                { label: "Starting", value: usd(day.startBal), color: calSignedColor(day.startBal) },
+                { label: "Income", value: day.income > 0 ? `+${usd(day.income)}` : "—", color: calSignedColor(day.income) },
+                { label: "Expenses", value: day.expenses < 0 ? `-${usd(day.expenses)}` : "—", color: calSignedColor(day.expenses) },
+                { label: "Ending", value: usd(day.endBal), color: calSignedColor(net) },
               ].map((r, i) => (
                 <div key={r.label} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", paddingTop: i > 0 ? 7 : 0, paddingBottom: 7, borderTop: i > 0 ? "1px solid var(--border)" : undefined }}>
                   <span style={{ fontSize: 11, color: "var(--ink-3)" }}>{r.label}</span>
@@ -1460,39 +1516,45 @@ function CalendarSidePanel({
 
 // ─── Dashboard (widget dock) ────────────────────────────────────────────────────
 function DashboardView({
-  pinned, setPinned, onCustomize, customizing, summary,
+  store,
+  summary,
+  pinned, setPinned, onCustomize, customizing,
 }: {
+  store: FetyStore;
+  summary: FinanceSummary;
   pinned: string[];
   setPinned: React.Dispatch<React.SetStateAction<string[]>>;
   onCustomize: () => void;
   customizing: boolean;
-  summary: FinanceSummary;
 }) {
-  const [dragId, setDragId] = useState<string | null>(null);
-  const [overId, setOverId] = useState<string | null>(null);
+  liveWidgets = { store, summary };
+
+  const [dragRowIndex, setDragRowIndex] = useState<number | null>(null);
+  const [overRowIndex, setOverRowIndex] = useState<number | null>(null);
+  const [dragWidgetId, setDragWidgetId] = useState<string | null>(null);
+  const [overWidgetId, setOverWidgetId] = useState<string | null>(null);
 
   const toggleWidget = (id: string) => {
     setPinned(prev => prev.includes(id) ? prev.filter(p => p !== id) : [...prev, id]);
   };
 
-  const reorder = (fromId: string, toId: string) => {
-    if (fromId === toId) return;
-    setPinned(prev => {
-      const arr = [...prev];
-      const fi = arr.indexOf(fromId);
-      const ti = arr.indexOf(toId);
-      if (fi === -1 || ti === -1) return arr;
-      arr.splice(fi, 1);
-      arr.splice(ti, 0, fromId);
-      return arr;
-    });
+  const byId = useMemo(() => {
+    const m = new Map<string, WidgetDef>();
+    ALL_WIDGETS.forEach((w) => m.set(w.id, w));
+    return m;
+  }, []);
+
+  const rows = useMemo(() => packWidgetsIntoRows(pinned, byId), [pinned, byId]);
+
+  const reorderRows = (fromIndex: number, toIndex: number) => {
+    if (fromIndex === toIndex) return;
+    setPinned(flattenRows(moveRow(rows, fromIndex, toIndex)));
   };
 
-  const widgets = ALL_WIDGETS.filter(w => pinned.includes(w.id)).sort(
-    (a, b) => pinned.indexOf(a.id) - pinned.indexOf(b.id)
-  );
+  const reorderWidgetBefore = (fromId: string, beforeId: string) => {
+    setPinned((prev) => reorderWidget(prev, fromId, beforeId));
+  };
 
-  // Grid spans per size in a 6-column grid
   const colSpan = (size: WidgetDef["size"]) =>
     size === "full" ? "span 6" : size === "half" ? "span 3" : "span 2";
 
@@ -1502,8 +1564,7 @@ function DashboardView({
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
       <DashboardHero summary={summary} />
-      {/* Widget grid */}
-      {widgets.length === 0 ? (
+      {pinned.length === 0 ? (
         <button
           onClick={onCustomize}
           style={{ width: "100%", padding: "48px 0", borderRadius: "var(--radius-card)", border: "2px dashed var(--border)", background: "transparent", cursor: "pointer", display: "flex", flexDirection: "column", alignItems: "center", gap: 10 }}
@@ -1513,50 +1574,144 @@ function DashboardView({
           <p style={{ fontSize: 12, color: "var(--ink-3)" }}>Click Customize to choose what you want to see</p>
         </button>
       ) : (
-        <div style={{ display: "grid", gridTemplateColumns: "repeat(6, 1fr)", gap: 12 }}>
-          {widgets.map(w => {
-            const isDragging = dragId === w.id;
-            const isOver = overId === w.id && dragId !== w.id;
+        <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+          {rows.map((rowIds, rowIndex) => {
+            const isRowDragging = dragRowIndex === rowIndex;
+            const isRowOver = overRowIndex === rowIndex && dragRowIndex !== null && dragRowIndex !== rowIndex;
             return (
               <div
-                key={w.id}
-                draggable={customizing}
-                onDragStart={e => { if (!customizing) return; setDragId(w.id); e.dataTransfer.effectAllowed = "move"; }}
-                onDragEnd={() => { setDragId(null); setOverId(null); }}
-                onDragOver={e => { if (!customizing) return; e.preventDefault(); e.dataTransfer.dropEffect = "move"; setOverId(w.id); }}
-                onDragLeave={() => setOverId(null)}
-                onDrop={e => { if (!customizing) return; e.preventDefault(); if (dragId) reorder(dragId, w.id); setDragId(null); setOverId(null); }}
+                key={`${rowIds.join("-")}-${rowIndex}`}
+                className="fety-widget-row"
+                onDragOver={(e) => {
+                  if (!customizing || dragRowIndex === null) return;
+                  e.preventDefault();
+                  setOverRowIndex(rowIndex);
+                }}
+                onDrop={(e) => {
+                  if (!customizing || dragRowIndex === null) return;
+                  e.preventDefault();
+                  reorderRows(dragRowIndex, rowIndex);
+                  setDragRowIndex(null);
+                  setOverRowIndex(null);
+                }}
                 style={{
-                  gridColumn: colSpan(w.size),
-                  background: w.color === "var(--surface)" ? "var(--surface)" : w.color,
-                  borderRadius: "var(--radius-card)",
-                  padding: w.size === "small" ? "14px 16px" : "20px 22px",
-                  border: isOver ? "2px solid var(--ink)" : w.color === "var(--surface)" ? "1px solid var(--border)" : "2px solid transparent",
-                  position: "relative",
-                  minHeight: minH(w.size),
-                  opacity: isDragging ? 0.4 : 1,
-                  cursor: customizing ? "grab" : "default",
-                  transition: "opacity 0.15s, border-color 0.12s",
-                  userSelect: "none",
+                  display: "flex",
+                  alignItems: "stretch",
+                  gap: customizing ? 6 : 0,
+                  padding: customizing ? 4 : 0,
+                  borderRadius: customizing ? 12 : 0,
+                  border: isRowOver ? "2px dashed var(--ink)" : customizing ? "1px dashed var(--border-soft)" : "none",
+                  opacity: isRowDragging ? 0.55 : 1,
                 }}
               >
-                {/* Drag handle hint — only visible in customize mode */}
                 {customizing && (
-                  <div style={{ position: "absolute", top: 8, left: 10, opacity: 0.25, pointerEvents: "none" }}>
-                    <svg width="10" height="10" viewBox="0 0 10 10" fill="none"><circle cx="3" cy="2.5" r="1" fill="currentColor"/><circle cx="7" cy="2.5" r="1" fill="currentColor"/><circle cx="3" cy="5" r="1" fill="currentColor"/><circle cx="7" cy="5" r="1" fill="currentColor"/><circle cx="3" cy="7.5" r="1" fill="currentColor"/><circle cx="7" cy="7.5" r="1" fill="currentColor"/></svg>
+                  <div
+                    className="fety-row-drag-handle"
+                    draggable
+                    title="Drag row"
+                    onDragStart={(e) => {
+                      setDragRowIndex(rowIndex);
+                      setDragWidgetId(null);
+                      e.dataTransfer.effectAllowed = "move";
+                      e.stopPropagation();
+                    }}
+                    onDragEnd={() => {
+                      setDragRowIndex(null);
+                      setOverRowIndex(null);
+                    }}
+                  >
+                    <svg width="10" height="14" viewBox="0 0 10 14" fill="none" aria-hidden>
+                      <circle cx="3" cy="2.5" r="1" fill="currentColor" />
+                      <circle cx="7" cy="2.5" r="1" fill="currentColor" />
+                      <circle cx="3" cy="7" r="1" fill="currentColor" />
+                      <circle cx="7" cy="7" r="1" fill="currentColor" />
+                      <circle cx="3" cy="11.5" r="1" fill="currentColor" />
+                      <circle cx="7" cy="11.5" r="1" fill="currentColor" />
+                    </svg>
                   </div>
                 )}
-                {w.render()}
-                {/* Remove button */}
-                <button
-                  onClick={e => { e.stopPropagation(); toggleWidget(w.id); }}
-                  title="Remove widget"
-                  style={{ position: "absolute", top: 8, right: 8, width: 22, height: 22, borderRadius: 99, background: "rgba(0,0,0,0.1)", border: "none", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", opacity: 0, transition: "opacity 0.15s" }}
-                  onMouseEnter={e => (e.currentTarget.style.opacity = "1")}
-                  onMouseLeave={e => (e.currentTarget.style.opacity = "0")}
+                <div
+                  className="fety-widget-row-grid"
+                  style={{
+                    flex: 1,
+                    display: "grid",
+                    gridTemplateColumns: "repeat(6, 1fr)",
+                    gap: 12,
+                    minWidth: 0,
+                  }}
                 >
-                  <svg width="8" height="8" viewBox="0 0 8 8" fill="none"><path d="M1 1l6 6M7 1L1 7" stroke="rgba(0,0,0,0.55)" strokeWidth="1.4" strokeLinecap="round"/></svg>
-                </button>
+                {rowIds.map((id) => {
+                  const w = byId.get(id);
+                  if (!w) return null;
+                  const isWidgetDragging = dragWidgetId === w.id;
+                  const isWidgetOver = overWidgetId === w.id && dragWidgetId !== null && dragWidgetId !== w.id;
+                  return (
+                    <div
+                      key={w.id}
+                      className={`fety-widget-cell fety-widget-cell--${w.size}`}
+                      draggable={customizing}
+                      onDragStart={(e) => {
+                        if (!customizing) return;
+                        setDragWidgetId(w.id);
+                        setDragRowIndex(null);
+                        e.dataTransfer.effectAllowed = "move";
+                        e.stopPropagation();
+                      }}
+                      onDragEnd={() => {
+                        setDragWidgetId(null);
+                        setOverWidgetId(null);
+                      }}
+                      onDragOver={(e) => {
+                        if (!customizing || !dragWidgetId) return;
+                        e.preventDefault();
+                        e.stopPropagation();
+                        setOverWidgetId(w.id);
+                      }}
+                      onDragLeave={() => {
+                        if (overWidgetId === w.id) setOverWidgetId(null);
+                      }}
+                      onDrop={(e) => {
+                        if (!customizing || !dragWidgetId) return;
+                        e.preventDefault();
+                        e.stopPropagation();
+                        if (dragWidgetId !== w.id) reorderWidgetBefore(dragWidgetId, w.id);
+                        setDragWidgetId(null);
+                        setOverWidgetId(null);
+                      }}
+                      style={{
+                        gridColumn: colSpan(w.size),
+                        background: w.color === "var(--surface)" ? "var(--surface)" : w.color,
+                        borderRadius: "var(--radius-card)",
+                        padding: w.size === "small" ? "14px 16px" : "20px 22px",
+                        border: isWidgetOver ? "2px solid var(--ink)" : w.color === "var(--surface)" ? "1px solid var(--border)" : "2px solid transparent",
+                        position: "relative",
+                        minHeight: minH(w.size),
+                        userSelect: "none",
+                        opacity: isWidgetDragging ? 0.45 : 1,
+                        cursor: customizing ? "grab" : "default",
+                        transition: "opacity 0.15s, border-color 0.12s",
+                      }}
+                    >
+                      {customizing && (
+                        <div style={{ position: "absolute", top: 8, left: 10, opacity: 0.25, pointerEvents: "none" }}>
+                          <svg width="10" height="10" viewBox="0 0 10 10" fill="none"><circle cx="3" cy="2.5" r="1" fill="currentColor"/><circle cx="7" cy="2.5" r="1" fill="currentColor"/><circle cx="3" cy="5" r="1" fill="currentColor"/><circle cx="7" cy="5" r="1" fill="currentColor"/><circle cx="3" cy="7.5" r="1" fill="currentColor"/><circle cx="7" cy="7.5" r="1" fill="currentColor"/></svg>
+                        </div>
+                      )}
+                      {w.render()}
+                      <button
+                        type="button"
+                        onClick={(e) => { e.stopPropagation(); toggleWidget(w.id); }}
+                        title="Remove widget"
+                        style={{ position: "absolute", top: 8, right: 8, width: 22, height: 22, borderRadius: 99, background: "rgba(0,0,0,0.1)", border: "none", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", opacity: 0, transition: "opacity 0.15s" }}
+                        onMouseEnter={(e) => (e.currentTarget.style.opacity = "1")}
+                        onMouseLeave={(e) => (e.currentTarget.style.opacity = "0")}
+                      >
+                        <svg width="8" height="8" viewBox="0 0 8 8" fill="none"><path d="M1 1l6 6M7 1L1 7" stroke="rgba(0,0,0,0.55)" strokeWidth="1.4" strokeLinecap="round"/></svg>
+                      </button>
+                    </div>
+                  );
+                })}
+                </div>
               </div>
             );
           })}
@@ -1601,6 +1756,7 @@ export default function App() {
     replaceCategories,
     replaceBills,
     importTransactionsBulk,
+    updateTypeIcons,
   } = useFetyData();
 
   const [page, setPage] = useState<Page>("dashboard");
@@ -1722,6 +1878,7 @@ export default function App() {
           <TransactionsManageView
             transactions={store.transactions}
             categories={store.categories}
+            typeIcons={store.typeIcons}
             viewMode={viewMode}
             onAdd={addTransaction}
             onUpdate={updateTransaction}
@@ -1743,8 +1900,10 @@ export default function App() {
           <SettingsManageView
             profile={store.profile}
             accounts={store.accounts}
+            typeIcons={store.typeIcons}
             onUpdateProfile={updateProfile}
             onUpdateAccount={updateAccount}
+            onUpdateTypeIcons={updateTypeIcons}
             onReset={resetAll}
             onRestartSetup={() => {
               if (confirm("Clear all data and run setup again? This cannot be undone.")) startFreshSetup();
@@ -1754,11 +1913,12 @@ export default function App() {
       default:
         return (
           <DashboardView
+            store={store}
+            summary={summary}
             pinned={pinned}
             setPinned={setPinnedWidgets}
             onCustomize={() => setPickerOpen((p) => !p)}
             customizing={pickerOpen}
-            summary={summary}
           />
         );
     }
@@ -1776,6 +1936,8 @@ export default function App() {
       />
     );
   }
+
+  liveWidgets = { store, summary };
 
   return (
     <div className="fety-shell">
@@ -1804,14 +1966,20 @@ export default function App() {
       )}
 
       <div className="fety-main-column">
-        <TopNav page={page} setPage={setPage} navDate={navDate} />
+        <TopNav
+          page={page}
+          setPage={setPage}
+          navDate={navDate}
+          profileInitial={(store.profile.displayName.trim()[0] || "?").toUpperCase()}
+          onOpenSettings={() => setPage("settings")}
+        />
 
         <div style={{ flex: 1, display: "flex", overflow: "hidden", minHeight: 0 }}>
           {page === "calendar" ? (
             <CalendarView onBack={() => setPage("dashboard")} />
           ) : (
             <>
-              <main style={{ flex: 1, overflowY: "auto", padding: "24px 24px 48px", minWidth: 0 }}>
+              <main className="fety-main-scroll" style={{ flex: 1, overflowY: "auto", padding: "24px 24px 48px", minWidth: 0 }}>
                 <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", marginBottom: 20 }}>
                   <div>
                     <h1 style={{ fontSize: 26, fontWeight: 600, color: "var(--ink)", letterSpacing: "-0.02em", lineHeight: 1.2 }}>{pageTitle}</h1>

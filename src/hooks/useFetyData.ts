@@ -11,6 +11,7 @@ import type {
   Transaction,
   TransactionType,
   UserProfile,
+  TypeIconMap,
 } from "../types/fety";
 
 export function useFetyData() {
@@ -41,17 +42,22 @@ export function useFetyData() {
           : input.type === "transfer"
             ? -Math.abs(input.amount)
             : -Math.abs(input.amount);
-      const tx: Transaction = {
-        id: newId("tx"),
-        dateISO: input.dateISO ?? new Date().toISOString().slice(0, 10),
-        desc: input.desc,
-        category: input.category,
-        amount: signed,
-        type: input.type,
-        icon: input.icon ?? "💬",
-      };
-      patch((prev) => ({ ...prev, transactions: [tx, ...prev.transactions] }));
-      return tx;
+      let created: Transaction | null = null;
+      patch((prev) => {
+        const icon = input.icon ?? prev.typeIcons[input.type] ?? "💬";
+        const tx: Transaction = {
+          id: newId("tx"),
+          dateISO: input.dateISO ?? new Date().toISOString().slice(0, 10),
+          desc: input.desc,
+          category: input.category,
+          amount: signed,
+          type: input.type,
+          icon,
+        };
+        created = tx;
+        return { ...prev, transactions: [tx, ...prev.transactions] };
+      });
+      return created!;
     },
     [patch],
   );
@@ -204,6 +210,13 @@ export function useFetyData() {
     [patch],
   );
 
+  const updateTypeIcons = useCallback(
+    (typeIcons: TypeIconMap) => {
+      patch((prev) => ({ ...prev, typeIcons: { ...typeIcons } }));
+    },
+    [patch],
+  );
+
   const resetAll = useCallback(() => {
     setStore(resetStored());
   }, []);
@@ -261,5 +274,6 @@ export function useFetyData() {
     replaceCategories,
     replaceBills,
     importTransactionsBulk,
+    updateTypeIcons,
   };
 }

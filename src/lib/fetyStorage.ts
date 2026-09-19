@@ -1,4 +1,11 @@
-import type { Bill, BudgetCategory, ChatMessage, FetyStore, Goal, Transaction, Account } from "../types/fety";
+import type { Bill, BudgetCategory, ChatMessage, FetyStore, Goal, Transaction, Account, TransactionType, TypeIconMap } from "../types/fety";
+
+export const DEFAULT_TYPE_ICONS: TypeIconMap = {
+  income: "💵",
+  expense: "🛒",
+  bill: "📋",
+  transfer: "🏦",
+};
 
 const STORAGE_KEY = "fety-store-v1";
 
@@ -63,19 +70,14 @@ const DEFAULT_ACCOUNTS: Account[] = [
 ];
 
 export const DEFAULT_PINNED = [
-  "stat-balance",
-  "stat-money-in",
-  "stat-money-out",
-  "stat-weekly-spend",
-  "stat-monthly-net",
-  "stat-remaining",
-  "today-balance",
   "weekly-power",
   "balance-chart",
   "monthly-spend-chart",
   "budget-remaining",
-  "next-paycheck",
   "spending-breakdown",
+  "savings-goal",
+  "next-paycheck",
+  "biggest-bill",
 ];
 
 export function createEmptyStore(): FetyStore {
@@ -102,6 +104,7 @@ export function createEmptyStore(): FetyStore {
       },
     ],
     pinnedWidgets: DEFAULT_PINNED,
+    typeIcons: { ...DEFAULT_TYPE_ICONS },
   };
 }
 
@@ -122,14 +125,23 @@ export function createDefaultStore(): FetyStore {
     accounts: DEFAULT_ACCOUNTS,
     messages: SEED_MESSAGES,
     pinnedWidgets: DEFAULT_PINNED,
+    typeIcons: { ...DEFAULT_TYPE_ICONS },
   };
 }
 
 function migrateStore(store: FetyStore): FetyStore {
+  let next = store;
   if (store.onboardingCompleted === undefined) {
-    return { ...store, onboardingCompleted: true };
+    next = { ...next, onboardingCompleted: true };
   }
-  return store;
+  if (!next.typeIcons) {
+    next = { ...next, typeIcons: { ...DEFAULT_TYPE_ICONS } };
+  }
+  const pinnedWidgets = next.pinnedWidgets.filter((id) => !id.startsWith("stat-"));
+  if (pinnedWidgets.length !== next.pinnedWidgets.length) {
+    next = { ...next, pinnedWidgets: pinnedWidgets.length > 0 ? pinnedWidgets : DEFAULT_PINNED };
+  }
+  return next;
 }
 
 export function loadStore(): FetyStore {

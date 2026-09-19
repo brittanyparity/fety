@@ -64,6 +64,8 @@ export interface UserProfile {
   startingBalance: number;
 }
 
+export type TypeIconMap = Record<TransactionType, string>;
+
 export interface FetyStore {
   version: 1;
   onboardingCompleted: boolean;
@@ -75,6 +77,8 @@ export interface FetyStore {
   accounts: Account[];
   messages: ChatMessage[];
   pinnedWidgets: string[];
+  /** Default emoji when adding a transaction of each type */
+  typeIcons: TypeIconMap;
 }
 
 export interface CategoryWithSpent extends BudgetCategory {

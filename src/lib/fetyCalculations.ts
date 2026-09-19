@@ -208,3 +208,46 @@ export function maxAbsDailyNet(map: CalendarMap, year: number): number {
   }
   return max || 1;
 }
+
+const DAY_LABELS = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
+
+export function last7DayEndingBalances(store: FetyStore, ref = new Date()): { d: string; bal: number }[] {
+  const year = ref.getFullYear();
+  const map = buildCalendarMap(store, year);
+  const out: { d: string; bal: number }[] = [];
+  for (let i = 6; i >= 0; i--) {
+    const d = new Date(ref);
+    d.setDate(ref.getDate() - i);
+    const key = calKey(d);
+    const day = map.get(key);
+    out.push({ d: DAY_LABELS[d.getDay()], bal: day?.endBal ?? store.profile.startingBalance });
+  }
+  return out;
+}
+
+export function last6MonthsSpending(store: FetyStore, ref = new Date()): { m: string; v: number }[] {
+  const out: { m: string; v: number }[] = [];
+  for (let i = 5; i >= 0; i--) {
+    const d = new Date(ref.getFullYear(), ref.getMonth() - i, 1);
+    const start = monthStart(d);
+    const end = monthEnd(d);
+    const v = store.transactions
+      .filter((t) => isOutflow(t) && inRange(t.dateISO, start, end))
+      .reduce((s, t) => s + Math.abs(t.amount), 0);
+    out.push({ m: d.toLocaleDateString("en-US", { month: "short" }), v });
+  }
+  return out;
+}
+
+export function categorySpendShares(store: FetyStore, ref = new Date()): { name: string; value: number }[] {
+  const cats = store.categories.map((c) => ({
+    name: c.name,
+    value: categorySpentInMonth(store, c.name, ref),
+  }));
+  const total = cats.reduce((s, c) => s + c.value, 0) || 1;
+  return cats
+    .filter((c) => c.value > 0)
+    .sort((a, b) => b.value - a.value)
+    .slice(0, 5)
+    .map((c) => ({ name: c.name, value: Math.round((c.value / total) * 100) }));
+}
