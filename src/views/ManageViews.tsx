@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import type {
   Account,
   Bill,
@@ -69,6 +69,14 @@ export function BudgetManageView({
   const [typeName, setTypeName] = useState("");
   const [typeIcon, setTypeIcon] = useState("🏷️");
   const [typeFlow, setTypeFlow] = useState<TransactionFlow>("expense");
+  const typeNameDrafts = useMemo(
+    () => Object.fromEntries(transactionTypes.map((t) => [t.id, t.name])),
+    [transactionTypes],
+  );
+  const [typeNames, setTypeNames] = useState<Record<string, string>>(typeNameDrafts);
+  useEffect(() => {
+    setTypeNames(typeNameDrafts);
+  }, [typeNameDrafts]);
 
   const totalBudget = categories.reduce((s, c) => s + c.monthlyBudget, 0);
   const totalSpent = categories.reduce((s, c) => s + c.spent, 0);
@@ -206,8 +214,13 @@ export function BudgetManageView({
                   <div style={{ flex: 1, minWidth: 0 }}>
                     <label className="fety-label" style={{ display: "block", marginBottom: 4 }}>Name</label>
                     <input
-                      value={tt.name}
-                      onChange={(e) => onUpdateTransactionType(tt.id, { name: e.target.value })}
+                      value={typeNames[tt.id] ?? tt.name}
+                      onChange={(e) => setTypeNames((prev) => ({ ...prev, [tt.id]: e.target.value }))}
+                      onBlur={() => {
+                        const name = (typeNames[tt.id] ?? tt.name).trim();
+                        if (name && name !== tt.name) onUpdateTransactionType(tt.id, { name });
+                        else setTypeNames((prev) => ({ ...prev, [tt.id]: tt.name }));
+                      }}
                       style={{ ...inputStyle, marginBottom: 8 }}
                     />
                     <label className="fety-label" style={{ display: "block", marginBottom: 4 }}>Money direction</label>
@@ -684,6 +697,7 @@ export function SettingsManageView({
                       value={a.balance}
                       format={usdF}
                       currency
+                      allowNegative
                       onSave={(balance) => onUpdateAccount(a.id, { balance })}
                       valueStyle={{ fontSize: 18 }}
                     />

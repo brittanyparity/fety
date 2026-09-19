@@ -68,14 +68,20 @@ function isInflow(t: Transaction, store: FetyStore): boolean {
 function categorySpentInMonth(store: FetyStore, categoryName: string, ref: Date): number {
   const start = monthStart(ref);
   const end = monthEnd(ref);
+  const asOf = balanceAsOfISO(store);
   return store.transactions
     .filter(
       (t) =>
+        t.dateISO >= asOf &&
         t.category === categoryName &&
         isOutflow(t, store) &&
         inRange(t.dateISO, start, end),
     )
     .reduce((s, t) => s + Math.abs(t.amount), 0);
+}
+
+export function balanceAsOfISO(store: FetyStore): string {
+  return store.profile.balanceAsOfISO ?? "1970-01-01";
 }
 
 export function computeSummary(store: FetyStore, ref = new Date()): FinanceSummary {
@@ -84,27 +90,29 @@ export function computeSummary(store: FetyStore, ref = new Date()): FinanceSumma
   const wEnd = endOfWeek(ref);
   const mStart = monthStart(ref);
   const mEnd = monthEnd(ref);
+  const asOf = balanceAsOfISO(store);
+  const balanceTx = store.transactions.filter((t) => t.dateISO >= asOf);
 
-  const txSum = store.transactions.reduce((s, t) => s + t.amount, 0);
+  const txSum = balanceTx.reduce((s, t) => s + t.amount, 0);
   const balance = store.profile.startingBalance + txSum;
 
-  const moneyInToday = store.transactions
+  const moneyInToday = balanceTx
     .filter((t) => t.dateISO === today && isInflow(t, store))
     .reduce((s, t) => s + t.amount, 0);
 
-  const moneyOutToday = store.transactions
+  const moneyOutToday = balanceTx
     .filter((t) => t.dateISO === today && isOutflow(t, store))
     .reduce((s, t) => s + Math.abs(t.amount), 0);
 
-  const weeklySpent = store.transactions
+  const weeklySpent = balanceTx
     .filter((t) => isOutflow(t, store) && inRange(t.dateISO, wStart, wEnd))
     .reduce((s, t) => s + Math.abs(t.amount), 0);
 
-  const monthlyIncome = store.transactions
+  const monthlyIncome = balanceTx
     .filter((t) => isInflow(t, store) && inRange(t.dateISO, mStart, mEnd))
     .reduce((s, t) => s + t.amount, 0);
 
-  const monthlyExpenses = store.transactions
+  const monthlyExpenses = balanceTx
     .filter((t) => isOutflow(t, store) && inRange(t.dateISO, mStart, mEnd))
     .reduce((s, t) => s + Math.abs(t.amount), 0);
 
@@ -148,9 +156,12 @@ function itemTypeForTransaction(t: Transaction, store: FetyStore): CalDayItemTyp
 export function buildCalendarMap(store: FetyStore, year: number): CalendarMap {
   const map: CalendarMap = new Map();
   const yearPrefix = String(year);
+  const asOf = balanceAsOfISO(store);
 
   let balance = store.profile.startingBalance;
-  const sorted = [...store.transactions].sort((a, b) => a.dateISO.localeCompare(b.dateISO));
+  const sorted = [...store.transactions]
+    .filter((t) => t.dateISO >= asOf)
+    .sort((a, b) => a.dateISO.localeCompare(b.dateISO));
   for (const t of sorted) {
     if (t.dateISO < `${yearPrefix}-01-01`) balance += t.amount;
   }
@@ -158,6 +169,7 @@ export function buildCalendarMap(store: FetyStore, year: number): CalendarMap {
   const byDate = new Map<string, Transaction[]>();
   for (const t of store.transactions) {
     if (!t.dateISO.startsWith(yearPrefix)) continue;
+    if (t.dateISO < asOf) continue;
     const list = byDate.get(t.dateISO) ?? [];
     list.push(t);
     byDate.set(t.dateISO, list);
@@ -168,6 +180,17 @@ export function buildCalendarMap(store: FetyStore, year: number): CalendarMap {
     for (let day = 1; day <= daysInMonth; day++) {
       const date = new Date(year, month, day);
       const key = calKey(date);
+      if (key < asOf) {
+        map.set(key, {
+          date,
+          startBal: store.profile.startingBalance,
+          endBal: store.profile.startingBalance,
+          income: 0,
+          expenses: 0,
+          items: [],
+        });
+        continue;
+      }
       const txns = byDate.get(key) ?? [];
       const items: CalDayItem[] = txns.map((t) => ({
         id: t.id,

@@ -3,7 +3,7 @@ import { FetyLogo } from "./FetyLogo";
 import { useFetyData } from "./hooks/useFetyData";
 import { buildCalendarMap, formatNavDate, last6MonthsSpending, last7DayEndingBalances, categorySpendShares, todayISO } from "./lib/fetyCalculations";
 import { getTransactionTypes } from "./lib/transactionTypes";
-import { calendarDailyBalanceBg, calendarDailyBalanceBgStrong, calSignedColor } from "./lib/calendarUi";
+import { calendarDailyBalanceBg, calendarDailyBalanceBgStrong, calendarEndingBalanceBg, calendarEndingBalanceBgStrong, calSignedColor } from "./lib/calendarUi";
 import { CalendarPeriodMenu } from "./components/CalendarPeriodMenu";
 import EmojiIconPicker from "./components/EmojiIconPicker";
 import CurrencyInput, { amountToEditString } from "./components/CurrencyInput";
@@ -11,7 +11,7 @@ import { flattenRows, moveRow, packWidgetsIntoRows, pinWidgetToTop, reorderWidge
 import { ChatPanel, ChatExpandIcon } from "./components/ChatPanel";
 import { confirmAssistantAction, handleAssistantMessageWithDeps } from "./assistant/router";
 import type { ToolAction } from "./assistant/types";
-import type { BudgetCategory, CalDay, CalendarMap, ChatMessage, FinanceSummary, FetyStore, TransactionType } from "./types/fety";
+import type { BudgetCategory, CalDay, CalendarMap, ChatMessage, FetyStore, FetyTransactionType, FinanceSummary, Transaction, TransactionType } from "./types/fety";
 import {
   BudgetManageView,
   TransactionsManageView,
@@ -860,9 +860,19 @@ function RightPanel({
 }
 
 // ─── Calendar View ─────────────────────────────────────────────────────────────
-function CalendarView({ onBack: _onBack }: { onBack: () => void }) {
-  const { store, addTransaction, updateTransaction, deleteTransaction } = useFetyData();
-  const transactionTypes = useMemo(() => getTransactionTypes(store), [store]);
+function CalendarView({
+  store,
+  transactionTypes,
+  onAddTransaction,
+  onUpdateTransaction,
+  onDeleteTransaction,
+}: {
+  store: FetyStore;
+  transactionTypes: FetyTransactionType[];
+  onAddTransaction: ReturnType<typeof useFetyData>["addTransaction"];
+  onUpdateTransaction: ReturnType<typeof useFetyData>["updateTransaction"];
+  onDeleteTransaction: ReturnType<typeof useFetyData>["deleteTransaction"];
+}) {
   const [calView, setCalView] = useState<CalView>("monthly");
   const [focusDate, setFocusDate] = useState(() => new Date());
   const [selected, setSelected] = useState<string | null>(() => CAL_KEY(new Date()));
@@ -967,20 +977,26 @@ function CalendarView({ onBack: _onBack }: { onBack: () => void }) {
       </div>
 
       <div className="fety-calendar-body" style={{ flex: 1, overflow: "hidden", display: "flex", minHeight: 0 }}>
-        <div style={{ flex: 1, overflowY: "auto", padding: calView === "yearly" ? "12px 16px" : "16px 20px" }}>
-          {calView === "monthly" && <MonthlyCalGrid month={focusDate} calendarMap={calendarMap} selected={selected} onSelect={setSelected} />}
-          {calView === "weekly" && <WeeklyCalGrid anchor={focusDate} days={7} calendarMap={calendarMap} selected={selected} onSelect={setSelected} />}
-          {calView === "biweekly" && <WeeklyCalGrid anchor={focusDate} days={14} calendarMap={calendarMap} selected={selected} onSelect={setSelected} />}
-          {calView === "daily" && <DailyCalView date={focusDate} calendarMap={calendarMap} />}
-          {calView === "yearly" && (
-            <YearlyCalGrid
-              year={year}
-              calendarMap={calendarMap}
-              selected={selected}
-              onSelect={setSelected}
-              registerDayRef={registerDayRef}
-            />
-          )}
+        <div style={{ flex: 1, display: "flex", flexDirection: "column", minHeight: 0, minWidth: 0 }}>
+          <div
+            className={calView === "yearly" ? "fety-yearly-scroll" : undefined}
+            style={{ flex: 1, overflowY: "auto", padding: calView === "yearly" ? "12px 16px 0" : "16px 20px", minHeight: 0 }}
+          >
+            {calView === "monthly" && <MonthlyCalGrid month={focusDate} calendarMap={calendarMap} selected={selected} onSelect={setSelected} />}
+            {calView === "weekly" && <WeeklyCalGrid anchor={focusDate} days={7} calendarMap={calendarMap} selected={selected} onSelect={setSelected} />}
+            {calView === "biweekly" && <WeeklyCalGrid anchor={focusDate} days={14} calendarMap={calendarMap} selected={selected} onSelect={setSelected} />}
+            {calView === "daily" && <DailyCalView date={focusDate} calendarMap={calendarMap} />}
+            {calView === "yearly" && (
+              <YearlyCalGrid
+                year={year}
+                calendarMap={calendarMap}
+                selected={selected}
+                onSelect={setSelected}
+                registerDayRef={registerDayRef}
+              />
+            )}
+          </div>
+          {calView === "yearly" && <YearlyCalLegend />}
         </div>
 
         {(calView === "yearly" || calView === "daily" || (selected && selectedDay)) && (
@@ -993,9 +1009,9 @@ function CalendarView({ onBack: _onBack }: { onBack: () => void }) {
             transactionTypes={transactionTypes}
             onJumpToDate={jumpToDateISO}
             onClose={() => setSelected(null)}
-            onAddTransaction={addTransaction}
-            onUpdateTransaction={updateTransaction}
-            onDeleteTransaction={deleteTransaction}
+            onAddTransaction={onAddTransaction}
+            onUpdateTransaction={onUpdateTransaction}
+            onDeleteTransaction={onDeleteTransaction}
           />
         )}
       </div>
@@ -1030,23 +1046,26 @@ function YearlyCalGrid({
 
   return (
     <div>
-      <div className="fety-yearly-dow" style={{ display: "grid", gridTemplateColumns: "repeat(7, 1fr)", gap: 2 }}>
-        {DAYS_SHORT.map((d) => (
-          <div
-            key={d}
-            style={{
-              textAlign: "center",
-              fontSize: 11,
-              fontWeight: 700,
-              color: "var(--ink-2)",
-              textTransform: "uppercase",
-              letterSpacing: "0.12em",
-              padding: "2px 0",
-            }}
-          >
-            {d}
-          </div>
-        ))}
+      <div className="fety-yearly-dow-wrap">
+        <div className="fety-yearly-dow" style={{ display: "grid", gridTemplateColumns: "repeat(7, 1fr)", gap: 2 }}>
+          {DAYS_SHORT.map((d) => (
+            <div
+              key={d}
+              style={{
+                textAlign: "center",
+                fontSize: 11,
+                fontWeight: 700,
+                color: "var(--ink-2)",
+                textTransform: "uppercase",
+                letterSpacing: "0.12em",
+                padding: "6px 0",
+                background: "var(--surface)",
+              }}
+            >
+              {d}
+            </div>
+          ))}
+        </div>
       </div>
 
       <div style={{ display: "grid", gridTemplateColumns: "repeat(7, 1fr)", gap: 2 }}>
@@ -1058,7 +1077,7 @@ function YearlyCalGrid({
           const isSelected = selected === key;
           const isToday = date.toDateString() === today.toDateString();
           const isFirstOfMonth = date.getDate() === 1;
-          const tileBg = data ? calendarDailyBalanceBg(net, isSelected) : "var(--surface)";
+          const tileBg = data ? calendarEndingBalanceBg(data.endBal, isSelected) : calendarEndingBalanceBg(0, false);
 
           return (
             <button
@@ -1101,7 +1120,7 @@ function YearlyCalGrid({
                   </div>
                   <div style={{ fontSize: 7.5, lineHeight: 1.2, color: isSelected ? "rgba(255,255,255,0.55)" : "var(--ink-3)" }}>
                     E{" "}
-                    <span style={{ fontFamily: "var(--font-sans)", fontWeight: 700, color: calSignedColor(net, isSelected) }}>
+                    <span style={{ fontFamily: "var(--font-sans)", fontWeight: 700, color: calSignedColor(data.endBal, isSelected) }}>
                       {compactUsd(data.endBal)}
                     </span>
                   </div>
@@ -1111,20 +1130,30 @@ function YearlyCalGrid({
           );
         })}
       </div>
+    </div>
+  );
+}
 
-      <div style={{ display: "flex", gap: 16, marginTop: 14, flexWrap: "wrap", alignItems: "center" }}>
-        <span style={{ fontSize: 10, fontWeight: 600, color: "var(--ink-2)" }}>Daily balance</span>
+function YearlyCalLegend() {
+  return (
+    <div className="fety-yearly-legend">
+      <div style={{ display: "flex", gap: 16, flexWrap: "wrap", alignItems: "center" }}>
+        <span style={{ fontSize: 10, fontWeight: 600, color: "var(--ink-2)" }}>Ending balance</span>
         <div style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 10, color: "var(--ink-3)" }}>
           <div style={{ width: 14, height: 14, borderRadius: 4, background: "rgba(145, 216, 182, 0.55)", border: "1px solid var(--border)" }} />
-          Positive day (end above start)
+          Positive
+        </div>
+        <div style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 10, color: "var(--ink-3)" }}>
+          <div style={{ width: 14, height: 14, borderRadius: 4, background: "rgba(255, 217, 107, 0.58)", border: "1px solid var(--border)" }} />
+          Zero
         </div>
         <div style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 10, color: "var(--ink-3)" }}>
           <div style={{ width: 14, height: 14, borderRadius: 4, background: "rgba(255, 111, 94, 0.5)", border: "1px solid var(--border)" }} />
-          Negative day (end below start)
+          Negative
         </div>
         <div style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 10, color: "var(--ink-3)" }}>
           <div style={{ width: 14, height: 14, borderRadius: 4, background: "var(--ink)", border: "1px solid var(--border)" }} />
-          Selected day
+          Selected
         </div>
       </div>
     </div>
@@ -1195,7 +1224,7 @@ function MonthlyCalGrid({ month, calendarMap, selected, onSelect }: { month: Dat
                     Start <span style={{ fontFamily: "var(--font-sans)", fontWeight: 600, color: calSignedColor(data.startBal, isSelected) }}>{usd(data.startBal)}</span>
                   </div>
                   <div style={{ fontSize: 9, color: isSelected ? "rgba(255,255,255,0.6)" : "var(--ink-3)" }}>
-                    End <span style={{ fontFamily: "var(--font-sans)", fontWeight: 600, color: calSignedColor(net, isSelected) }}>{usd(data.endBal)}</span>
+                    End <span style={{ fontFamily: "var(--font-sans)", fontWeight: 600, color: calSignedColor(data.endBal, isSelected) }}>{usd(data.endBal)}</span>
                   </div>
                   {/* Mini dots for transactions */}
                   {hasItems && (
@@ -1289,7 +1318,7 @@ function WeeklyCalGrid({ anchor, days, calendarMap, selected, onSelect }: { anch
             )}
             <div style={{ display: "flex", justifyContent: "space-between", borderTop: `1px solid ${isSelected ? "rgba(255,255,255,0.12)" : "var(--border)"}`, paddingTop: 3 }}>
               <span style={{ fontSize: 9, fontWeight: 600, color: isSelected ? "rgba(255,255,255,0.7)" : "var(--ink-2)" }}>End</span>
-              <span style={{ fontSize: 10, fontWeight: 400, fontFamily: "var(--font-sans)", color: calSignedColor(net, isSelected) }}>{usd(data.endBal)}</span>
+              <span style={{ fontSize: 10, fontWeight: 400, fontFamily: "var(--font-sans)", color: calSignedColor(data.endBal, isSelected) }}>{usd(data.endBal)}</span>
             </div>
           </div>
         ) : (
@@ -1328,13 +1357,13 @@ function DailyCalView({ date, calendarMap }: { date: Date; calendarMap: Calendar
     <div style={{ maxWidth: 680, width: "100%", margin: "0 auto", display: "flex", flexDirection: "column", gap: 14 }}>
       <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
         {[
-          { label: "Starting Balance", value: data ? usd(data.startBal) : "—", bg: "var(--surface)", amount: data?.startBal ?? 0 },
-          { label: "Ending Balance", value: data ? usd(data.endBal) : "—", bg: data ? calendarDailyBalanceBgStrong(net) : "var(--surface)", amount: data?.endBal ?? 0 },
-          { label: "Net Cash Flow", value: data ? `${net >= 0 ? "+" : ""}${usd(net)}` : "—", bg: calendarDailyBalanceBgStrong(net), amount: net },
+          { label: "Starting Balance", value: data ? usd(data.startBal) : "—", bg: "var(--surface)", colorAmount: data?.startBal ?? 0 },
+          { label: "Ending Balance", value: data ? usd(data.endBal) : "—", bg: data ? calendarEndingBalanceBgStrong(data.endBal) : "var(--surface)", colorAmount: data?.endBal ?? 0 },
+          { label: "Net Cash Flow", value: data ? `${net >= 0 ? "+" : ""}${usd(net)}` : "—", bg: calendarDailyBalanceBgStrong(net), colorAmount: net },
         ].map(card => (
           <div key={card.label} style={{ background: card.bg, borderRadius: 16, padding: "18px 20px", border: "1px solid var(--border)" }}>
             <p style={{ fontSize: 10, fontWeight: 600, color: "var(--ink-3)", marginBottom: 6, textTransform: "uppercase", letterSpacing: "0.16em" }}>{card.label}</p>
-            <p style={{ fontSize: 24, fontWeight: 400, color: calSignedColor(card.amount), letterSpacing: "-0.8px", fontFamily: "var(--font-sans)" }}>{card.value}</p>
+            <p style={{ fontSize: 24, fontWeight: 400, color: calSignedColor(card.colorAmount), letterSpacing: "-0.8px", fontFamily: "var(--font-sans)" }}>{card.value}</p>
           </div>
         ))}
       </div>
@@ -2144,7 +2173,13 @@ export default function App() {
 
         <div style={{ flex: 1, display: "flex", overflow: "hidden", minHeight: 0 }}>
           {page === "calendar" ? (
-            <CalendarView onBack={() => setPage("dashboard")} />
+            <CalendarView
+              store={store}
+              transactionTypes={transactionTypes}
+              onAddTransaction={addTransaction}
+              onUpdateTransaction={updateTransaction}
+              onDeleteTransaction={deleteTransaction}
+            />
           ) : (
             <>
               <main className="fety-main-scroll" style={{ flex: 1, overflowY: "auto", padding: "24px 24px 48px", minWidth: 0 }}>

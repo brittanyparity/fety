@@ -50,6 +50,8 @@ type EditableNumberProps = {
   valueStyle?: CSSProperties;
   /** Show $ prefix and allow clearing the field while editing. */
   currency?: boolean;
+  /** Allow negative values (e.g. credit card balances). */
+  allowNegative?: boolean;
 };
 
 export function EditableNumber({
@@ -61,6 +63,7 @@ export function EditableNumber({
   step = 1,
   valueStyle,
   currency = false,
+  allowNegative = false,
 }: EditableNumberProps) {
   const [editing, setEditing] = useState(false);
   const [draft, setDraft] = useState("");
@@ -72,7 +75,7 @@ export function EditableNumber({
   const display = format ? format(value) : String(value);
 
   const openEdit = () => {
-    setDraft(value === 0 ? "" : String(value));
+    setDraft(value === 0 && !allowNegative ? "" : String(value));
     setEditing(true);
   };
 
@@ -82,7 +85,13 @@ export function EditableNumber({
       return;
     }
     const n = parseFloat(draft);
-    if (Number.isFinite(n) && n >= min) onSave(n);
+    if (!Number.isFinite(n)) {
+      setEditing(false);
+      return;
+    }
+    if (!allowNegative && n < 0) return;
+    if (min !== undefined && n < min) return;
+    onSave(n);
     setEditing(false);
   };
 

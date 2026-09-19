@@ -78,6 +78,8 @@ export interface UserProfile {
   email: string;
   currency: string;
   startingBalance: number;
+  /** Starting balance applies to this date and later (ISO). */
+  balanceAsOfISO?: string;
 }
 
 export type TypeIconMap = Record<TransactionType, string>;

@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { computeSummary } from "../lib/fetyCalculations";
+import { computeSummary, todayISO } from "../lib/fetyCalculations";
 import {
   applyBillScheduleToStore,
   parseScheduledBillId,
@@ -190,7 +190,13 @@ export function useFetyData() {
 
   const updateProfile = useCallback(
     (updates: Partial<UserProfile>) => {
-      patch((prev) => ({ ...prev, profile: { ...prev.profile, ...updates } }));
+      patch((prev) => {
+        const profile = { ...prev.profile, ...updates };
+        if (updates.startingBalance !== undefined) {
+          profile.balanceAsOfISO = todayISO();
+        }
+        return { ...prev, profile };
+      });
     },
     [patch],
   );
