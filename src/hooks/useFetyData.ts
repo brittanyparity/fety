@@ -183,7 +183,15 @@ export function useFetyData() {
   );
 
   const updateIncomeStream = useCallback(
-    (id: string, updates: Partial<Pick<IncomeStream, "name" | "amount" | "dueDay" | "frequency" | "category" | "icon">>) => {
+    (
+      id: string,
+      updates: Partial<
+        Pick<
+          IncomeStream,
+          "name" | "amount" | "dueDay" | "frequency" | "category" | "icon" | "startDateISO" | "endDateISO" | "semiMonthlyDays"
+        >
+      >,
+    ) => {
       patch((prev) => ({
         ...prev,
         incomeStreams: (prev.incomeStreams ?? []).map((s) => (s.id === id ? { ...s, ...updates } : s)),

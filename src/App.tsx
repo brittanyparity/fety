@@ -1,7 +1,7 @@
 import { useState, useRef, useEffect, useCallback, useMemo } from "react";
 import { FetyLogo } from "./FetyLogo";
 import { useFetyData } from "./hooks/useFetyData";
-import { buildCalendarMap, formatNavDate, last6MonthsSpending, last7DayEndingBalances, categorySpendShares, todayISO } from "./lib/fetyCalculations";
+import { buildCalendarMap, endingBalanceOnDate, formatNavDate, last6MonthsSpending, last7DayEndingBalances, categorySpendShares, todayISO } from "./lib/fetyCalculations";
 import { getTransactionTypes } from "./lib/transactionTypes";
 import { calendarDailyBalanceBg, calendarDailyBalanceBgStrong, calendarEndingBalanceBg, calendarEndingBalanceBgStrong, calBalanceColor, calSignedColor } from "./lib/calendarUi";
 import { CalendarPeriodMenu } from "./components/CalendarPeriodMenu";
@@ -612,13 +612,16 @@ const ALL_WIDGETS: WidgetDef[] = [
     id: "next-paycheck", label: "Next Paycheck", color: "var(--later)", size: "half",
     preview: () => statPreview("var(--lav-dk)", "Next Paycheck", "Sept 15", "$2,800 · 2 days away"),
     render: () => {
-      const { store, summary: s } = widgetLive();
+      const { store } = widgetLive();
       const nextIncome = store.transactions
         .filter((t) => t.type === "income" && t.dateISO >= todayISO())
         .sort((a, b) => a.dateISO.localeCompare(b.dateISO))[0];
       const payDate = nextIncome ? new Date(`${nextIncome.dateISO}T12:00:00`) : null;
       const payLabel = payDate ? payDate.toLocaleDateString("en-US", { month: "short", day: "numeric" }) : "—";
       const payAmt = nextIncome ? Math.abs(nextIncome.amount) : 0;
+      const balanceAfterPay = nextIncome
+        ? endingBalanceOnDate(store, nextIncome.dateISO)
+        : endingBalanceOnDate(store, todayISO());
       return (
       <div style={{ display: "flex", flexDirection: "column", height: "100%" }}>
         <p style={{ fontSize: 11, fontWeight: 600, color: "rgba(0,0,0,0.5)", marginBottom: 6, textTransform: "uppercase", letterSpacing: "0.16em" }}>Next Paycheck</p>
@@ -627,7 +630,7 @@ const ALL_WIDGETS: WidgetDef[] = [
         <p style={{ fontSize: 12, color: "rgba(0,0,0,0.5)", marginTop: 8 }}>{nextIncome ? nextIncome.desc : "No upcoming income on file"}</p>
         <div style={{ background: "rgba(255,255,255,0.4)", borderRadius: 10, padding: "10px 12px", marginTop: 16 }}>
           <p style={{ fontSize: 10, color: "rgba(0,0,0,0.5)", marginBottom: 2 }}>Balance after next income</p>
-          <p style={{ fontSize: 18, fontWeight: 400, color: "var(--lav-dk)", fontFamily: "var(--font-sans)" }}>{nextIncome ? usd(s.balance + payAmt) : usd(s.balance)}</p>
+          <p style={{ fontSize: 18, fontWeight: 400, color: "var(--lav-dk)", fontFamily: "var(--font-sans)" }}>{usd(balanceAfterPay)}</p>
         </div>
       </div>
       );

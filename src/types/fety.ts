@@ -31,6 +31,9 @@ export interface BudgetCategory {
 
 export type BillFrequency = "monthly" | "weekly" | "biweekly" | "quarterly";
 
+/** Income streams only — twice per month on chosen calendar days. */
+export type IncomeFrequency = BillFrequency | "semimonthly";
+
 /** Shared schedule fields for bills, income streams, and recurring transactions. */
 export interface RecurringScheduleBase {
   id: string;
@@ -47,7 +50,15 @@ export interface Bill extends RecurringScheduleBase {
 }
 
 /** Recurring money in (paycheck, freelance, etc.) — projects as income transactions. */
-export interface IncomeStream extends RecurringScheduleBase {}
+export interface IncomeStream extends Omit<RecurringScheduleBase, "frequency"> {
+  frequency: IncomeFrequency;
+  /** First date this stream projects (inclusive). */
+  startDateISO?: string;
+  /** Last date this stream projects (inclusive). */
+  endDateISO?: string;
+  /** When frequency is semimonthly: two pay days per month (1–31). */
+  semiMonthlyDays?: [number, number];
+}
 
 /** Recurring expense/transfer/custom type — not bills or core income. */
 export interface RecurringTransaction extends RecurringScheduleBase {
@@ -127,6 +138,8 @@ export interface CategoryWithSpent extends BudgetCategory {
 
 export interface FinanceSummary {
   balance: number;
+  /** Starting balance plus transactions through today only (excludes future scheduled items). */
+  balanceThroughToday: number;
   moneyInToday: number;
   moneyOutToday: number;
   savingsTotal: number;

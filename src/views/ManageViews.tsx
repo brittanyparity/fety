@@ -8,6 +8,7 @@ import type {
   FetyTransactionType,
   Goal,
   IncomeStream,
+  IncomeFrequency,
   RecurringTransaction,
   Transaction,
   TransactionFlow,
@@ -17,7 +18,8 @@ import { formatTransactionGroupDate, todayISO } from "../lib/fetyCalculations";
 import { EditableNumber, EditableText } from "../components/EditableField";
 import EmojiIconPicker from "../components/EmojiIconPicker";
 import BillScheduleFields from "../components/BillScheduleFields";
-import { BILL_FREQUENCY_LABELS } from "../lib/billScheduling";
+import IncomeScheduleFields from "../components/IncomeScheduleFields";
+import { BILL_FREQUENCY_LABELS, INCOME_FREQUENCY_LABELS } from "../lib/billScheduling";
 import CurrencyInput, { amountToEditString } from "../components/CurrencyInput";
 
 const usd = (n: number) =>
@@ -92,7 +94,15 @@ export function BudgetManageView({
   onUpdateBill: (id: string, updates: Partial<Pick<Bill, "name" | "amount" | "dueDay" | "frequency" | "category" | "icon">>) => void;
   onAddBill: (bill: Omit<Bill, "id">) => void;
   onDeleteBill: (id: string) => void;
-  onUpdateIncomeStream: (id: string, updates: Partial<Pick<IncomeStream, "name" | "amount" | "dueDay" | "frequency" | "category" | "icon">>) => void;
+  onUpdateIncomeStream: (
+    id: string,
+    updates: Partial<
+      Pick<
+        IncomeStream,
+        "name" | "amount" | "dueDay" | "frequency" | "category" | "icon" | "startDateISO" | "endDateISO" | "semiMonthlyDays"
+      >
+    >,
+  ) => void;
   onAddIncomeStream: (stream: Omit<IncomeStream, "id">) => void;
   onDeleteIncomeStream: (id: string) => void;
   onUpdateRecurringTransaction: (
@@ -118,7 +128,10 @@ export function BudgetManageView({
   const [incomeName, setIncomeName] = useState("");
   const [incomeAmount, setIncomeAmount] = useState("");
   const [incomeDue, setIncomeDue] = useState(1);
-  const [incomeFrequency, setIncomeFrequency] = useState<BillFrequency>("biweekly");
+  const [incomeFrequency, setIncomeFrequency] = useState<IncomeFrequency>("biweekly");
+  const [incomeSemiMonthlyDays, setIncomeSemiMonthlyDays] = useState<[number, number]>([1, 15]);
+  const [incomeStartDate, setIncomeStartDate] = useState("");
+  const [incomeEndDate, setIncomeEndDate] = useState("");
   const [incomeCategory, setIncomeCategory] = useState("Income");
   const [recurName, setRecurName] = useState("");
   const [recurAmount, setRecurAmount] = useState("");
@@ -201,10 +214,27 @@ export function BudgetManageView({
     name: string;
     amount: string;
     category: string;
-    frequency: BillFrequency;
+    frequency: IncomeFrequency;
     dueDay: number;
+    semiMonthlyDays: [number, number];
+    startDateISO: string;
+    endDateISO: string;
     icon: string;
   } | null>(null);
+
+  const incomeScheduleFromDraft = (d: {
+    frequency: IncomeFrequency;
+    dueDay: number;
+    semiMonthlyDays: [number, number];
+    startDateISO: string;
+    endDateISO: string;
+  }): Pick<IncomeStream, "frequency" | "dueDay" | "semiMonthlyDays" | "startDateISO" | "endDateISO"> => ({
+    frequency: d.frequency,
+    dueDay: d.dueDay,
+    semiMonthlyDays: d.frequency === "semimonthly" ? d.semiMonthlyDays : undefined,
+    startDateISO: d.startDateISO.trim() || undefined,
+    endDateISO: d.endDateISO.trim() || undefined,
+  });
 
   const startEditIncome = (s: IncomeStream) => {
     setEditingIncomeId(s.id);
@@ -214,6 +244,9 @@ export function BudgetManageView({
       category: s.category,
       frequency: s.frequency ?? "monthly",
       dueDay: s.dueDay,
+      semiMonthlyDays: s.semiMonthlyDays ?? [s.dueDay, 15],
+      startDateISO: s.startDateISO ?? "",
+      endDateISO: s.endDateISO ?? "",
       icon: s.icon || "💵",
     });
   };
@@ -227,9 +260,8 @@ export function BudgetManageView({
       name,
       amount,
       category: incomeEditDraft.category.trim() || "Income",
-      frequency: incomeEditDraft.frequency,
-      dueDay: incomeEditDraft.dueDay,
       icon: incomeEditDraft.icon,
+      ...incomeScheduleFromDraft(incomeEditDraft),
     });
     setEditingIncomeId(null);
     setIncomeEditDraft(null);
@@ -298,6 +330,19 @@ export function BudgetManageView({
 
   const billDueSummary = (b: Bill) => scheduleDueSummary(b);
 
+  const incomeDueSummary = (s: IncomeStream) => {
+    if (s.frequency === "semimonthly") {
+      const [a, b] = s.semiMonthlyDays ?? [s.dueDay, 15];
+      return `Twice a month · days ${a} & ${b}`;
+    }
+    const freq = INCOME_FREQUENCY_LABELS[s.frequency ?? "monthly"];
+    if (s.frequency === "weekly" || s.frequency === "biweekly") {
+      const days = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
+      return `${freq} · ${days[s.dueDay] ?? "Mon"}`;
+    }
+    return `${freq} · day ${s.dueDay}`;
+  };
+
   const recurringTypeOptions = transactionTypes.filter((t) => t.id !== "bill");
   const typeLabel = (id: TransactionType) => transactionTypes.find((t) => t.id === id)?.name ?? id;
 
@@ -328,15 +373,23 @@ export function BudgetManageView({
     onAddIncomeStream({
       name: incomeName.trim(),
       amount,
-      dueDay: incomeDue,
-      frequency: incomeFrequency,
       category: incomeCategory,
       icon: "💵",
+      ...incomeScheduleFromDraft({
+        frequency: incomeFrequency,
+        dueDay: incomeDue,
+        semiMonthlyDays: incomeSemiMonthlyDays,
+        startDateISO: incomeStartDate,
+        endDateISO: incomeEndDate,
+      }),
     });
     setIncomeName("");
     setIncomeAmount("");
     setIncomeDue(1);
     setIncomeFrequency("biweekly");
+    setIncomeSemiMonthlyDays([1, 15]);
+    setIncomeStartDate("");
+    setIncomeEndDate("");
   };
 
   const submitRecur = () => {
@@ -509,11 +562,17 @@ export function BudgetManageView({
                 <input value={incomeCategory} onChange={(e) => setIncomeCategory(e.target.value)} style={inputStyle} />
               </div>
             </div>
-            <BillScheduleFields
+            <IncomeScheduleFields
               frequency={incomeFrequency}
               dueDay={incomeDue}
+              semiMonthlyDays={incomeSemiMonthlyDays}
+              startDateISO={incomeStartDate}
+              endDateISO={incomeEndDate}
               onFrequencyChange={setIncomeFrequency}
               onDueDayChange={setIncomeDue}
+              onSemiMonthlyDaysChange={setIncomeSemiMonthlyDays}
+              onStartDateISOChange={setIncomeStartDate}
+              onEndDateISOChange={setIncomeEndDate}
               inputStyle={inputStyle}
             />
             <button type="submit" style={{ padding: "8px 14px", borderRadius: "var(--radius-ctrl)", border: "none", background: "var(--ink)", color: "#fff", fontWeight: 600, cursor: "pointer", alignSelf: "flex-start" }}>
@@ -729,12 +788,22 @@ export function BudgetManageView({
                         />
                       </div>
                     </div>
-                    <BillScheduleFields
+                    <IncomeScheduleFields
                       compact
                       frequency={incomeEditDraft.frequency}
                       dueDay={incomeEditDraft.dueDay}
+                      semiMonthlyDays={incomeEditDraft.semiMonthlyDays}
+                      startDateISO={incomeEditDraft.startDateISO}
+                      endDateISO={incomeEditDraft.endDateISO}
                       onFrequencyChange={(frequency) => setIncomeEditDraft((d) => (d ? { ...d, frequency } : d))}
                       onDueDayChange={(dueDay) => setIncomeEditDraft((d) => (d ? { ...d, dueDay } : d))}
+                      onSemiMonthlyDaysChange={(semiMonthlyDays) =>
+                        setIncomeEditDraft((d) => (d ? { ...d, semiMonthlyDays } : d))
+                      }
+                      onStartDateISOChange={(startDateISO) =>
+                        setIncomeEditDraft((d) => (d ? { ...d, startDateISO } : d))
+                      }
+                      onEndDateISOChange={(endDateISO) => setIncomeEditDraft((d) => (d ? { ...d, endDateISO } : d))}
                       inputStyle={inputStyle}
                     />
                     <div style={{ display: "flex", gap: 8 }}>
@@ -762,7 +831,7 @@ export function BudgetManageView({
                     <div style={{ flex: 1, minWidth: 0 }}>
                       <p style={{ fontSize: 14, fontWeight: 600, color: "var(--ink)" }}>{s.name}</p>
                       <p style={{ fontSize: 11, color: "var(--ink-3)", marginTop: 2 }}>
-                        {usd(s.amount)} · {s.category} · {scheduleDueSummary(s)}
+                        {usd(s.amount)} · {s.category} · {incomeDueSummary(s)}
                       </p>
                     </div>
                     <button type="button" onClick={() => startEditIncome(s)} style={editBtnStyle}>

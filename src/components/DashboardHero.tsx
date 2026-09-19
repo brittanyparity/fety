@@ -85,7 +85,7 @@ export function DashboardHero({ summary }: { summary: FinanceSummary }) {
         }}
       >
         {[
-          { label: "Balance", value: usd(summary.balance), accent: "var(--clear-dk)", dot: "var(--clear)" },
+          { label: "Balance", value: usd(summary.balanceThroughToday), accent: "var(--clear-dk)", dot: "var(--clear)" },
           { label: "In today", value: usdSigned(summary.moneyInToday, "+"), accent: "var(--clear-dk)", dot: "var(--clear)" },
           { label: "Out today", value: usdSigned(summary.moneyOutToday, "-"), accent: "var(--trouble-dk)", dot: "var(--trouble)" },
           { label: "Savings", value: usd(summary.savingsTotal), accent: "var(--later-dk)", dot: "var(--later)" },

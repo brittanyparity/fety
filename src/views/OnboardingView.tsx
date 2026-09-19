@@ -14,12 +14,14 @@ import { CsvColumnMapper } from "../components/CsvColumnMapper";
 import CurrencyInput, { amountToEditString } from "../components/CurrencyInput";
 import { newId } from "../lib/fetyStorage";
 import BillScheduleFields from "../components/BillScheduleFields";
+import IncomeScheduleFields from "../components/IncomeScheduleFields";
 import { getTransactionTypes } from "../lib/transactionTypes";
 import type {
   Bill,
   BudgetCategory,
   FetyStore,
   IncomeStream,
+  IncomeFrequency,
   RecurringTransaction,
   Transaction,
   TransactionType,
@@ -51,6 +53,17 @@ type ScheduleDraftRow = {
 };
 
 type RecurringDraftRow = ScheduleDraftRow & { transactionType: TransactionType };
+
+type IncomeDraftRow = {
+  name: string;
+  amount: string;
+  dueDay: number;
+  frequency: IncomeFrequency;
+  category: string;
+  semiMonthlyDays: [number, number];
+  startDateISO: string;
+  endDateISO: string;
+};
 
 type BudgetDraftRow = {
   name: string;
@@ -137,7 +150,7 @@ export function OnboardingView({
   );
 
   const [billRows, setBillRows] = useState<ScheduleDraftRow[]>([]);
-  const [incomeRows, setIncomeRows] = useState<ScheduleDraftRow[]>([]);
+  const [incomeRows, setIncomeRows] = useState<IncomeDraftRow[]>([]);
   const [recurringRows, setRecurringRows] = useState<RecurringDraftRow[]>([]);
 
   const recurringTypeOptions = useMemo(
@@ -241,6 +254,9 @@ export function OnboardingView({
         frequency: b.frequency,
         category: b.category.trim() || "Income",
         icon: "💵",
+        semiMonthlyDays: b.frequency === "semimonthly" ? b.semiMonthlyDays : undefined,
+        startDateISO: b.startDateISO.trim() || undefined,
+        endDateISO: b.endDateISO.trim() || undefined,
       }));
     onReplaceIncomeStreams(streams);
     goNext();
@@ -541,10 +557,13 @@ export function OnboardingView({
                           <input value={b.category} onChange={(e) => { const n = [...incomeRows]; n[i].category = e.target.value; setIncomeRows(n); }} style={inputStyle} placeholder="Category" />
                           <button type="button" onClick={() => setIncomeRows(incomeRows.filter((_, j) => j !== i))} style={{ border: "none", background: "transparent", cursor: "pointer", color: "var(--ink-3)" }}>×</button>
                         </div>
-                        <BillScheduleFields
+                        <IncomeScheduleFields
                           compact
                           frequency={b.frequency}
                           dueDay={b.dueDay}
+                          semiMonthlyDays={b.semiMonthlyDays}
+                          startDateISO={b.startDateISO}
+                          endDateISO={b.endDateISO}
                           onFrequencyChange={(frequency) => {
                             const n = [...incomeRows];
                             n[i].frequency = frequency;
@@ -553,6 +572,21 @@ export function OnboardingView({
                           onDueDayChange={(dueDay) => {
                             const n = [...incomeRows];
                             n[i].dueDay = dueDay;
+                            setIncomeRows(n);
+                          }}
+                          onSemiMonthlyDaysChange={(semiMonthlyDays) => {
+                            const n = [...incomeRows];
+                            n[i].semiMonthlyDays = semiMonthlyDays;
+                            setIncomeRows(n);
+                          }}
+                          onStartDateISOChange={(startDateISO) => {
+                            const n = [...incomeRows];
+                            n[i].startDateISO = startDateISO;
+                            setIncomeRows(n);
+                          }}
+                          onEndDateISOChange={(endDateISO) => {
+                            const n = [...incomeRows];
+                            n[i].endDateISO = endDateISO;
                             setIncomeRows(n);
                           }}
                           inputStyle={inputStyle}
@@ -565,7 +599,19 @@ export function OnboardingView({
                   type="button"
                   style={btnSecondary}
                   onClick={() =>
-                    setIncomeRows((r) => [...r, { name: "", amount: "", dueDay: 1, frequency: "biweekly", category: "Income" }])
+                    setIncomeRows((r) => [
+                      ...r,
+                      {
+                        name: "",
+                        amount: "",
+                        dueDay: 1,
+                        frequency: "biweekly",
+                        category: "Income",
+                        semiMonthlyDays: [1, 15],
+                        startDateISO: "",
+                        endDateISO: "",
+                      },
+                    ])
                   }
                 >
                   + Add income stream

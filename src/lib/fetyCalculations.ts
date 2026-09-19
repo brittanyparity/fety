@@ -96,6 +96,17 @@ export function balanceAsOfISO(store: FetyStore): string {
   return store.profile.balanceAsOfISO ?? "1970-01-01";
 }
 
+/** Cash position after all transactions on `dateISO` (through that day, inclusive). */
+export function endingBalanceOnDate(store: FetyStore, dateISO: string): number {
+  const asOf = balanceAsOfISO(store);
+  let balance = store.profile.startingBalance;
+  const txs = store.transactions
+    .filter((t) => t.dateISO >= asOf && t.dateISO <= dateISO)
+    .sort((a, b) => a.dateISO.localeCompare(b.dateISO) || a.id.localeCompare(b.id));
+  for (const t of txs) balance += t.amount;
+  return balance;
+}
+
 export function computeSummary(store: FetyStore, ref = new Date()): FinanceSummary {
   const today = todayISO();
   const wStart = startOfWeek(ref);
@@ -142,6 +153,7 @@ export function computeSummary(store: FetyStore, ref = new Date()): FinanceSumma
 
   return {
     balance,
+    balanceThroughToday: endingBalanceOnDate(store, today),
     moneyInToday,
     moneyOutToday,
     savingsTotal,

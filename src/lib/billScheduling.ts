@@ -2,6 +2,7 @@ import type {
   Bill,
   BillFrequency,
   FetyStore,
+  IncomeFrequency,
   IncomeStream,
   RecurringScheduleBase,
   RecurringTransaction,
@@ -98,6 +99,40 @@ export function occurrencesInRange(item: Pick<RecurringScheduleBase, "dueDay" | 
   return out;
 }
 
+function incomeDateAllowed(stream: Pick<IncomeStream, "startDateISO" | "endDateISO">, dateISO: string): boolean {
+  if (stream.startDateISO && dateISO < stream.startDateISO) return false;
+  if (stream.endDateISO && dateISO > stream.endDateISO) return false;
+  return true;
+}
+
+/** Income-only schedule: semi-monthly days and optional active date range. */
+export function incomeOccurrencesInRange(stream: IncomeStream, from: Date, to: Date): string[] {
+  const fromMs = new Date(from.getFullYear(), from.getMonth(), from.getDate()).getTime();
+  const toMs = new Date(to.getFullYear(), to.getMonth(), to.getDate()).getTime();
+  const freq = stream.frequency ?? "monthly";
+
+  if (freq === "semimonthly") {
+    const pair = stream.semiMonthlyDays ?? [stream.dueDay, 15];
+    const d1 = Math.min(31, Math.max(1, pair[0]));
+    const d2 = Math.min(31, Math.max(1, pair[1] ?? 15));
+    const out: string[] = [];
+    for (let y = from.getFullYear() - 1; y <= to.getFullYear() + 1; y++) {
+      for (let m = 0; m < 12; m++) {
+        for (const day of [d1, d2]) {
+          const d = clampMonthDay(y, m, day);
+          const iso = isoDate(d);
+          if (!incomeDateAllowed(stream, iso)) continue;
+          const t = d.getTime();
+          if (t >= fromMs && t <= toMs) out.push(iso);
+        }
+      }
+    }
+    return [...new Set(out)].sort();
+  }
+
+  return occurrencesInRange(stream, from, to).filter((iso) => incomeDateAllowed(stream, iso));
+}
+
 /** @deprecated use occurrencesInRange */
 export function billOccurrencesInRange(bill: Bill, from: Date, to: Date): string[] {
   return occurrencesInRange(bill, from, to);
@@ -177,7 +212,17 @@ function scheduleSignature(item: RecurringScheduleBase, extra = ""): string {
 }
 
 export function incomeStreamSignature(s: IncomeStream): string {
-  return scheduleSignature(s);
+  const semi =
+    s.frequency === "semimonthly" ? (s.semiMonthlyDays ?? [s.dueDay, 15]).join(",") : "";
+  return [
+    s.name.trim().toLowerCase(),
+    Number(s.amount),
+    Number(s.dueDay),
+    s.frequency ?? "monthly",
+    semi,
+    s.startDateISO ?? "",
+    s.endDateISO ?? "",
+  ].join("|");
 }
 
 export function recurringTransactionSignature(r: RecurringTransaction): string {
@@ -210,7 +255,20 @@ export function dedupeBills(bills: Bill[]): Bill[] {
 }
 
 export function dedupeIncomeStreams(streams: IncomeStream[]): IncomeStream[] {
-  return dedupeBySignature(streams);
+  const out: IncomeStream[] = [];
+  const seen = new Set<string>();
+  for (const item of streams) {
+    const key = incomeStreamSignature(item);
+    if (seen.has(key)) continue;
+    seen.add(key);
+    out.push({
+      ...item,
+      amount: Number(item.amount),
+      dueDay: Number(item.dueDay),
+      frequency: item.frequency ?? "monthly",
+    });
+  }
+  return out;
 }
 
 export function dedupeRecurringTransactions(items: RecurringTransaction[]): RecurringTransaction[] {
@@ -254,12 +312,15 @@ function projectOccurrences(
     scheduledId: (id: string, dateISO: string) => string;
     buildTx: (item: RecurringScheduleBase, dateISO: string, id: string) => Transaction;
     typeSuffix: string;
+    datesForItem?: (item: RecurringScheduleBase, from: Date, to: Date) => string[];
   },
   consumedManualIds: Set<string>,
   occurrenceByDisplayKey: Map<string, Transaction>,
 ): void {
   for (const item of configs.items) {
-    const dates = [...new Set(occurrencesInRange(item, from, to))];
+    const dates = [
+      ...new Set(configs.datesForItem?.(item, from, to) ?? occurrencesInRange(item, from, to)),
+    ];
     for (const dateISO of dates) {
       if (skipped.has(skipKeyForOccurrence(configs.kind, item.id, dateISO))) continue;
 
@@ -345,6 +406,8 @@ export function rebuildTransactionsWithBillSchedule(store: RebuildStore, ref = n
         type: "income",
         icon: item.icon || "💵",
       }),
+      datesForItem: (item, rangeFrom, rangeTo) =>
+        incomeOccurrencesInRange(item as IncomeStream, rangeFrom, rangeTo),
     },
     consumedManualIds,
     occurrenceByDisplayKey,
@@ -433,7 +496,7 @@ export function nextIncomeOccurrenceOnOrAfter(stream: IncomeStream, ref = new Da
   const from = new Date(ref.getFullYear(), ref.getMonth(), ref.getDate());
   const to = new Date(from.getFullYear() + 2, 11, 31);
   const todayIso = isoDate(from);
-  return occurrencesInRange(stream, from, to).find((d) => d >= todayIso) ?? null;
+  return incomeOccurrencesInRange(stream, from, to).find((d) => d >= todayIso) ?? null;
 }
 
 export const BILL_FREQUENCY_LABELS: Record<BillFrequency, string> = {
@@ -441,4 +504,9 @@ export const BILL_FREQUENCY_LABELS: Record<BillFrequency, string> = {
   weekly: "Every week",
   biweekly: "Every 2 weeks",
   quarterly: "Every 3 months",
+};
+
+export const INCOME_FREQUENCY_LABELS: Record<IncomeFrequency, string> = {
+  ...BILL_FREQUENCY_LABELS,
+  semimonthly: "Twice a month",
 };
