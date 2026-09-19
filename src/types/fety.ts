@@ -103,6 +103,8 @@ export interface FetyStore {
   heroBlocksOptional?: boolean;
   /** billId|dateISO occurrences removed when user deletes a scheduled bill line */
   skippedBillOccurrences?: string[];
+  /** Widget ids locked in place (only valid while in the top dashboard row). */
+  lockedDashboardWidgets?: string[];
 }
 
 export interface CategoryWithSpent extends BudgetCategory {

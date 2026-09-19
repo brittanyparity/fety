@@ -6,6 +6,7 @@ import {
   skipKeyForBillOccurrence,
 } from "../lib/billScheduling";
 import { loadStore, newId, saveStore, resetStore as resetStored, resetToEmptyStore } from "../lib/fetyStorage";
+import { toggleWidgetPositionLock } from "../lib/widgetLayout";
 import {
   flowForTransactionType,
   iconForTransactionType,
@@ -228,6 +229,27 @@ export function useFetyData() {
     [patch],
   );
 
+  const toggleDashboardWidgetLock = useCallback(
+    (id: string) => {
+      patch((prev) => ({
+        ...prev,
+        lockedDashboardWidgets: toggleWidgetPositionLock(prev.lockedDashboardWidgets ?? [], id),
+      }));
+    },
+    [patch],
+  );
+
+  const setLockedDashboardWidgets = useCallback(
+    (locked: string[] | ((prev: string[]) => string[])) => {
+      patch((prev) => ({
+        ...prev,
+        lockedDashboardWidgets:
+          typeof locked === "function" ? locked(prev.lockedDashboardWidgets ?? []) : locked,
+      }));
+    },
+    [patch],
+  );
+
   const addAccount = useCallback(
     (input: Omit<Account, "id">) => {
       patch((prev) => ({
@@ -350,6 +372,8 @@ export function useFetyData() {
     deleteAccount,
     addMessage,
     setPinnedWidgets,
+    toggleDashboardWidgetLock,
+    setLockedDashboardWidgets,
     resetAll,
     startFreshSetup,
     completeOnboarding,

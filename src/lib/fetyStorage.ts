@@ -168,6 +168,13 @@ function migrateStore(store: FetyStore): FetyStore {
     const types = defaultTransactionTypes(next.typeIcons);
     next = { ...next, transactionTypes: types, typeIcons: typeIconsFromTransactionTypes(types) };
   }
+  if (!next.lockedDashboardWidgets) {
+    next = { ...next, lockedDashboardWidgets: [] };
+  }
+  next = {
+    ...next,
+    transactions: next.transactions.filter((t) => !isScheduledBillTransaction(t.id)),
+  };
   return applyBillScheduleToStore(next);
 }
 

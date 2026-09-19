@@ -7,7 +7,7 @@ import { calendarDailyBalanceBg, calendarDailyBalanceBgStrong, calendarEndingBal
 import { CalendarPeriodMenu } from "./components/CalendarPeriodMenu";
 import EmojiIconPicker from "./components/EmojiIconPicker";
 import CurrencyInput, { amountToEditString } from "./components/CurrencyInput";
-import { flattenRows, isWidgetPinnedToTop, moveRow, packWidgetsIntoRows, reorderWidget, togglePinToTop, toggleWidgetOnDashboard, unpinWidget } from "./lib/widgetLayout";
+import { flattenRowsAfterMoveRespectingLocks, isWidgetInFirstRow, isWidgetPositionLocked, packWidgetsIntoRows, pruneWidgetLocksToFirstRow, reorderWidgetRespectingLocks, toggleWidgetOnDashboard, unpinWidget } from "./lib/widgetLayout";
 import { ChatPanel, ChatExpandIcon } from "./components/ChatPanel";
 import { confirmAssistantAction, handleAssistantMessageWithDeps } from "./assistant/router";
 import type { ToolAction } from "./assistant/types";
@@ -1729,12 +1729,15 @@ function CalendarSidePanel({
 function DashboardView({
   store,
   summary,
-  pinned, setPinned, onCustomize, customizing,
+  pinned, setPinned, lockedWidgets, onToggleWidgetLock, onSetLockedWidgets, onCustomize, customizing,
 }: {
   store: FetyStore;
   summary: FinanceSummary;
   pinned: string[];
   setPinned: React.Dispatch<React.SetStateAction<string[]>>;
+  lockedWidgets: string[];
+  onToggleWidgetLock: (id: string) => void;
+  onSetLockedWidgets: React.Dispatch<React.SetStateAction<string[]>>;
   onCustomize: () => void;
   customizing: boolean;
 }) {
@@ -1745,12 +1748,9 @@ function DashboardView({
   const [dragWidgetId, setDragWidgetId] = useState<string | null>(null);
   const [overWidgetId, setOverWidgetId] = useState<string | null>(null);
 
-  const toggleWidgetTopPin = (id: string) => {
-    setPinned((prev) => togglePinToTop(prev, id));
-  };
-
   const removeWidget = (id: string) => {
     setPinned((prev) => unpinWidget(prev, id));
+    onSetLockedWidgets((prev) => prev.filter((x) => x !== id));
   };
 
   const byId = useMemo(() => {
@@ -1761,13 +1761,21 @@ function DashboardView({
 
   const rows = useMemo(() => packWidgetsIntoRows(pinned, byId), [pinned, byId]);
 
+  useEffect(() => {
+    const pruned = pruneWidgetLocksToFirstRow(lockedWidgets, rows);
+    if (pruned.length !== lockedWidgets.length || pruned.some((id, i) => id !== lockedWidgets[i])) {
+      onSetLockedWidgets(pruned);
+    }
+  }, [rows, lockedWidgets, onSetLockedWidgets]);
+
   const reorderRows = (fromIndex: number, toIndex: number) => {
     if (fromIndex === toIndex) return;
-    setPinned(flattenRows(moveRow(rows, fromIndex, toIndex)));
+    const next = flattenRowsAfterMoveRespectingLocks(rows, lockedWidgets, pinned, fromIndex, toIndex);
+    if (next) setPinned(next);
   };
 
   const reorderWidgetBefore = (fromId: string, beforeId: string) => {
-    setPinned((prev) => reorderWidget(prev, fromId, beforeId));
+    setPinned((prev) => reorderWidgetRespectingLocks(prev, lockedWidgets, fromId, beforeId));
   };
 
   const colSpan = (size: WidgetDef["size"]) =>
@@ -1859,13 +1867,16 @@ function DashboardView({
                   if (!w) return null;
                   const isWidgetDragging = dragWidgetId === w.id;
                   const isWidgetOver = overWidgetId === w.id && dragWidgetId !== null && dragWidgetId !== w.id;
+                  const atTopRow = isWidgetInFirstRow(rows, w.id);
+                  const positionLocked = isWidgetPositionLocked(lockedWidgets, w.id);
+                  const canDragWidget = customizing && !positionLocked;
                   return (
                     <div
                       key={w.id}
                       className={`fety-widget-cell fety-widget-cell--${w.size}`}
-                      draggable={customizing}
+                      draggable={canDragWidget}
                       onDragStart={(e) => {
-                        if (!customizing) return;
+                        if (!canDragWidget) return;
                         setDragWidgetId(w.id);
                         setDragRowIndex(null);
                         e.dataTransfer.effectAllowed = "move";
@@ -1902,11 +1913,11 @@ function DashboardView({
                         minHeight: minH(w.size),
                         userSelect: "none",
                         opacity: isWidgetDragging ? 0.45 : 1,
-                        cursor: customizing ? "grab" : "default",
+                        cursor: canDragWidget ? "grab" : customizing ? "default" : "default",
                         transition: "opacity 0.15s, border-color 0.12s",
                       }}
                     >
-                      {customizing && (
+                      {customizing && canDragWidget && (
                         <div style={{ position: "absolute", top: 8, left: 10, opacity: 0.25, pointerEvents: "none" }}>
                           <svg width="10" height="10" viewBox="0 0 10 10" fill="none"><circle cx="3" cy="2.5" r="1" fill="currentColor"/><circle cx="7" cy="2.5" r="1" fill="currentColor"/><circle cx="3" cy="5" r="1" fill="currentColor"/><circle cx="7" cy="5" r="1" fill="currentColor"/><circle cx="3" cy="7.5" r="1" fill="currentColor"/><circle cx="7" cy="7.5" r="1" fill="currentColor"/></svg>
                         </div>
@@ -1914,33 +1925,35 @@ function DashboardView({
                       {w.render()}
                       {customizing && (
                         <div style={{ position: "absolute", top: 8, right: 8, display: "flex", gap: 4 }}>
-                          <button
-                            type="button"
-                            onClick={(e) => { e.stopPropagation(); toggleWidgetTopPin(w.id); }}
-                            title={isWidgetPinnedToTop(pinned, w.id) ? "Unpin from top row" : "Pin to top of dashboard"}
-                            style={{
-                              width: 28,
-                              height: 28,
-                              borderRadius: 99,
-                              border: isWidgetPinnedToTop(pinned, w.id) ? "2px solid var(--ink)" : "1px solid var(--border)",
-                              background: isWidgetPinnedToTop(pinned, w.id) ? "var(--ink)" : "rgba(255,255,255,0.85)",
-                              cursor: "pointer",
-                              display: "flex",
-                              alignItems: "center",
-                              justifyContent: "center",
-                              transition: "background 0.12s, border-color 0.12s",
-                            }}
-                          >
-                            <svg width="12" height="12" viewBox="0 0 12 12" fill="none" aria-hidden>
-                              <path
-                                d="M6 1.5v9M3.5 4L6 1.5 8.5 4M2.5 10.5h7"
-                                stroke={isWidgetPinnedToTop(pinned, w.id) ? "#fff" : "var(--ink-2)"}
-                                strokeWidth="1.3"
-                                strokeLinecap="round"
-                                strokeLinejoin="round"
-                              />
-                            </svg>
-                          </button>
+                          {atTopRow && (
+                            <button
+                              type="button"
+                              onClick={(e) => { e.stopPropagation(); onToggleWidgetLock(w.id); }}
+                              title={positionLocked ? "Unpin — allow moving this widget" : "Pin in place at top of dashboard"}
+                              style={{
+                                width: 28,
+                                height: 28,
+                                borderRadius: 99,
+                                border: positionLocked ? "2px solid var(--ink)" : "1px solid var(--border)",
+                                background: positionLocked ? "var(--ink)" : "rgba(255,255,255,0.85)",
+                                cursor: "pointer",
+                                display: "flex",
+                                alignItems: "center",
+                                justifyContent: "center",
+                                transition: "background 0.12s, border-color 0.12s",
+                              }}
+                            >
+                              <svg width="12" height="12" viewBox="0 0 12 12" fill="none" aria-hidden>
+                                <path
+                                  d="M6 1.5v9M3.5 4L6 1.5 8.5 4M2.5 10.5h7"
+                                  stroke={positionLocked ? "#fff" : "var(--ink-2)"}
+                                  strokeWidth="1.3"
+                                  strokeLinecap="round"
+                                  strokeLinejoin="round"
+                                />
+                              </svg>
+                            </button>
+                          )}
                           <button
                             type="button"
                             onClick={(e) => { e.stopPropagation(); removeWidget(w.id); }}
@@ -2007,6 +2020,8 @@ export default function App() {
     deleteAccount,
     addMessage,
     setPinnedWidgets,
+    toggleDashboardWidgetLock,
+    setLockedDashboardWidgets,
     resetAll,
     startFreshSetup,
     completeOnboarding,
@@ -2184,6 +2199,9 @@ export default function App() {
             summary={summary}
             pinned={pinned}
             setPinned={setPinnedWidgets}
+            lockedWidgets={store.lockedDashboardWidgets ?? []}
+            onToggleWidgetLock={toggleDashboardWidgetLock}
+            onSetLockedWidgets={setLockedDashboardWidgets}
             onCustomize={() => setPickerOpen(true)}
             customizing={pickerOpen}
           />
