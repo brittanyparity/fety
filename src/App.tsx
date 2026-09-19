@@ -31,6 +31,31 @@ type Page = "dashboard" | "budget" | "spending" | "goals" | "settings" | "calend
 type ViewMode = "cards" | "list";
 type CalView = "monthly" | "weekly" | "biweekly" | "daily" | "yearly";
 
+function ThumbtackIcon({ size = 14, color = "currentColor", headFilled = false }: { size?: number; color?: string; headFilled?: boolean }) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" aria-hidden>
+      <circle cx="15.5" cy="6.5" r="4.25" fill={headFilled ? color : "none"} stroke={color} strokeWidth="2" />
+      <path d="M15.5 10.5L8.5 22" stroke={color} strokeWidth="2.25" strokeLinecap="round" />
+    </svg>
+  );
+}
+
+function WidgetDashboardToggleIcon({ onDashboard }: { onDashboard: boolean }) {
+  const stroke = "var(--ink)";
+  if (onDashboard) {
+    return (
+      <svg width="14" height="14" viewBox="0 0 14 14" fill="none" aria-hidden>
+        <path d="M3.5 3.5l7 7M10.5 3.5l-7 7" stroke={stroke} strokeWidth="1.75" strokeLinecap="round" />
+      </svg>
+    );
+  }
+  return (
+    <svg width="14" height="14" viewBox="0 0 14 14" fill="none" aria-hidden>
+      <circle cx="7" cy="7" r="4.75" stroke={stroke} strokeWidth="1.75" />
+    </svg>
+  );
+}
+
 const CAL_KEY = (d: Date) => d.toISOString().slice(0, 10);
 
 const compactUsd = (n: number) => {
@@ -759,52 +784,24 @@ function WidgetPicker({
                           <p style={{ fontSize: 11, fontWeight: 600, color: "var(--ink)" }}>{w.label}</p>
                           <p style={{ fontSize: 9, color: "var(--ink-3)", marginTop: 1 }}>{w.size === "full" ? "Full width" : w.size === "half" ? "Half width" : "Stat card"}</p>
                         </div>
-                        <div style={{ display: "flex", gap: 6, flexShrink: 0 }}>
-                          {!active && (
-                            <button
-                              type="button"
-                              title="Add to dashboard"
-                              onClick={() => onDashboardToggle(w.id)}
-                              style={{
-                                width: 30,
-                                height: 30,
-                                borderRadius: 8,
-                                border: "1px solid var(--clear-dk)",
-                                background: "var(--clear)",
-                                cursor: "pointer",
-                                display: "flex",
-                                alignItems: "center",
-                                justifyContent: "center",
-                              }}
-                            >
-                              <svg width="14" height="14" viewBox="0 0 14 14" fill="none" aria-hidden>
-                                <path d="M2.5 7.2l3 3 6-6.5" stroke="var(--clear-dk)" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" />
-                              </svg>
-                            </button>
-                          )}
-                          {active && (
-                            <button
-                              type="button"
-                              title="Remove from dashboard"
-                              onClick={() => onDashboardToggle(w.id)}
-                              style={{
-                                width: 30,
-                                height: 30,
-                                borderRadius: 8,
-                                border: "1px solid var(--trouble-dk)",
-                                background: "#FFECE8",
-                                cursor: "pointer",
-                                display: "flex",
-                                alignItems: "center",
-                                justifyContent: "center",
-                              }}
-                            >
-                              <svg width="12" height="12" viewBox="0 0 12 12" fill="none" aria-hidden>
-                                <path d="M2.5 2.5l7 7M9.5 2.5l-7 7" stroke="var(--trouble-dk)" strokeWidth="1.6" strokeLinecap="round" />
-                              </svg>
-                            </button>
-                          )}
-                        </div>
+                        <button
+                          type="button"
+                          title={active ? "Remove from dashboard" : "Add to dashboard"}
+                          onClick={() => onDashboardToggle(w.id)}
+                          style={{
+                            width: 30,
+                            height: 30,
+                            borderRadius: 8,
+                            border: "1px solid var(--ink)",
+                            background: "var(--surface)",
+                            cursor: "pointer",
+                            display: "flex",
+                            alignItems: "center",
+                            justifyContent: "center",
+                          }}
+                        >
+                          <WidgetDashboardToggleIcon onDashboard={active} />
+                        </button>
                       </div>
                     </div>
                   );
@@ -1958,15 +1955,11 @@ function DashboardView({
                                 transition: "background 0.12s, border-color 0.12s",
                               }}
                             >
-                              <svg width="12" height="12" viewBox="0 0 12 12" fill="none" aria-hidden>
-                                <path
-                                  d="M6 1.5v9M3.5 4L6 1.5 8.5 4M2.5 10.5h7"
-                                  stroke={positionLocked ? "#fff" : "var(--ink-2)"}
-                                  strokeWidth="1.3"
-                                  strokeLinecap="round"
-                                  strokeLinejoin="round"
-                                />
-                              </svg>
+                              <ThumbtackIcon
+                                size={14}
+                                color={positionLocked ? "#fff" : "var(--ink-2)"}
+                                headFilled={positionLocked}
+                              />
                             </button>
                           )}
                           <button
@@ -2024,6 +2017,7 @@ export default function App() {
     updateTransaction,
     updateBill,
     updateCategoryBudget,
+    deleteCategory,
     addBill,
     deleteBill,
     addIncomeStream,
@@ -2176,6 +2170,7 @@ export default function App() {
             transactionTypes={transactionTypes}
             viewMode={viewMode}
             onUpdateBudget={updateCategoryBudget}
+            onDeleteCategory={deleteCategory}
             onUpdateBill={updateBill}
             onAddBill={addBill}
             onDeleteBill={deleteBill}

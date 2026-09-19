@@ -70,6 +70,7 @@ export function BudgetManageView({
   transactionTypes,
   viewMode,
   onUpdateBudget,
+  onDeleteCategory,
   onUpdateBill,
   onAddBill,
   onDeleteBill,
@@ -91,6 +92,7 @@ export function BudgetManageView({
   transactionTypes: FetyTransactionType[];
   viewMode: ViewMode;
   onUpdateBudget: (id: string, monthlyBudget: number) => void;
+  onDeleteCategory: (id: string) => void;
   onUpdateBill: (id: string, updates: Partial<Pick<Bill, "name" | "amount" | "dueDay" | "frequency" | "category" | "icon">>) => void;
   onAddBill: (bill: Omit<Bill, "id">) => void;
   onDeleteBill: (id: string) => void;
@@ -465,13 +467,21 @@ export function BudgetManageView({
             <div key={c.id} style={{ background: "var(--surface)", borderRadius: 14, padding: "16px 18px", border: "1px solid var(--border)" }}>
               <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 10 }}>
                 <span style={{ fontSize: 18 }}>{c.icon}</span>
-                <span style={{ fontSize: 13, fontWeight: 600 }}>{c.name}</span>
+                <span style={{ fontSize: 13, fontWeight: 600, flex: 1 }}>{c.name}</span>
                 {over && <span style={{ fontSize: 9, color: "var(--trouble-dk)", background: "#FFECE8", padding: "2px 6px", borderRadius: 99 }}>Over</span>}
+                <button
+                  type="button"
+                  onClick={() => onDeleteCategory(c.id)}
+                  style={{ border: "none", background: "transparent", color: "var(--ink-3)", cursor: "pointer", fontSize: 11, flexShrink: 0 }}
+                >
+                  Remove
+                </button>
               </div>
               <EditableNumber
                 label="Monthly cap"
                 value={c.monthlyBudget}
                 format={usd}
+                currency
                 onSave={(n) => onUpdateBudget(c.id, n)}
                 valueStyle={{ fontSize: 18 }}
               />
@@ -1099,7 +1109,14 @@ export function TransactionsManageView({
   shown.forEach((t) => {
     (byDateISO[t.dateISO] ||= []).push(t);
   });
-  const dateGroups = Object.entries(byDateISO).sort(([a], [b]) => b.localeCompare(a));
+  const dateGroups = Object.entries(byDateISO).sort(([a], [b]) => {
+    const today = todayISO();
+    const aFuture = a > today;
+    const bFuture = b > today;
+    if (aFuture !== bFuture) return aFuture ? 1 : -1;
+    if (aFuture) return a.localeCompare(b);
+    return b.localeCompare(a);
+  });
 
   const submit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -1281,7 +1298,7 @@ export function GoalsManageView({
   const [editTarget, setEditTarget] = useState("");
   const [name, setName] = useState("");
   const [target, setTarget] = useState("");
-  const [saved, setSaved] = useState("0");
+  const [saved, setSaved] = useState("");
   const [targetDate, setTargetDate] = useState("");
   const [monthly, setMonthly] = useState("");
 
@@ -1300,7 +1317,7 @@ export function GoalsManageView({
     });
     setName("");
     setTarget("");
-    setSaved("0");
+    setSaved("");
     setTargetDate("");
     setMonthly("");
     setShowForm(false);
@@ -1327,7 +1344,7 @@ export function GoalsManageView({
                   )}
                 </div>
                 {!editing ? (
-                  <button type="button" onClick={() => { setEditGoalId(g.id); setEditName(g.name); setEditSaved(String(g.saved)); setEditTarget(String(g.target)); }} style={{ border: "none", background: "transparent", color: "var(--ink-2)", cursor: "pointer", fontSize: 11, fontWeight: 600 }}>Edit</button>
+                  <button type="button" onClick={() => { setEditGoalId(g.id); setEditName(g.name); setEditSaved(g.saved === 0 ? "" : String(g.saved)); setEditTarget(g.target === 0 ? "" : String(g.target)); }} style={{ border: "none", background: "transparent", color: "var(--ink-2)", cursor: "pointer", fontSize: 11, fontWeight: 600 }}>Edit</button>
                 ) : (
                   <button type="button" onClick={() => { const s = parseFloat(editSaved); const t = parseFloat(editTarget); if (editName.trim() && Number.isFinite(s) && Number.isFinite(t)) { onUpdate(g.id, { name: editName.trim(), saved: s, target: t }); setEditGoalId(null); } }} style={{ border: "none", background: "var(--ink)", color: "#fff", cursor: "pointer", fontSize: 11, fontWeight: 600, padding: "6px 10px", borderRadius: 8 }}>Save</button>
                 )}
@@ -1336,12 +1353,12 @@ export function GoalsManageView({
               {editing ? (
                 <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8 }}>
                   <div>
-                    <label className="fety-label" style={{ display: "block", marginBottom: 4 }}>Saved</label>
-                    <input value={editSaved} onChange={(e) => setEditSaved(e.target.value)} type="number" style={inputStyle} />
+                    <label className="fety-label" style={{ display: "block", marginBottom: 4 }}>Saved So Far</label>
+                    <CurrencyInput value={editSaved} onChange={setEditSaved} placeholder="0.00" />
                   </div>
                   <div>
-                    <label className="fety-label" style={{ display: "block", marginBottom: 4 }}>Target</label>
-                    <input value={editTarget} onChange={(e) => setEditTarget(e.target.value)} type="number" style={inputStyle} />
+                    <label className="fety-label" style={{ display: "block", marginBottom: 4 }}>Target Amount</label>
+                    <CurrencyInput value={editTarget} onChange={setEditTarget} placeholder="0.00" />
                   </div>
                 </div>
               ) : (
@@ -1361,13 +1378,49 @@ export function GoalsManageView({
         </button>
       </div>
       {showForm && (
-        <form onSubmit={submit} style={{ background: "var(--surface)", border: "1px solid var(--border)", borderRadius: 14, padding: 18, display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(140px, 1fr))", gap: 10 }}>
-          <input placeholder="Goal name" value={name} onChange={(e) => setName(e.target.value)} style={inputStyle} />
-          <input placeholder="Target $" value={target} onChange={(e) => setTarget(e.target.value)} style={inputStyle} type="number" />
-          <input placeholder="Saved $" value={saved} onChange={(e) => setSaved(e.target.value)} style={inputStyle} type="number" />
-          <input placeholder="Target date" value={targetDate} onChange={(e) => setTargetDate(e.target.value)} style={inputStyle} />
-          <input placeholder="Monthly $" value={monthly} onChange={(e) => setMonthly(e.target.value)} style={inputStyle} type="number" />
-          <button type="submit" style={{ padding: "8px 14px", border: "none", background: "var(--ink)", color: "#fff", borderRadius: "var(--radius-ctrl)", cursor: "pointer" }}>Create goal</button>
+        <form
+          onSubmit={submit}
+          style={{
+            background: "var(--surface)",
+            border: "1px solid var(--border)",
+            borderRadius: 14,
+            padding: 18,
+            display: "flex",
+            flexDirection: "column",
+            gap: 12,
+          }}
+        >
+          <p className="fety-label-strong" style={{ margin: 0 }}>New goal</p>
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(160px, 1fr))", gap: 10, alignItems: "end" }}>
+            <div className="fety-form-desc">
+              <label className="fety-label" style={{ display: "block", marginBottom: 4 }}>Goal Name</label>
+              <input value={name} onChange={(e) => setName(e.target.value)} style={inputStyle} placeholder="Emergency fund" />
+            </div>
+            <div>
+              <label className="fety-label" style={{ display: "block", marginBottom: 4 }}>Target Amount</label>
+              <CurrencyInput value={target} onChange={setTarget} placeholder="0.00" />
+            </div>
+            <div>
+              <label className="fety-label" style={{ display: "block", marginBottom: 4 }}>Saved So Far</label>
+              <CurrencyInput value={saved} onChange={setSaved} placeholder="0.00" />
+            </div>
+            <div>
+              <label className="fety-label" style={{ display: "block", marginBottom: 4 }}>Target date</label>
+              <input value={targetDate} onChange={(e) => setTargetDate(e.target.value)} style={inputStyle} placeholder="Dec 2026" />
+            </div>
+            <div>
+              <label className="fety-label" style={{ display: "block", marginBottom: 4 }}>Monthly Contribution</label>
+              <CurrencyInput value={monthly} onChange={setMonthly} placeholder="0.00" />
+            </div>
+          </div>
+          <div style={{ display: "flex", gap: 8 }}>
+            <button type="submit" style={{ padding: "8px 14px", border: "none", background: "var(--ink)", color: "#fff", borderRadius: "var(--radius-ctrl)", cursor: "pointer", fontWeight: 600 }}>
+              Create goal
+            </button>
+            <button type="button" onClick={() => setShowForm(false)} style={{ padding: "8px 14px", border: "1px solid var(--border)", background: "transparent", borderRadius: "var(--radius-ctrl)", cursor: "pointer" }}>
+              Cancel
+            </button>
+          </div>
         </form>
       )}
     </div>

@@ -155,6 +155,13 @@ export function useFetyData() {
     [patch],
   );
 
+  const deleteCategory = useCallback(
+    (id: string) => {
+      patch((prev) => ({ ...prev, categories: prev.categories.filter((c) => c.id !== id) }));
+    },
+    [patch],
+  );
+
   const addBill = useCallback(
     (input: Omit<Bill, "id">) => {
       patch((prev) => {
@@ -484,6 +491,7 @@ export function useFetyData() {
     updateBill,
     updateCategoryBudget,
     addCategory,
+    deleteCategory,
     addBill,
     deleteBill,
     addIncomeStream,

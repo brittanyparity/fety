@@ -102,7 +102,7 @@ export function EditableNumber({
           {label}
         </p>
         {currency ? (
-          <CurrencyInput value={draft} onChange={setDraft} aria-label={label} />
+          <CurrencyInput value={draft} onChange={setDraft} placeholder="0.00" aria-label={label} />
         ) : (
           <input
             type="text"
