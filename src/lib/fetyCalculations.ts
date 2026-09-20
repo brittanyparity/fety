@@ -41,6 +41,41 @@ export function formatNavDate(d = new Date()): string {
   return d.toLocaleDateString(undefined, { month: "short", day: "numeric" });
 }
 
+const CONVERSATIONAL_MONTHS = [
+  "Jan.",
+  "Feb.",
+  "Mar.",
+  "Apr.",
+  "May",
+  "June",
+  "July",
+  "Aug.",
+  "Sept.",
+  "Oct.",
+  "Nov.",
+  "Dec.",
+];
+
+/** Chat-friendly date, e.g. "Sept. 23, 2026". Uses "today" / "yesterday" when applicable. */
+export function formatConversationalDate(dateISO: string): string {
+  const iso = dateISO.trim();
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(iso)) return dateISO;
+  const today = todayISO();
+  const yesterday = new Date();
+  yesterday.setDate(yesterday.getDate() - 1);
+  const yISO = yesterday.toISOString().slice(0, 10);
+  if (iso === today) return "today";
+  if (iso === yISO) return "yesterday";
+  const d = new Date(`${iso}T12:00:00`);
+  if (Number.isNaN(d.getTime())) return dateISO;
+  return `${CONVERSATIONAL_MONTHS[d.getMonth()]} ${d.getDate()}, ${d.getFullYear()}`;
+}
+
+/** Replace ISO dates (YYYY-MM-DD) in assistant/chat copy with conversational dates. */
+export function conversationalizeDatesInText(text: string): string {
+  return text.replace(/\b(\d{4}-\d{2}-\d{2})\b/g, (match) => formatConversationalDate(match));
+}
+
 function startOfWeek(d: Date): Date {
   const x = new Date(d);
   const day = x.getDay();

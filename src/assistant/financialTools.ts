@@ -1,4 +1,4 @@
-import { computeSummary, todayISO } from "../lib/fetyCalculations";
+import { computeSummary, formatConversationalDate, todayISO } from "../lib/fetyCalculations";
 import { goalSavedTotal } from "../lib/ledger";
 import { nextBillOccurrenceOnOrAfter } from "../lib/billScheduling";
 import type { Bill, FinanceSummary, FetyStore, Transaction } from "../types/fety";
@@ -48,7 +48,9 @@ export function getUpcomingBills(store: FetyStore, ref = new Date()): { lines: s
       (new Date(`${next}T12:00:00`).getTime() - new Date(`${todayIso}T12:00:00`).getTime()) / 86400000,
     );
     const freq = b.frequency ?? "monthly";
-    return `${b.name}: ${usd(b.amount)} · next due ${next}${daysUntil === 0 ? " (today)" : daysUntil <= 7 ? ` (~${daysUntil}d)` : ""} · ${freq}`;
+    const dueLabel = formatConversationalDate(next);
+    const suffix = daysUntil === 0 ? "" : daysUntil <= 7 ? ` (~${daysUntil}d)` : "";
+    return `${b.name}: ${usd(b.amount)} · next due ${dueLabel}${suffix} · ${freq}`;
   });
   return { lines };
 }

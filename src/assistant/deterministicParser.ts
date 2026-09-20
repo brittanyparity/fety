@@ -1,4 +1,4 @@
-import { todayISO } from "../lib/fetyCalculations";
+import { formatConversationalDate, todayISO } from "../lib/fetyCalculations";
 import type { TransactionType } from "../types/fety";
 import {
   findBestTransactionMatch,
@@ -242,7 +242,7 @@ export function parseDeterministicIntent(message: string, ctx: AssistantContext)
         confidence: 0.65,
         arguments: {},
         requiresConfirmation: false,
-        clarification: `Which one? ${candidates.map((c) => `"${c.desc}" (${c.dateISO})`).join(" · ")}`,
+        clarification: `Which one? ${candidates.map((c) => `"${c.desc}" (${formatConversationalDate(c.dateISO)})`).join(" · ")}`,
       };
     }
     return {

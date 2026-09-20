@@ -1,4 +1,5 @@
 import type { FinanceSummary } from "../types/fety";
+import { formatConversationalDate } from "../lib/fetyCalculations";
 import {
   calculateAffordability,
   getCashFlowSnapshot,
@@ -168,14 +169,16 @@ function replyFromReadIntent(parsed: ParsedIntent, ctx: AssistantContext): Assis
     case "get_transactions": {
       const recent = store.transactions.slice(0, 6);
       if (recent.length === 0) return { text: "No transactions yet." };
-      const lines = recent.map((t) => `${t.dateISO} · ${t.desc} · ${t.amount >= 0 ? "+" : ""}${usd(t.amount)}`);
+      const lines = recent.map(
+        (t) => `${formatConversationalDate(t.dateISO)} · ${t.desc} · ${t.amount >= 0 ? "+" : ""}${usd(t.amount)}`,
+      );
       return { text: `Latest: ${lines[0]}`, resultCard: { title: "Recent transactions", lines } };
     }
     case "search_transactions": {
       const q = String(parsed.arguments.query ?? "");
       const found = searchTransactions(store, q);
       if (found.length === 0) return { text: `No transactions matching "${q}".` };
-      const lines = found.map((t) => `${t.desc} · ${usd(Math.abs(t.amount))} · ${t.dateISO}`);
+      const lines = found.map((t) => `${t.desc} · ${usd(Math.abs(t.amount))} · ${formatConversationalDate(t.dateISO)}`);
       return { text: `Found ${found.length} match(es).`, resultCard: { title: "Search", lines } };
     }
     case "general_financial_question": {

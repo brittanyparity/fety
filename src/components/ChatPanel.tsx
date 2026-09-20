@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import type { ChatMessage } from "../types/fety";
+import { conversationalizeDatesInText } from "../lib/fetyCalculations";
 
 const SUGGESTED_PROMPTS = [
   "What's my Spending Power?",
@@ -204,7 +205,7 @@ function ChatBubble({
           border: isUser ? "none" : "1px solid var(--border)",
         }}
       >
-        {msg.text}
+        {conversationalizeDatesInText(msg.text)}
         {msg.resultCard && (
           <div
             style={{
@@ -218,7 +219,7 @@ function ChatBubble({
             <p style={{ fontSize: 10, fontWeight: 600, color: "var(--ink-2)", marginBottom: 6 }}>{msg.resultCard.title}</p>
             {msg.resultCard.lines.map((line, i) => (
               <p key={i} style={{ fontSize: 11, color: "var(--ink-2)", margin: i > 0 ? "4px 0 0" : 0, lineHeight: 1.45 }}>
-                {line}
+                {conversationalizeDatesInText(line)}
               </p>
             ))}
           </div>
@@ -226,7 +227,7 @@ function ChatBubble({
         {msg.confirmationId && (
           <div style={{ marginTop: 10, display: "flex", flexDirection: "column", gap: 8 }}>
             {msg.confirmationTitle && (
-              <p style={{ fontSize: 11, fontWeight: 600, color: "var(--ink)" }}>{msg.confirmationTitle}</p>
+              <p style={{ fontSize: 11, fontWeight: 600, color: "var(--ink)" }}>{conversationalizeDatesInText(msg.confirmationTitle)}</p>
             )}
             <div style={{ display: "flex", gap: 8 }}>
               <button
