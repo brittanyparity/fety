@@ -11,6 +11,13 @@ export function calBalanceColor(balance: number, whenSelected?: boolean): string
   return calSignedColor(balance, whenSelected);
 }
 
+/** Net worth total: green positive, red negative, amber at zero. */
+export function calNetWorthColor(net: number): string {
+  if (net > 0) return "var(--clear-dk)";
+  if (net < 0) return "var(--trouble-dk)";
+  return "var(--amber-dk)";
+}
+
 export function calDailyNetPositive(startBal: number, endBal: number): boolean {
   return endBal >= startBal;
 }

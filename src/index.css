@@ -575,28 +575,6 @@ html, body, #root {
   min-height: 0;
 }
 
-.fety-build-strip {
-  position: fixed;
-  bottom: 8px;
-  left: 50%;
-  transform: translateX(-50%);
-  z-index: 10000;
-  margin: 0;
-  padding: 4px 10px;
-  border-radius: 99px;
-  font-size: 10px;
-  color: var(--ink-3);
-  background: color-mix(in srgb, var(--surface) 92%, transparent);
-  border: 1px solid var(--border-soft);
-  pointer-events: none;
-  font-family: var(--font-sans);
-}
-
-.fety-build-strip code {
-  font-size: 10px;
-  color: var(--ink-2);
-}
-
 .fety-yearly-legend {
   flex-shrink: 0;
   z-index: 5;

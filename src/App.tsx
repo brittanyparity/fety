@@ -4,7 +4,7 @@ import { useFetyData } from "./hooks/useFetyData";
 import { buildCalendarMap, endingBalanceOnDate, formatNavDate, last6MonthsSpending, last7DayEndingBalances, categorySpendShares, todayISO } from "./lib/fetyCalculations";
 import { formatTransactionDetailLine, goalSavedTotal, accountBalanceWithTransactions, accountBalanceAsOfISO, formatAccountBalanceDisplay, isDebtAccount, netWorthTotalsOnDate } from "./lib/ledger";
 import { flowForTransactionType, getTransactionTypes, isTransferTransactionType } from "./lib/transactionTypes";
-import { calendarDailyBalanceBg, calendarDailyBalanceBgStrong, calendarEndingBalanceBg, calendarEndingBalanceBgStrong, calBalanceColor, calSignedColor } from "./lib/calendarUi";
+import { calendarEndingBalanceBg, calendarEndingBalanceBgStrong, calBalanceColor, calNetWorthColor, calSignedColor } from "./lib/calendarUi";
 import { CalendarPeriodMenu } from "./components/CalendarPeriodMenu";
 import EmojiIconPicker from "./components/EmojiIconPicker";
 import CurrencyInput, { amountToEditString } from "./components/CurrencyInput";
@@ -28,7 +28,6 @@ import {
 } from "recharts";
 import { nextBillOccurrenceOnOrAfter } from "./lib/billScheduling";
 import WidgetPinIcon from "./components/WidgetPinIcon";
-import FetyBuildStrip from "./components/FetyBuildStrip";
 
 // ─── Types ─────────────────────────────────────────────────────────────────────
 type Page = "dashboard" | "budget" | "spending" | "goals" | "profile" | "networth" | "calendar";
@@ -1454,9 +1453,9 @@ function CalendarAccountsBreakdown({ store, dateISO, compact }: { store: FetySto
   return (
     <details className={`fety-cal-acct-details${compact ? " fety-cal-acct-details-compact" : ""}`}>
       <summary>
-        <span className="fety-cal-acct-details-label">Accounts &amp; debt</span>
-        <span className="fety-cal-acct-details-meta">
-          {usdF(totals.net)} net
+        <span className="fety-cal-acct-details-label">Net Worth</span>
+        <span className="fety-cal-acct-details-meta" style={{ color: calNetWorthColor(totals.net) }}>
+          {usdF(totals.net)}
         </span>
       </summary>
       <div className="fety-cal-acct-details-body">
@@ -1498,8 +1497,8 @@ function CalendarAccountsBreakdown({ store, dateISO, compact }: { store: FetySto
           </div>
         ) : null}
         <div className="fety-cal-acct-details-totals">
-          <span>Assets {usdF(totals.assets)}</span>
-          <span>Debt {usdF(totals.debts)}</span>
+          <span>Total Assets {usdF(totals.assets)}</span>
+          <span>Total Debts {usdF(totals.debts)}</span>
         </div>
       </div>
     </details>
@@ -1509,8 +1508,6 @@ function CalendarAccountsBreakdown({ store, dateISO, compact }: { store: FetySto
 function DailyCalView({ date, calendarMap, store }: { date: Date; calendarMap: CalendarMap; store: FetyStore }) {
   const key = CAL_KEY(date);
   const data = calendarMap.get(key);
-
-  const net = data ? data.endBal - data.startBal : 0;
 
   return (
     <div style={{ maxWidth: 680, width: "100%", margin: "0 auto", display: "flex", flexDirection: "column", gap: 14 }}>
@@ -1523,10 +1520,6 @@ function DailyCalView({ date, calendarMap, store }: { date: Date; calendarMap: C
           <p style={{ fontSize: 10, fontWeight: 600, color: "var(--ink-3)", marginBottom: 6, textTransform: "uppercase", letterSpacing: "0.16em" }}>Ending Balance</p>
           <p style={{ fontSize: 24, fontWeight: 400, color: calBalanceColor(data?.endBal ?? 0), letterSpacing: "-0.8px", fontFamily: "var(--font-sans)" }}>{data ? usd(data.endBal) : "—"}</p>
           <CalendarAccountsBreakdown store={store} dateISO={key} compact />
-        </div>
-        <div style={{ background: calendarDailyBalanceBgStrong(net), borderRadius: 16, padding: "18px 20px", border: "1px solid var(--border)" }}>
-          <p style={{ fontSize: 10, fontWeight: 600, color: "var(--ink-3)", marginBottom: 6, textTransform: "uppercase", letterSpacing: "0.16em" }}>Net Cash Flow</p>
-          <p style={{ fontSize: 24, fontWeight: 400, color: calSignedColor(net), letterSpacing: "-0.8px", fontFamily: "var(--font-sans)" }}>{data ? (net > 0 ? `+${usd(net)}` : usd(net)) : "—"}</p>
         </div>
       </div>
 
@@ -2508,7 +2501,6 @@ export default function App() {
           onImportTransactionsBulk={importTransactionsBulk}
           onComplete={completeOnboarding}
         />
-        <FetyBuildStrip />
       </>
     );
   }
@@ -2602,7 +2594,6 @@ export default function App() {
           />
         )}
       </div>
-      <FetyBuildStrip />
     </div>
   );
 }

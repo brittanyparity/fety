@@ -22,7 +22,6 @@ import BillScheduleFields from "../components/BillScheduleFields";
 import IncomeScheduleFields from "../components/IncomeScheduleFields";
 import { BILL_FREQUENCY_LABELS, INCOME_FREQUENCY_LABELS } from "../lib/billScheduling";
 import { flowForTransactionType, isTransferTransactionType } from "../lib/transactionTypes";
-import { APP_BUILD_LABEL } from "../lib/appBuildLabel";
 import { accountBalanceWithTransactions, accountActivityForAccount, accountBalanceAsOfISO, accountKind, formatAccountBalanceDisplay, formatTransactionDetailLine, goalContributionsFromTransactions, goalSavedTotal, goalsLinkedToAccount, isDebtAccount, netWorthTotals, normalizeAccountOpeningBalance } from "../lib/ledger";
 import CurrencyInput, { amountToEditString } from "../components/CurrencyInput";
 
@@ -1498,7 +1497,7 @@ export function TransactionsManageView({
       <form onSubmit={submit} className="fety-txn-add-form" style={{ background: "var(--surface)", border: "1px solid var(--border)", borderRadius: 14, padding: "16px 18px" }}>
         <p className="fety-label-strong" style={{ marginBottom: 4 }}>Add transaction</p>
         <p style={{ fontSize: 10, color: "var(--ink-3)", marginBottom: 8 }}>
-          Build {APP_BUILD_LABEL} · Transfer type shows account fields · all types can link a goal below
+          Transfer type shows account fields · all types can link a goal below
         </p>
         {addError ? (
           <p style={{ fontSize: 12, color: "var(--trouble-dk)", marginBottom: 8 }} role="alert">
@@ -2070,11 +2069,6 @@ export function ProfileSettingsView({
           Run setup wizard again
         </button>
       )}
-      <p style={{ fontSize: 11, color: "var(--ink-3)", marginTop: 8 }}>
-        App build: <code style={{ fontSize: 10 }}>{APP_BUILD_LABEL}</code>
-        {" · "}
-        If features are missing, refresh the Figma Make preview or sync the latest Git commit.
-      </p>
     </div>
   );
 }
