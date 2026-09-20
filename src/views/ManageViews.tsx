@@ -1326,6 +1326,7 @@ export function TransactionsManageView({
   const [editFromAccountId, setEditFromAccountId] = useState("");
   const [editToAccountId, setEditToAccountId] = useState("");
   const [editGoalId, setEditGoalId] = useState("");
+  const [addError, setAddError] = useState<string | null>(null);
 
   const shown =
     filter === "All"
@@ -1350,10 +1351,22 @@ export function TransactionsManageView({
 
   const submit = (e: React.FormEvent) => {
     e.preventDefault();
+    setAddError(null);
     const n = parseFloat(amount);
-    if (!desc.trim() || !Number.isFinite(n)) return;
+    if (!Number.isFinite(n) || n <= 0) {
+      setAddError("Enter an amount greater than zero.");
+      return;
+    }
+    const flow = flowForTransactionType(ledgerStore, type);
+    const description =
+      desc.trim() ||
+      (flow === "transfer" ? `Transfer — ${category}` : flow === "income" ? `Income — ${category}` : "");
+    if (!description) {
+      setAddError("Add a short description (or pick a category for transfers).");
+      return;
+    }
     onAdd({
-      desc: desc.trim(),
+      desc: description,
       amount: n,
       type,
       category,
@@ -1373,61 +1386,93 @@ export function TransactionsManageView({
 
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
-      <form onSubmit={submit} className="fety-txn-add-form" style={{ background: "var(--surface)", border: "1px solid var(--border)", borderRadius: 14, padding: "16px 18px", gap: 10, alignItems: "end" }}>
-        <div style={{ gridColumn: "1 / -1" }}>
-          <p className="fety-label-strong" style={{ marginBottom: 8 }}>Add transaction</p>
+      {accounts.length === 0 ? (
+        <p style={{ fontSize: 13, color: "var(--ink-2)", lineHeight: 1.45, padding: "12px 14px", background: "var(--bg)", borderRadius: 12, border: "1px solid var(--border-soft)" }}>
+          To record transfers (from → to) and update account balances, add at least two accounts in{" "}
+          <strong style={{ fontWeight: 600 }}>Settings</strong>. Then edit or add a transaction, choose type{" "}
+          <strong style={{ fontWeight: 600 }}>Transfer</strong>, and pick accounts and an optional goal below the date field.
+        </p>
+      ) : null}
+      <form onSubmit={submit} className="fety-txn-add-form" style={{ background: "var(--surface)", border: "1px solid var(--border)", borderRadius: 14, padding: "16px 18px" }}>
+        <p className="fety-label-strong" style={{ marginBottom: 4 }}>Add transaction</p>
+        {addError ? (
+          <p style={{ fontSize: 12, color: "var(--trouble-dk)", marginBottom: 8 }} role="alert">
+            {addError}
+          </p>
+        ) : null}
+        <div className="fety-txn-add-form__row">
+          <EmojiIconPicker value={addIcon} defaultEmoji={iconForType(type)} onChange={setAddIcon} />
+          <div className="fety-form-desc">
+            <label className="fety-label" style={{ display: "block", marginBottom: 4 }}>Description</label>
+            <input
+              value={desc}
+              onChange={(e) => setDesc(e.target.value)}
+              style={inputStyle}
+              placeholder={flowForTransactionType(ledgerStore, type) === "transfer" ? "Optional for transfers" : "Required"}
+            />
+          </div>
+          <div>
+            <label className="fety-label" style={{ display: "block", marginBottom: 4 }}>Amount</label>
+            <CurrencyInput value={amount} onChange={setAmount} placeholder="0.00" />
+          </div>
+          <div>
+            <label className="fety-label" style={{ display: "block", marginBottom: 4 }}>Transaction type</label>
+            <select value={type} onChange={(e) => setType(e.target.value)} style={inputStyle}>
+              {transactionTypes.map((tt) => (
+                <option key={tt.id} value={tt.id}>
+                  {tt.name}
+                </option>
+              ))}
+            </select>
+          </div>
+          <div>
+            <label className="fety-label" style={{ display: "block", marginBottom: 4 }}>Transaction category</label>
+            <select value={category} onChange={(e) => setCategory(e.target.value)} style={inputStyle}>
+              {[...categories.map((c) => c.name), "Income", "Savings", "Other"].filter((v, i, a) => a.indexOf(v) === i).map((name) => (
+                <option key={name} value={name}>
+                  {name}
+                </option>
+              ))}
+            </select>
+          </div>
+          <div>
+            <label className="fety-label" style={{ display: "block", marginBottom: 4 }}>Date</label>
+            <input type="date" value={dateISO} onChange={(e) => setDateISO(e.target.value)} style={inputStyle} />
+          </div>
         </div>
-        <EmojiIconPicker
-          value={addIcon}
-          defaultEmoji={iconForType(type)}
-          onChange={setAddIcon}
-        />
-        <div className="fety-form-desc">
-          <label className="fety-label" style={{ display: "block", marginBottom: 4 }}>Description</label>
-          <input value={desc} onChange={(e) => setDesc(e.target.value)} style={inputStyle} />
+        <div className="fety-txn-add-form__routing">
+          <p className="fety-label-strong fety-txn-add-form__routing-title">Accounts &amp; goals</p>
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(200px, 1fr))", gap: 10 }}>
+            <TransactionRoutingFields
+              type={type}
+              transactionTypes={transactionTypes}
+              accounts={accounts}
+              goals={goals}
+              fromAccountId={fromAccountId}
+              toAccountId={toAccountId}
+              goalId={goalId}
+              onFromAccountId={setFromAccountId}
+              onToAccountId={setToAccountId}
+              onGoalId={setGoalId}
+              storeForFlow={ledgerStore}
+            />
+          </div>
         </div>
-        <div>
-          <label className="fety-label" style={{ display: "block", marginBottom: 4 }}>Amount</label>
-          <CurrencyInput value={amount} onChange={setAmount} placeholder="0.00" />
-        </div>
-        <div>
-          <label className="fety-label" style={{ display: "block", marginBottom: 4 }}>Transaction type</label>
-          <select value={type} onChange={(e) => setType(e.target.value)} style={inputStyle}>
-            {transactionTypes.map((tt) => (
-              <option key={tt.id} value={tt.id}>
-                {tt.name}
-              </option>
-            ))}
-          </select>
-        </div>
-        <div>
-          <label className="fety-label" style={{ display: "block", marginBottom: 4 }}>Transaction category</label>
-          <select value={category} onChange={(e) => setCategory(e.target.value)} style={inputStyle}>
-            {[...categories.map((c) => c.name), "Income", "Savings", "Other"].filter((v, i, a) => a.indexOf(v) === i).map((name) => (
-              <option key={name} value={name}>{name}</option>
-            ))}
-          </select>
-        </div>
-        <div>
-          <label className="fety-label" style={{ display: "block", marginBottom: 4 }}>Date</label>
-          <input type="date" value={dateISO} onChange={(e) => setDateISO(e.target.value)} style={inputStyle} />
-        </div>
-        <div style={{ gridColumn: "1 / -1", display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(200px, 1fr))", gap: 10 }}>
-          <TransactionRoutingFields
-            type={type}
-            transactionTypes={transactionTypes}
-            accounts={accounts}
-            goals={goals}
-            fromAccountId={fromAccountId}
-            toAccountId={toAccountId}
-            goalId={goalId}
-            onFromAccountId={setFromAccountId}
-            onToAccountId={setToAccountId}
-            onGoalId={setGoalId}
-            storeForFlow={ledgerStore}
-          />
-        </div>
-        <button type="submit" style={{ padding: "8px 14px", borderRadius: "var(--radius-ctrl)", border: "none", background: "var(--ink)", color: "#fff", fontWeight: 600, cursor: "pointer" }}>Save</button>
+        <button
+          type="submit"
+          style={{
+            padding: "8px 14px",
+            borderRadius: "var(--radius-ctrl)",
+            border: "none",
+            background: "var(--ink)",
+            color: "#fff",
+            fontWeight: 600,
+            cursor: "pointer",
+            alignSelf: "flex-start",
+          }}
+        >
+          Save transaction
+        </button>
       </form>
 
       <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>

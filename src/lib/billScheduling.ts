@@ -279,20 +279,26 @@ function occurrenceDisplayKey(dateISO: string, item: RecurringScheduleBase, type
   return `${dateISO}|${item.name.trim().toLowerCase()}|${Math.abs(Number(item.amount))}|${typeSuffix}`;
 }
 
+function transactionContentKey(t: Transaction): string {
+  return `${t.dateISO}|${t.desc.trim().toLowerCase()}|${t.amount}|${t.type}`;
+}
+
+/** Drop duplicate projected schedule lines; never remove user-entered (manual) transactions. */
 function collapseDuplicateScheduledTransactions(transactions: Transaction[]): Transaction[] {
-  const bySig = new Map<string, Transaction>();
+  const manual: Transaction[] = [];
+  const scheduled: Transaction[] = [];
   for (const t of transactions) {
-    const sig = `${t.dateISO}|${t.desc.trim().toLowerCase()}|${t.amount}|${t.type}`;
-    const existing = bySig.get(sig);
-    if (!existing) {
-      bySig.set(sig, t);
-      continue;
-    }
-    if (isScheduledTransaction(t.id) && !isScheduledTransaction(existing.id)) {
-      bySig.set(sig, t);
-    }
+    if (isScheduledTransaction(t.id)) scheduled.push(t);
+    else manual.push(t);
   }
-  return [...bySig.values()];
+  const manualKeys = new Set(manual.map(transactionContentKey));
+  const bySig = new Map<string, Transaction>();
+  for (const t of scheduled) {
+    const sig = transactionContentKey(t);
+    if (manualKeys.has(sig)) continue;
+    if (!bySig.has(sig)) bySig.set(sig, t);
+  }
+  return [...manual, ...bySig.values()];
 }
 
 type RebuildStore = Pick<
@@ -454,12 +460,13 @@ export function rebuildTransactionsWithBillSchedule(store: RebuildStore, ref = n
   const unrelatedManual = manual.filter((t) => !consumedManualIds.has(t.id) && !isManualForScheduled(t));
   const leftoverScheduledManual = manual.filter((t) => !consumedManualIds.has(t.id) && isManualForScheduled(t));
 
-  const seenKey = new Set<string>();
+  const seenScheduledKey = new Set<string>();
   const dedupePass = (list: Transaction[]) =>
     list.filter((t) => {
-      const key = `${t.dateISO}|${t.desc.toLowerCase()}|${t.amount}|${t.type}`;
-      if (seenKey.has(key)) return false;
-      seenKey.add(key);
+      if (!isScheduledTransaction(t.id)) return true;
+      const key = transactionContentKey(t);
+      if (seenScheduledKey.has(key)) return false;
+      seenScheduledKey.add(key);
       return true;
     });
 

@@ -384,15 +384,32 @@ html, body, #root {
 }
 
 .fety-txn-add-form {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.fety-txn-add-form__row {
   display: grid;
-  grid-template-columns: auto minmax(180px, 2.5fr) minmax(110px, 1fr) minmax(110px, 1fr) minmax(110px, 1fr) minmax(130px, 1fr) auto;
+  grid-template-columns: auto minmax(160px, 2fr) minmax(100px, 1fr) minmax(100px, 1fr) minmax(100px, 1fr) minmax(120px, 1fr);
+  gap: 10px;
+  align-items: end;
+}
+
+.fety-txn-add-form__routing {
+  padding-top: 4px;
+  border-top: 1px solid var(--border-soft);
+}
+
+.fety-txn-add-form__routing-title {
+  margin-bottom: 10px;
 }
 
 @media (max-width: 960px) {
-  .fety-txn-add-form {
-    grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
+  .fety-txn-add-form__row {
+    grid-template-columns: 1fr 1fr;
   }
-  .fety-txn-add-form .fety-form-desc {
+  .fety-txn-add-form__row .fety-form-desc {
     grid-column: 1 / -1;
   }
 }
