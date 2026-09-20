@@ -82,7 +82,11 @@ export interface Goal {
   saved: number;
   targetDate: string;
   monthlyContribution: number;
+  /** Debt or savings account this goal tracks (e.g. credit card payoff). */
+  accountId?: string;
 }
+
+export type AccountKind = "asset" | "debt";
 
 export interface Account {
   id: string;
@@ -90,6 +94,7 @@ export interface Account {
   type: string;
   balance: number;
   icon: string;
+  kind?: AccountKind;
 }
 
 export interface ChatMessage {

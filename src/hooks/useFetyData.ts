@@ -303,7 +303,7 @@ export function useFetyData() {
   );
 
   const updateGoal = useCallback(
-    (id: string, updates: Partial<Pick<Goal, "saved" | "target" | "monthlyContribution" | "targetDate" | "name" | "icon">>) => {
+    (id: string, updates: Partial<Pick<Goal, "saved" | "target" | "monthlyContribution" | "targetDate" | "name" | "icon" | "accountId">>) => {
       patch((prev) => ({
         ...prev,
         goals: prev.goals.map((g) => (g.id === id ? { ...g, ...updates } : g)),
@@ -333,7 +333,7 @@ export function useFetyData() {
   );
 
   const updateAccount = useCallback(
-    (id: string, updates: Partial<Pick<Account, "name" | "type" | "balance" | "icon">>) => {
+    (id: string, updates: Partial<Pick<Account, "name" | "type" | "balance" | "icon" | "kind">>) => {
       patch((prev) => ({
         ...prev,
         accounts: prev.accounts.map((a) => (a.id === id ? { ...a, ...updates } : a)),

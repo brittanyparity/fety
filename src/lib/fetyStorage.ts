@@ -177,6 +177,10 @@ function migrateStore(store: FetyStore): FetyStore {
   if (!next.recurringTransactions) next = { ...next, recurringTransactions: [] };
   next = {
     ...next,
+    accounts: (next.accounts ?? []).map((a) => ({
+      ...a,
+      kind: a.kind ?? (a.balance < 0 || /credit|debt|loan/i.test(a.type) ? "debt" : "asset"),
+    })),
     transactions: next.transactions.filter((t) => !isScheduledTransaction(t.id)),
   };
   return applyBillScheduleToStore(next);

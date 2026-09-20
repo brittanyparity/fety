@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import type {
   Account,
+  AccountKind,
   Bill,
   BillFrequency,
   BudgetCategory,
@@ -22,7 +23,7 @@ import IncomeScheduleFields from "../components/IncomeScheduleFields";
 import { BILL_FREQUENCY_LABELS, INCOME_FREQUENCY_LABELS } from "../lib/billScheduling";
 import { flowForTransactionType, isTransferTransactionType } from "../lib/transactionTypes";
 import { APP_BUILD_LABEL } from "../lib/appBuildLabel";
-import { accountBalanceWithTransactions, formatTransactionDetailLine, goalContributionsFromTransactions, goalSavedTotal } from "../lib/ledger";
+import { accountBalanceWithTransactions, accountActivityForAccount, accountKind, formatAccountBalanceDisplay, formatTransactionDetailLine, goalContributionsFromTransactions, goalSavedTotal, goalsLinkedToAccount, isDebtAccount, netWorthTotals, normalizeAccountOpeningBalance } from "../lib/ledger";
 import CurrencyInput, { amountToEditString } from "../components/CurrencyInput";
 
 const usd = (n: number) =>
@@ -1348,6 +1349,7 @@ export function TransactionsManageView({
   onAdd,
   onUpdate,
   onDelete,
+  initialAccountFilter,
 }: {
   transactions: Transaction[];
   categories: BudgetCategory[];
@@ -1374,12 +1376,20 @@ export function TransactionsManageView({
     >,
   ) => void;
   onDelete: (id: string) => void;
+  initialAccountFilter?: string | null;
 }) {
   const ledgerStore = { accounts, goals, transactionTypes, typeIcons, transactions, profile: { startingBalance: 0, displayName: "", email: "", currency: "USD" } } as import("../types/fety").FetyStore;
   const defaultTypeId = transactionTypes.find((t) => t.id === "expense")?.id ?? transactionTypes[0]?.id ?? "expense";
   const iconForType = (typeId: string) => transactionTypes.find((t) => t.id === typeId)?.icon ?? "💬";
   const [filter, setFilter] = useState("All");
+  const [accountFilter, setAccountFilter] = useState<string>("all");
   const [editId, setEditId] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (initialAccountFilter) setAccountFilter(initialAccountFilter);
+    else if (initialAccountFilter === null) setAccountFilter("all");
+  }, [initialAccountFilter]);
+
   const [editDesc, setEditDesc] = useState("");
   const [editAmount, setEditAmount] = useState("");
   const [editType, setEditType] = useState<TransactionType>(defaultTypeId);
@@ -1407,12 +1417,15 @@ export function TransactionsManageView({
   }, [type, transactionTypes, typeIcons]);
 
   const shown =
-    filter === "All"
+    (filter === "All"
       ? transactions
       : transactions.filter((t) => {
           const tt = transactionTypes.find((x) => x.id === t.type);
           return tt?.name === filter || t.type === filter;
-        });
+        })
+    ).filter((t) =>
+      accountFilter === "all" ? true : t.fromAccountId === accountFilter || t.toAccountId === accountFilter,
+    );
   const filterLabels = ["All", ...transactionTypes.map((t) => t.name)];
   const byDateISO: Record<string, Transaction[]> = {};
   shown.forEach((t) => {
@@ -1553,7 +1566,21 @@ export function TransactionsManageView({
         </button>
       </form>
 
-      <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
+      <div style={{ display: "flex", gap: 6, flexWrap: "wrap", alignItems: "center" }}>
+        {accounts.length > 0 ? (
+          <select
+            value={accountFilter}
+            onChange={(e) => setAccountFilter(e.target.value)}
+            style={{ ...inputStyle, width: "auto", minWidth: 160, fontSize: 12 }}
+          >
+            <option value="all">All accounts</option>
+            {accounts.map((a) => (
+              <option key={a.id} value={a.id}>
+                {a.icon} {a.name}
+              </option>
+            ))}
+          </select>
+        ) : null}
         {filterLabels.map((f) => (
           <button key={f} type="button" onClick={() => setFilter(f)} style={{ padding: "6px 14px", borderRadius: 99, fontSize: 12, border: "1px solid var(--border)", cursor: "pointer", background: filter === f ? "var(--ink)" : "var(--surface)", color: filter === f ? "#fff" : "var(--ink-2)" }}>{f}</button>
         ))}
@@ -1700,6 +1727,7 @@ export function TransactionsManageView({
 
 export function GoalsManageView({
   goals,
+  accounts,
   goalLedgerStore,
   viewMode,
   onAdd,
@@ -1707,6 +1735,7 @@ export function GoalsManageView({
   onDelete,
 }: {
   goals: Goal[];
+  accounts: Account[];
   goalLedgerStore: import("../types/fety").FetyStore;
   viewMode: ViewMode;
   onAdd: (goal: Omit<Goal, "id">) => void;
@@ -1725,6 +1754,8 @@ export function GoalsManageView({
   const [saved, setSaved] = useState("");
   const [targetDate, setTargetDate] = useState("");
   const [monthly, setMonthly] = useState("");
+  const [accountId, setAccountId] = useState("");
+  const [editAccountId, setEditAccountId] = useState("");
 
   const submit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -1738,12 +1769,14 @@ export function GoalsManageView({
       saved: Number.isFinite(s) ? s : 0,
       targetDate: targetDate || "TBD",
       monthlyContribution: parseFloat(monthly) || 0,
+      accountId: accountId || undefined,
     });
     setName("");
     setTarget("");
     setSaved("");
     setTargetDate("");
     setMonthly("");
+    setAccountId("");
     setShowForm(false);
   };
 
@@ -1754,6 +1787,7 @@ export function GoalsManageView({
     setEditTarget(g.target === 0 ? "" : String(g.target));
     setEditTargetDate(g.targetDate === "TBD" ? "" : g.targetDate);
     setEditMonthly(g.monthlyContribution === 0 ? "" : String(g.monthlyContribution));
+    setEditAccountId(g.accountId ?? "");
   };
 
   const cancelEditGoal = () => {
@@ -1770,6 +1804,7 @@ export function GoalsManageView({
       saved: Number.isFinite(s) ? s : 0,
       targetDate: editTargetDate.trim() || "TBD",
       monthlyContribution: parseFloat(editMonthly) || 0,
+      accountId: editAccountId || undefined,
     });
     setEditGoalId(null);
   };
@@ -1819,6 +1854,24 @@ export function GoalsManageView({
                   <div>
                     <label className="fety-label" style={{ display: "block", marginBottom: 4 }}>Monthly Contribution</label>
                     <CurrencyInput value={editMonthly} onChange={setEditMonthly} placeholder="0.00" />
+                  </div>
+                  <div>
+                    <label className="fety-label" style={{ display: "block", marginBottom: 4 }}>Linked account</label>
+                    <select
+                      value={editAccountId}
+                      onChange={(e) => setEditAccountId(e.target.value)}
+                      style={inputStyle}
+                    >
+                      <option value="">None</option>
+                      {accounts.map((a) => (
+                        <option key={a.id} value={a.id}>
+                          {a.icon} {a.name}
+                        </option>
+                      ))}
+                    </select>
+                    <p style={{ fontSize: 10, color: "var(--ink-3)", marginTop: 4 }}>
+                      Link a debt account to show payoff progress on Net Worth when transactions apply to this goal.
+                    </p>
                   </div>
                   <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginTop: 4 }}>
                     <button
@@ -1870,6 +1923,11 @@ export function GoalsManageView({
                   {fromTx > 0 ? (
                     <p style={{ fontSize: 10, color: "var(--ink-3)", marginTop: 2 }}>{usd(fromTx)} from linked transactions</p>
                   ) : null}
+                  {g.accountId ? (
+                    <p style={{ fontSize: 10, color: "var(--ink-3)", marginTop: 4 }}>
+                      Account: {accounts.find((a) => a.id === g.accountId)?.name ?? "—"}
+                    </p>
+                  ) : null}
                   <p style={{ fontSize: 12, color: "var(--ink-2)", marginTop: 8 }}>{pct}% of target</p>
                   <div style={{ height: 6, background: "var(--paper)", borderRadius: 99, marginTop: 8, overflow: "hidden" }}>
                     <div style={{ width: `${Math.min(pct, 100)}%`, height: "100%", background: "var(--later)" }} />
@@ -1918,6 +1976,17 @@ export function GoalsManageView({
               <label className="fety-label" style={{ display: "block", marginBottom: 4 }}>Monthly Contribution</label>
               <CurrencyInput value={monthly} onChange={setMonthly} placeholder="0.00" />
             </div>
+            <div>
+              <label className="fety-label" style={{ display: "block", marginBottom: 4 }}>Linked account</label>
+              <select value={accountId} onChange={(e) => setAccountId(e.target.value)} style={inputStyle}>
+                <option value="">None</option>
+                {accounts.map((a) => (
+                  <option key={a.id} value={a.id}>
+                    {a.icon} {a.name}
+                  </option>
+                ))}
+              </select>
+            </div>
           </div>
           <div style={{ display: "flex", gap: 8 }}>
             <button type="submit" style={{ padding: "8px 14px", border: "none", background: "var(--ink)", color: "#fff", borderRadius: "var(--radius-ctrl)", cursor: "pointer", fontWeight: 600 }}>
@@ -1933,24 +2002,18 @@ export function GoalsManageView({
   );
 }
 
-export function SettingsManageView({
+export function ProfileSettingsView({
   profile,
   accounts,
-  ledgerStore,
   onUpdateProfile,
-  onUpdateAccount,
   onAddAccount,
-  onDeleteAccount,
   onReset,
   onRestartSetup,
 }: {
   profile: { displayName: string; email: string; currency: string; startingBalance: number };
   accounts: Account[];
-  ledgerStore: import("../types/fety").FetyStore;
   onUpdateProfile: (u: Partial<{ displayName: string; email: string; currency: string; startingBalance: number }>) => void;
-  onUpdateAccount: (id: string, u: Partial<Pick<Account, "name" | "type" | "balance" | "icon">>) => void;
   onAddAccount: (input: Omit<Account, "id">) => void;
-  onDeleteAccount: (id: string) => void;
   onReset: () => void;
   onRestartSetup?: () => void;
 }) {
@@ -1961,6 +2024,7 @@ export function SettingsManageView({
   const [pStart, setPStart] = useState(String(profile.startingBalance));
   const [newAcctName, setNewAcctName] = useState("");
   const [newAcctType, setNewAcctType] = useState("Checking");
+  const [newAcctKind, setNewAcctKind] = useState<AccountKind>("asset");
   const [newAcctBalance, setNewAcctBalance] = useState("");
   const [newAcctIcon, setNewAcctIcon] = useState("🏦");
 
@@ -1968,7 +2032,7 @@ export function SettingsManageView({
     <div style={{ display: "flex", flexDirection: "column", gap: 16, maxWidth: 560 }}>
       <div style={{ background: "var(--surface)", borderRadius: 14, border: "1px solid var(--border)", padding: "18px 20px" }}>
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 12 }}>
-          <p className="fety-label-strong">Profile</p>
+          <p className="fety-label-strong">Personal info</p>
           {!profileEdit ? (
             <button type="button" onClick={() => { setProfileEdit(true); setPName(profile.displayName); setPEmail(profile.email); setPCurrency(profile.currency); setPStart(String(profile.startingBalance)); }} style={{ border: "none", background: "transparent", color: "var(--ink-2)", cursor: "pointer", fontSize: 11, fontWeight: 600 }}>Edit</button>
           ) : (
@@ -1996,71 +2060,53 @@ export function SettingsManageView({
       </div>
 
       <div style={{ background: "var(--surface)", borderRadius: 14, border: "1px solid var(--border)", padding: "18px 20px" }}>
-        <p className="fety-label-strong" style={{ marginBottom: 6 }}>Accounts</p>
+        <p className="fety-label-strong" style={{ marginBottom: 6 }}>Add accounts</p>
         <p style={{ fontSize: 12, color: "var(--ink-2)", marginBottom: 14, lineHeight: 1.45 }}>
-          Track where your money lives. Opening balance plus linked transactions update the current balance shown below.
+          Add checking, savings, and debt accounts here. Balances and activity live on Net Worth (profile menu).
         </p>
-        {accounts.length === 0 ? (
-          <p style={{ fontSize: 13, color: "var(--ink-3)", marginBottom: 12 }}>No accounts yet. Add one below.</p>
-        ) : (
-          <div style={{ display: "flex", flexDirection: "column", gap: 10, marginBottom: 16 }}>
+        {accounts.length > 0 ? (
+          <div style={{ display: "flex", flexWrap: "wrap", gap: 8, marginBottom: 14 }}>
             {accounts.map((a) => (
-              <div key={a.id} style={{ padding: "12px 14px", border: "1px solid var(--border-soft)", borderRadius: 12 }}>
-                <div style={{ display: "flex", alignItems: "flex-start", gap: 10 }}>
-                  <EmojiIconPicker
-                    value={a.icon}
-                    onChange={(icon) => onUpdateAccount(a.id, { icon })}
-                  />
-                  <div style={{ flex: 1, minWidth: 0 }}>
-                    <EditableText label="Account name" value={a.name} onSave={(name) => onUpdateAccount(a.id, { name })} />
-                    <EditableText label="Account type" value={a.type} onSave={(type) => onUpdateAccount(a.id, { type })} valueStyle={{ fontSize: 12 }} />
-                    <EditableNumber
-                      label="Opening balance"
-                      value={a.balance}
-                      format={usdF}
-                      currency
-                      allowNegative
-                      onSave={(balance) => onUpdateAccount(a.id, { balance })}
-                      valueStyle={{ fontSize: 18 }}
-                    />
-                    <p style={{ fontSize: 11, color: "var(--ink-3)", marginTop: 6 }}>
-                      Current balance:{" "}
-                      <span style={{ fontWeight: 600, color: "var(--ink-2)" }}>{usdF(accountBalanceWithTransactions(ledgerStore, a.id))}</span>
-                    </p>
-                  </div>
-                  <button
-                    type="button"
-                    onClick={() => {
-                      if (confirm(`Remove ${a.name || "this account"}?`)) onDeleteAccount(a.id);
-                    }}
-                    style={{ border: "none", background: "transparent", color: "var(--trouble-dk)", cursor: "pointer", fontSize: 11, flexShrink: 0 }}
-                  >
-                    Remove
-                  </button>
-                </div>
-              </div>
+              <span
+                key={a.id}
+                style={{
+                  fontSize: 11,
+                  padding: "6px 10px",
+                  borderRadius: 99,
+                  border: "1px solid var(--border-soft)",
+                  color: "var(--ink-2)",
+                }}
+              >
+                {a.icon} {a.name}
+                {isDebtAccount(a) ? " · debt" : ""}
+              </span>
             ))}
           </div>
+        ) : (
+          <p style={{ fontSize: 13, color: "var(--ink-3)", marginBottom: 12 }}>No accounts yet. Add one below.</p>
         )}
         <form
           onSubmit={(e) => {
             e.preventDefault();
             if (!newAcctName.trim()) return;
+            const kind = newAcctKind;
             onAddAccount({
               name: newAcctName.trim(),
               type: newAcctType.trim() || "Account",
-              balance: parseFloat(newAcctBalance) || 0,
+              balance: normalizeAccountOpeningBalance(kind, parseFloat(newAcctBalance) || 0),
               icon: newAcctIcon || "🏦",
+              kind,
             });
             setNewAcctName("");
             setNewAcctType("Checking");
+            setNewAcctKind("asset");
             setNewAcctBalance("");
             setNewAcctIcon("🏦");
           }}
-          style={{ display: "grid", gridTemplateColumns: "1.2fr 1fr 1fr auto auto", gap: 8, alignItems: "end" }}
+          style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(140px, 1fr))", gap: 10, alignItems: "end" }}
         >
           <div>
-            <label className="fety-label" style={{ display: "block", marginBottom: 4 }}>New account name</label>
+            <label className="fety-label" style={{ display: "block", marginBottom: 4 }}>Name</label>
             <input value={newAcctName} onChange={(e) => setNewAcctName(e.target.value)} style={inputStyle} placeholder="Chase Checking" />
           </div>
           <div>
@@ -2068,11 +2114,24 @@ export function SettingsManageView({
             <input value={newAcctType} onChange={(e) => setNewAcctType(e.target.value)} style={inputStyle} placeholder="Checking" />
           </div>
           <div>
-            <label className="fety-label" style={{ display: "block", marginBottom: 4 }}>Balance</label>
+            <label className="fety-label" style={{ display: "block", marginBottom: 4 }}>Category</label>
+            <select value={newAcctKind} onChange={(e) => setNewAcctKind(e.target.value as AccountKind)} style={inputStyle}>
+              <option value="asset">Asset (cash, savings)</option>
+              <option value="debt">Debt (loan, credit card)</option>
+            </select>
+          </div>
+          <div>
+            <label className="fety-label" style={{ display: "block", marginBottom: 4 }}>
+              {newAcctKind === "debt" ? "Amount owed" : "Opening balance"}
+            </label>
             <CurrencyInput value={newAcctBalance} onChange={setNewAcctBalance} placeholder="0.00" />
           </div>
-          <EmojiIconPicker value={newAcctIcon} onChange={setNewAcctIcon} />
-          <button type="submit" style={{ padding: "8px 14px", borderRadius: "var(--radius-ctrl)", border: "none", background: "var(--ink)", color: "#fff", fontWeight: 600, cursor: "pointer" }}>Add</button>
+          <div style={{ display: "flex", gap: 8, alignItems: "flex-end" }}>
+            <EmojiIconPicker value={newAcctIcon} onChange={setNewAcctIcon} />
+            <button type="submit" style={{ padding: "8px 14px", borderRadius: "var(--radius-ctrl)", border: "none", background: "var(--ink)", color: "#fff", fontWeight: 600, cursor: "pointer", height: 36 }}>
+              Add
+            </button>
+          </div>
         </form>
       </div>
 
@@ -2089,6 +2148,227 @@ export function SettingsManageView({
         {" · "}
         If features are missing, refresh the Figma Make preview or sync the latest Git commit.
       </p>
+    </div>
+  );
+}
+
+export function NetWorthManageView({
+  accounts,
+  ledgerStore,
+  onUpdateAccount,
+  onDeleteAccount,
+  onOpenTransactionsForAccount,
+}: {
+  accounts: Account[];
+  ledgerStore: import("../types/fety").FetyStore;
+  onUpdateAccount: (id: string, u: Partial<Pick<Account, "name" | "type" | "balance" | "icon" | "kind">>) => void;
+  onDeleteAccount: (id: string) => void;
+  onOpenTransactionsForAccount?: (accountId: string) => void;
+}) {
+  const totals = netWorthTotals(ledgerStore);
+  const [editingId, setEditingId] = useState<string | null>(null);
+  const [editName, setEditName] = useState("");
+  const [editType, setEditType] = useState("");
+  const [editKind, setEditKind] = useState<AccountKind>("asset");
+  const [editBalance, setEditBalance] = useState("");
+  const [editIcon, setEditIcon] = useState("🏦");
+
+  const startEdit = (a: Account) => {
+    setEditingId(a.id);
+    setEditName(a.name);
+    setEditType(a.type);
+    setEditKind(accountKind(a));
+    setEditIcon(a.icon);
+    setEditBalance(amountToEditString(isDebtAccount(a) ? Math.abs(a.balance) : a.balance));
+  };
+
+  const cancelEdit = () => setEditingId(null);
+
+  const saveEdit = (id: string) => {
+    const kind = editKind;
+    onUpdateAccount(id, {
+      name: editName.trim() || "Account",
+      type: editType.trim() || "Account",
+      kind,
+      icon: editIcon || "🏦",
+      balance: normalizeAccountOpeningBalance(kind, parseFloat(editBalance) || 0),
+    });
+    cancelEdit();
+  };
+
+  const sorted = [...accounts].sort((a, b) => {
+    const ka = accountKind(a);
+    const kb = accountKind(b);
+    if (ka !== kb) return ka === "asset" ? -1 : 1;
+    return a.name.localeCompare(b.name);
+  });
+
+  return (
+    <div style={{ display: "flex", flexDirection: "column", gap: 16, maxWidth: 720 }}>
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(160px, 1fr))", gap: 12 }}>
+        <div style={{ background: "var(--surface)", border: "1px solid var(--border)", borderRadius: 14, padding: "16px 18px" }}>
+          <p className="fety-label" style={{ marginBottom: 6 }}>Assets</p>
+          <p style={{ fontSize: 22, fontWeight: 600, color: "var(--ink)" }}>{usdF(totals.assets)}</p>
+        </div>
+        <div style={{ background: "var(--surface)", border: "1px solid var(--border)", borderRadius: 14, padding: "16px 18px" }}>
+          <p className="fety-label" style={{ marginBottom: 6 }}>Debts</p>
+          <p style={{ fontSize: 22, fontWeight: 600, color: "var(--trouble-dk)" }}>{usdF(totals.debts)}</p>
+        </div>
+        <div style={{ background: "var(--paper)", border: "1px solid var(--border)", borderRadius: 14, padding: "16px 18px" }}>
+          <p className="fety-label" style={{ marginBottom: 6 }}>Net worth</p>
+          <p style={{ fontSize: 22, fontWeight: 600, color: "var(--ink)" }}>{usdF(totals.net)}</p>
+        </div>
+      </div>
+
+      <p style={{ fontSize: 12, color: "var(--ink-2)", lineHeight: 1.45 }}>
+        Current balances include opening amounts plus transactions (including transfers and goal-linked payments). Filter by account on the Transactions page for the full list.
+      </p>
+
+      {sorted.length === 0 ? (
+        <p style={{ fontSize: 13, color: "var(--ink-3)" }}>No accounts yet. Add them from Profile Settings.</p>
+      ) : (
+        sorted.map((a) => {
+          const current = accountBalanceWithTransactions(ledgerStore, a.id);
+          const activity = accountActivityForAccount(ledgerStore, a.id, 12);
+          const linkedGoals = goalsLinkedToAccount(ledgerStore, a.id);
+          const editing = editingId === a.id;
+          const debt = isDebtAccount(a);
+
+          return (
+            <div key={a.id} style={{ background: "var(--surface)", border: "1px solid var(--border)", borderRadius: 16, padding: "18px 20px" }}>
+              <div style={{ display: "flex", alignItems: "flex-start", gap: 12, marginBottom: editing ? 14 : 10 }}>
+                <span style={{ fontSize: 26, lineHeight: 1 }}>{a.icon}</span>
+                <div style={{ flex: 1, minWidth: 0 }}>
+                  <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
+                    <p style={{ fontSize: 15, fontWeight: 600, color: "var(--ink)" }}>{a.name}</p>
+                    <span style={{ fontSize: 10, fontWeight: 600, padding: "2px 8px", borderRadius: 99, background: "var(--paper)", color: "var(--ink-3)" }}>
+                      {debt ? "Debt" : "Asset"} · {a.type}
+                    </span>
+                  </div>
+                  {!editing ? (
+                    <p style={{ fontSize: 28, fontWeight: 500, color: debt ? "var(--trouble-dk)" : "var(--ink)", marginTop: 8, letterSpacing: "-0.02em" }}>
+                      {formatAccountBalanceDisplay(a, current)}
+                    </p>
+                  ) : null}
+                  {linkedGoals.length > 0 && !editing ? (
+                    <p style={{ fontSize: 11, color: "var(--ink-3)", marginTop: 6 }}>
+                      Goals: {linkedGoals.map((g) => g.name).join(", ")}
+                      {debt ? " — payments toward this account reduce the balance owed." : ""}
+                    </p>
+                  ) : null}
+                </div>
+                {!editing ? (
+                  <div style={{ display: "flex", gap: 6, flexShrink: 0 }}>
+                    <button type="button" onClick={() => startEdit(a)} style={editBtnStyle}>
+                      Edit
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        if (confirm(`Remove ${a.name || "this account"}?`)) onDeleteAccount(a.id);
+                      }}
+                      style={{ ...editBtnStyle, color: "var(--trouble-dk)", borderColor: "var(--border-soft)" }}
+                    >
+                      Remove
+                    </button>
+                  </div>
+                ) : null}
+              </div>
+
+              {editing ? (
+                <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(140px, 1fr))", gap: 10, marginBottom: 14 }}>
+                  <div>
+                    <label className="fety-label" style={{ display: "block", marginBottom: 4 }}>Name</label>
+                    <input value={editName} onChange={(e) => setEditName(e.target.value)} style={inputStyle} />
+                  </div>
+                  <div>
+                    <label className="fety-label" style={{ display: "block", marginBottom: 4 }}>Type</label>
+                    <input value={editType} onChange={(e) => setEditType(e.target.value)} style={inputStyle} />
+                  </div>
+                  <div>
+                    <label className="fety-label" style={{ display: "block", marginBottom: 4 }}>Category</label>
+                    <select value={editKind} onChange={(e) => setEditKind(e.target.value as AccountKind)} style={inputStyle}>
+                      <option value="asset">Asset</option>
+                      <option value="debt">Debt</option>
+                    </select>
+                  </div>
+                  <div>
+                    <label className="fety-label" style={{ display: "block", marginBottom: 4 }}>
+                      {editKind === "debt" ? "Amount owed" : "Opening balance"}
+                    </label>
+                    <CurrencyInput value={editBalance} onChange={setEditBalance} placeholder="0.00" />
+                  </div>
+                  <div style={{ display: "flex", gap: 8, alignItems: "flex-end" }}>
+                    <EmojiIconPicker value={editIcon} onChange={setEditIcon} />
+                  </div>
+                  <div style={{ display: "flex", gap: 8, alignItems: "flex-end" }}>
+                    <button type="button" onClick={() => saveEdit(a.id)} style={{ ...editBtnStyle, background: "var(--ink)", color: "#fff", border: "none" }}>
+                      Save
+                    </button>
+                    <button type="button" onClick={cancelEdit} style={editBtnStyle}>
+                      Cancel
+                    </button>
+                  </div>
+                </div>
+              ) : null}
+
+              {!editing && activity.length > 0 ? (
+                <div style={{ borderTop: "1px solid var(--border-soft)", paddingTop: 12 }}>
+                  <p className="fety-label" style={{ marginBottom: 8 }}>Recent activity</p>
+                  <ul style={{ listStyle: "none", margin: 0, padding: 0, display: "flex", flexDirection: "column", gap: 8 }}>
+                    {activity.map(({ transaction: t, delta, direction }) => {
+                      const detail = formatTransactionDetailLine(t, ledgerStore);
+                      return (
+                        <li
+                          key={t.id}
+                          style={{
+                            display: "flex",
+                            alignItems: "flex-start",
+                            justifyContent: "space-between",
+                            gap: 12,
+                            fontSize: 12,
+                          }}
+                        >
+                          <div style={{ minWidth: 0 }}>
+                            <p style={{ fontWeight: 500, color: "var(--ink)" }}>{t.description || t.category}</p>
+                            <p style={{ fontSize: 10, color: "var(--ink-3)", marginTop: 2 }}>
+                              {t.dateISO}
+                              {detail ? ` · ${detail}` : ""}
+                            </p>
+                          </div>
+                          <span
+                            style={{
+                              fontWeight: 600,
+                              flexShrink: 0,
+                              color: direction === "in" ? "var(--ink)" : "var(--trouble-dk)",
+                            }}
+                          >
+                            {direction === "in" ? "+" : "−"}
+                            {usdF(Math.abs(delta))}
+                          </span>
+                        </li>
+                      );
+                    })}
+                  </ul>
+                  {onOpenTransactionsForAccount ? (
+                    <button
+                      type="button"
+                      onClick={() => onOpenTransactionsForAccount(a.id)}
+                      style={{ marginTop: 10, border: "none", background: "transparent", color: "var(--ink-2)", fontSize: 11, fontWeight: 600, cursor: "pointer", padding: 0 }}
+                    >
+                      View all in Transactions →
+                    </button>
+                  ) : null}
+                </div>
+              ) : !editing ? (
+                <p style={{ fontSize: 11, color: "var(--ink-3)", borderTop: "1px solid var(--border-soft)", paddingTop: 12 }}>
+                  No transaction activity on this account yet.
+                </p>
+              ) : null}
+            </div>
+          );
+        })
+      )}
     </div>
   );
 }

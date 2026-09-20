@@ -1,4 +1,4 @@
-import type { FetyStore, Goal, Transaction } from "../types/fety";
+import type { Account, AccountKind, FetyStore, Goal, Transaction } from "../types/fety";
 import { flowForTransactionType } from "./transactionTypes";
 
 function balanceAsOfISO(store: FetyStore): string {
@@ -87,4 +87,67 @@ export function formatTransactionDetailLine(t: Transaction, store: FetyStore): s
     if (goal) parts.push(`Goal: ${goal.name}`);
   }
   return parts.length ? parts.join(" · ") : null;
+}
+
+const DEBT_TYPE_HINTS = /credit|debt|loan|card/i;
+
+export function accountKind(account: Account): AccountKind {
+  if (account.kind === "debt" || account.kind === "asset") return account.kind;
+  if (DEBT_TYPE_HINTS.test(account.type) || account.balance < 0) return "debt";
+  return "asset";
+}
+
+export function isDebtAccount(account: Account): boolean {
+  return accountKind(account) === "debt";
+}
+
+/** Opening balance for storage: debt accounts stay negative (amount owed). */
+export function normalizeAccountOpeningBalance(kind: AccountKind, raw: number): number {
+  if (kind === "debt") return -Math.abs(raw);
+  return raw;
+}
+
+export function formatAccountBalanceDisplay(account: Account, balance: number): string {
+  if (isDebtAccount(account)) {
+    const owed = Math.abs(balance);
+    return owed === 0 ? "$0 owed" : `${new Intl.NumberFormat("en-US", { style: "currency", currency: "USD" }).format(owed)} owed`;
+  }
+  return new Intl.NumberFormat("en-US", { style: "currency", currency: "USD", minimumFractionDigits: 2 }).format(balance);
+}
+
+export type AccountActivityRow = {
+  transaction: Transaction;
+  delta: number;
+  direction: "in" | "out";
+};
+
+export function accountActivityForAccount(store: FetyStore, accountId: string, limit = 40): AccountActivityRow[] {
+  const asOf = balanceAsOfISO(store);
+  const rows: AccountActivityRow[] = [];
+  for (const t of store.transactions) {
+    if (t.dateISO < asOf) continue;
+    const delta = accountBalanceDelta(t, accountId, store);
+    if (delta === 0) continue;
+    rows.push({ transaction: t, delta, direction: delta > 0 ? "in" : "out" });
+  }
+  return rows.sort((a, b) => b.transaction.dateISO.localeCompare(a.transaction.dateISO)).slice(0, limit);
+}
+
+export function netWorthTotals(store: FetyStore): { assets: number; debts: number; net: number } {
+  let assets = 0;
+  let debts = 0;
+  for (const a of store.accounts) {
+    const bal = accountBalanceWithTransactions(store, a.id);
+    if (isDebtAccount(a)) {
+      if (bal < 0) debts += Math.abs(bal);
+      else if (bal > 0) assets += bal;
+    } else {
+      assets += bal;
+    }
+  }
+  return { assets, debts, net: assets - debts };
+}
+
+export function goalsLinkedToAccount(store: FetyStore, accountId: string): Goal[] {
+  return store.goals.filter((g) => g.accountId === accountId);
 }

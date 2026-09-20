@@ -180,6 +180,51 @@ html, body, #root {
   cursor: pointer;
 }
 
+.fety-nav-profile-active {
+  border-color: var(--ink);
+  background: var(--surface);
+}
+
+.fety-nav-profile-wrap {
+  position: relative;
+}
+
+.fety-nav-profile-menu {
+  position: absolute;
+  top: calc(100% + 8px);
+  right: 0;
+  min-width: 168px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.08);
+  padding: 6px;
+  z-index: 50;
+}
+
+.fety-nav-profile-menu-item {
+  display: block;
+  width: 100%;
+  text-align: left;
+  padding: 10px 12px;
+  border: none;
+  border-radius: 8px;
+  background: transparent;
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--ink);
+  cursor: pointer;
+}
+
+.fety-nav-profile-menu-item:hover {
+  background: var(--paper);
+}
+
+.fety-nav-profile-menu-item-active {
+  background: var(--paper);
+  font-weight: 600;
+}
+
 .fety-nav-hamburger {
   display: none;
   align-items: center;

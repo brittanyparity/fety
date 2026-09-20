@@ -17,7 +17,8 @@ import {
   BudgetManageView,
   TransactionsManageView,
   GoalsManageView,
-  SettingsManageView,
+  ProfileSettingsView,
+  NetWorthManageView,
 } from "./views/ManageViews";
 import { OnboardingView } from "./views/OnboardingView";
 import {
@@ -30,7 +31,7 @@ import WidgetPinIcon from "./components/WidgetPinIcon";
 import FetyBuildStrip from "./components/FetyBuildStrip";
 
 // ─── Types ─────────────────────────────────────────────────────────────────────
-type Page = "dashboard" | "budget" | "spending" | "goals" | "settings" | "calendar";
+type Page = "dashboard" | "budget" | "spending" | "goals" | "profile" | "networth" | "calendar";
 type ViewMode = "cards" | "list";
 type CalView = "monthly" | "weekly" | "biweekly" | "daily" | "yearly";
 
@@ -119,20 +120,38 @@ function TopNav({
   setPage,
   navDate,
   profileInitial,
-  onOpenSettings,
+  onOpenProfile,
+  onOpenNetWorth,
 }: {
   page: Page;
   setPage: (p: Page) => void;
   navDate: string;
   profileInitial: string;
-  onOpenSettings: () => void;
+  onOpenProfile: () => void;
+  onOpenNetWorth: () => void;
 }) {
   const [menuOpen, setMenuOpen] = useState(false);
+  const [profileOpen, setProfileOpen] = useState(false);
+  const profileWrapRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (!profileOpen) return;
+    const onDoc = (e: MouseEvent) => {
+      if (profileWrapRef.current && !profileWrapRef.current.contains(e.target as Node)) {
+        setProfileOpen(false);
+      }
+    };
+    document.addEventListener("mousedown", onDoc);
+    return () => document.removeEventListener("mousedown", onDoc);
+  }, [profileOpen]);
 
   const go = (p: Page) => {
     setPage(p);
     setMenuOpen(false);
+    setProfileOpen(false);
   };
+
+  const profileMenuActive = page === "profile" || page === "networth";
 
   return (
     <header className="fety-nav">
@@ -151,15 +170,45 @@ function TopNav({
       </div>
       <div className="fety-nav-actions">
         <span className="fety-nav-date">{navDate}</span>
-        <button
-          type="button"
-          title="Settings"
-          aria-label="Open settings"
-          onClick={onOpenSettings}
-          className="fety-nav-profile"
-        >
-          {profileInitial}
-        </button>
+        <div className="fety-nav-profile-wrap" ref={profileWrapRef}>
+          <button
+            type="button"
+            title="Profile menu"
+            aria-label="Profile menu"
+            aria-expanded={profileOpen}
+            aria-haspopup="menu"
+            onClick={() => setProfileOpen((o) => !o)}
+            className={`fety-nav-profile${profileMenuActive ? " fety-nav-profile-active" : ""}`}
+          >
+            {profileInitial}
+          </button>
+          {profileOpen ? (
+            <div className="fety-nav-profile-menu" role="menu">
+              <button
+                type="button"
+                role="menuitem"
+                className={`fety-nav-profile-menu-item${page === "profile" ? " fety-nav-profile-menu-item-active" : ""}`}
+                onClick={() => {
+                  onOpenProfile();
+                  setProfileOpen(false);
+                }}
+              >
+                Profile Settings
+              </button>
+              <button
+                type="button"
+                role="menuitem"
+                className={`fety-nav-profile-menu-item${page === "networth" ? " fety-nav-profile-menu-item-active" : ""}`}
+                onClick={() => {
+                  onOpenNetWorth();
+                  setProfileOpen(false);
+                }}
+              >
+                Net Worth
+              </button>
+            </div>
+          ) : null}
+        </div>
       </div>
       <button
         type="button"
@@ -195,13 +244,23 @@ function TopNav({
             ))}
             <button
               type="button"
-              className="fety-nav-drawer-link"
+              className={`fety-nav-drawer-link${page === "profile" ? " fety-nav-drawer-link-active" : ""}`}
               onClick={() => {
-                onOpenSettings();
+                onOpenProfile();
                 setMenuOpen(false);
               }}
             >
-              Settings
+              Profile Settings
+            </button>
+            <button
+              type="button"
+              className={`fety-nav-drawer-link${page === "networth" ? " fety-nav-drawer-link-active" : ""}`}
+              onClick={() => {
+                onOpenNetWorth();
+                setMenuOpen(false);
+              }}
+            >
+              Net Worth
             </button>
           </nav>
         </>
@@ -2086,7 +2145,8 @@ const PAGE_META: Record<Page, { title: string; sub: string }> = {
   spending:  { title: "Transactions", sub: "Every dollar in and out of your accounts." },
   budget:    { title: "Budget", sub: "Tracks are ink; coral marks the category that's over." },
   goals:     { title: "Goals", sub: "Money you're holding for later." },
-  settings:  { title: "Settings", sub: "Profile, linked accounts, and data preferences." },
+  profile:   { title: "Profile Settings", sub: "Personal info, add accounts, and data preferences." },
+  networth:  { title: "Net Worth", sub: "Account balances, debt, and recent activity per account." },
   calendar:  { title: "Calendar", sub: "Cash flow and spending power, day by day." },
 };
 
@@ -2143,6 +2203,7 @@ export default function App() {
 
   const [page, setPage] = useState<Page>("dashboard");
   const [viewMode, setViewMode] = useState<ViewMode>("cards");
+  const [transactionsAccountFilter, setTransactionsAccountFilter] = useState<string | null>(null);
   const [chatCollapsed, setChatCollapsed] = useState(false);
   const [pickerOpen, setPickerOpen] = useState(false);
   const [chatProcessing, setChatProcessing] = useState(false);
@@ -2285,12 +2346,14 @@ export default function App() {
             onAdd={addTransaction}
             onUpdate={updateTransaction}
             onDelete={deleteTransaction}
+            initialAccountFilter={transactionsAccountFilter}
           />
         );
       case "goals":
         return (
           <GoalsManageView
             goals={store.goals}
+            accounts={store.accounts}
             goalLedgerStore={store}
             viewMode={viewMode}
             onAdd={addGoal}
@@ -2298,19 +2361,29 @@ export default function App() {
             onDelete={deleteGoal}
           />
         );
-      case "settings":
+      case "profile":
         return (
-          <SettingsManageView
+          <ProfileSettingsView
             profile={store.profile}
             accounts={store.accounts}
-            ledgerStore={store}
             onUpdateProfile={updateProfile}
-            onUpdateAccount={updateAccount}
             onAddAccount={addAccount}
-            onDeleteAccount={deleteAccount}
             onReset={resetAll}
             onRestartSetup={() => {
               if (confirm("Clear all data and run setup again? This cannot be undone.")) startFreshSetup();
+            }}
+          />
+        );
+      case "networth":
+        return (
+          <NetWorthManageView
+            accounts={store.accounts}
+            ledgerStore={store}
+            onUpdateAccount={updateAccount}
+            onDeleteAccount={deleteAccount}
+            onOpenTransactionsForAccount={(accountId) => {
+              setTransactionsAccountFilter(accountId);
+              setPage("spending");
             }}
           />
         );
@@ -2359,7 +2432,8 @@ export default function App() {
           setPage={setPage}
           navDate={navDate}
           profileInitial={(store.profile.displayName.trim()[0] || "?").toUpperCase()}
-          onOpenSettings={() => setPage("settings")}
+          onOpenProfile={() => setPage("profile")}
+          onOpenNetWorth={() => setPage("networth")}
         />
 
         <div style={{ flex: 1, display: "flex", overflow: "hidden", minHeight: 0 }}>
