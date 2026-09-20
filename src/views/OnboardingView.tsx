@@ -402,35 +402,25 @@ export function OnboardingView({
   };
 
   return (
-    <div style={{ minHeight: "100vh", background: "var(--bg)", display: "flex", flexDirection: "column" }}>
-      <header style={{ padding: "20px 28px", borderBottom: "1px solid var(--border)", background: "var(--surface)" }}>
+    <div className="fety-onboarding">
+      <header className="fety-onboarding-header">
         <FetyLogo />
       </header>
 
-      <div style={{ flex: 1, overflowY: "auto", padding: "32px 24px 48px" }}>
-        <div style={{ maxWidth: 720, margin: "0 auto" }}>
-          <div style={{ display: "flex", gap: 6, flexWrap: "wrap", marginBottom: 28 }}>
+      <div className="fety-onboarding-scroll">
+        <div className="fety-onboarding-inner">
+          <div className="fety-onboarding-steps">
             {STEPS.map((s, i) => (
               <div
                 key={s.id}
-                style={{
-                  fontSize: 10,
-                  fontFamily: "var(--font-mono)",
-                  letterSpacing: "0.1em",
-                  textTransform: "uppercase",
-                  padding: "6px 10px",
-                  borderRadius: 99,
-                  border: `1px solid ${i <= stepIndex ? "var(--ink)" : "var(--border)"}`,
-                  background: i === stepIndex ? "var(--ink)" : i < stepIndex ? "var(--paper)" : "transparent",
-                  color: i === stepIndex ? "#fff" : "var(--ink-2)",
-                }}
+                className={`fety-onboarding-step${i === stepIndex ? " fety-onboarding-step-active" : ""}${i < stepIndex ? " fety-onboarding-step-done" : ""}`}
               >
                 {s.label}
               </div>
             ))}
           </div>
 
-          <div style={{ background: "var(--surface)", border: "1px solid var(--border)", borderRadius: "var(--radius-card)", padding: "28px 32px" }}>
+          <div className="fety-onboarding-card">
             {step === "welcome" && (
               <>
                 <h1 style={{ fontSize: 28, fontWeight: 600, letterSpacing: "-0.03em", color: "var(--ink)", marginBottom: 10 }}>
@@ -465,7 +455,7 @@ export function OnboardingView({
                     <label className="fety-label" style={{ display: "block", marginBottom: 6 }}>Email (optional)</label>
                     <input value={email} onChange={(e) => setEmail(e.target.value)} type="email" style={inputStyle} placeholder="you@example.com" />
                   </div>
-                  <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
+                  <div className="fety-onboarding-two-col">
                     <div>
                       <label className="fety-label" style={{ display: "block", marginBottom: 6 }}>Starting balance</label>
                       <CurrencyInput value={startingBalance} onChange={setStartingBalance} placeholder="0.00" />
@@ -488,7 +478,7 @@ export function OnboardingView({
                     Transactions before this date won&apos;t change your starting balance; activity on and after this date builds from the amount above.
                   </p>
                 </div>
-                <div style={{ display: "flex", gap: 10, marginTop: 24 }}>
+                <div className="fety-onboarding-actions">
                   <button type="button" style={btnSecondary} onClick={goBack}>Back</button>
                   <button type="button" style={btnPrimary} onClick={saveProfile}>Continue</button>
                 </div>
@@ -542,6 +532,7 @@ export function OnboardingView({
                     return (
                       <div
                         key={row.draftId}
+                        className="fety-onboarding-budget-row"
                         style={{
                           display: "grid",
                           gridTemplateColumns: "auto 1fr minmax(110px, 130px) auto",
@@ -646,7 +637,8 @@ export function OnboardingView({
                 >
                   + Add category
                 </button>
-                <div style={{ display: "flex", gap: 10, marginTop: 24 }}>
+                <div className="fety-onboarding-actions"
+                  style={{ display: "flex", gap: 10, marginTop: 24 }}>
                   <button type="button" style={btnSecondary} onClick={goBack}>Back</button>
                   <button type="button" style={btnPrimary} onClick={saveBudget}>Continue</button>
                 </div>
@@ -665,7 +657,7 @@ export function OnboardingView({
                   <div style={{ display: "flex", flexDirection: "column", gap: 14, marginBottom: 12 }}>
                     {billRows.map((b, i) => (
                       <div key={i} style={{ padding: "12px 14px", border: "1px solid var(--border)", borderRadius: 12, background: "var(--surface)" }}>
-                        <div style={{ display: "grid", gridTemplateColumns: "1.2fr 100px 1fr auto", gap: 8, marginBottom: 10 }}>
+                        <div className="fety-onboarding-schedule-grid" style={{ display: "grid", gridTemplateColumns: "1.2fr 100px 1fr auto", gap: 8, marginBottom: 10 }}>
                           <input value={b.name} onChange={(e) => { const n = [...billRows]; n[i].name = e.target.value; setBillRows(n); }} style={inputStyle} placeholder="Rent" />
                           <CurrencyInput
                             compact
@@ -714,7 +706,8 @@ export function OnboardingView({
                 <button type="button" style={btnSecondary} onClick={() => setBillRows((r) => [...r, { name: "", amount: "", dueDay: 1, frequency: "monthly", category: "" }])}>
                   + Add bill
                 </button>
-                <div style={{ display: "flex", gap: 10, marginTop: 24 }}>
+                <div className="fety-onboarding-actions"
+                  style={{ display: "flex", gap: 10, marginTop: 24 }}>
                   <button type="button" style={btnSecondary} onClick={goBack}>Back</button>
                   <button type="button" style={btnSecondary} onClick={() => { onReplaceBills([]); goNext(); }}>Skip</button>
                   <button type="button" style={btnPrimary} onClick={saveBills}>Continue</button>
@@ -734,7 +727,7 @@ export function OnboardingView({
                   <div style={{ display: "flex", flexDirection: "column", gap: 14, marginBottom: 12 }}>
                     {incomeRows.map((b, i) => (
                       <div key={i} style={{ padding: "12px 14px", border: "1px solid var(--border)", borderRadius: 12, background: "var(--surface)" }}>
-                        <div style={{ display: "grid", gridTemplateColumns: "1.2fr 100px 1fr auto", gap: 8, marginBottom: 10 }}>
+                        <div className="fety-onboarding-schedule-grid" style={{ display: "grid", gridTemplateColumns: "1.2fr 100px 1fr auto", gap: 8, marginBottom: 10 }}>
                           <input value={b.name} onChange={(e) => { const n = [...incomeRows]; n[i].name = e.target.value; setIncomeRows(n); }} style={inputStyle} placeholder="Paycheck" />
                           <CurrencyInput
                             compact
@@ -819,7 +812,8 @@ export function OnboardingView({
                 >
                   + Add income stream
                 </button>
-                <div style={{ display: "flex", gap: 10, marginTop: 24 }}>
+                <div className="fety-onboarding-actions"
+                  style={{ display: "flex", gap: 10, marginTop: 24 }}>
                   <button type="button" style={btnSecondary} onClick={goBack}>Back</button>
                   <button type="button" style={btnSecondary} onClick={() => { onReplaceIncomeStreams([]); goNext(); }}>Skip</button>
                   <button type="button" style={btnPrimary} onClick={saveIncomeStreams}>Continue</button>
@@ -839,7 +833,7 @@ export function OnboardingView({
                   <div style={{ display: "flex", flexDirection: "column", gap: 14, marginBottom: 12 }}>
                     {recurringRows.map((b, i) => (
                       <div key={i} style={{ padding: "12px 14px", border: "1px solid var(--border)", borderRadius: 12, background: "var(--surface)" }}>
-                        <div style={{ display: "grid", gridTemplateColumns: "1.2fr 100px 1fr 140px auto", gap: 8, marginBottom: 10 }}>
+                        <div className="fety-onboarding-schedule-grid fety-onboarding-schedule-grid--wide" style={{ display: "grid", gridTemplateColumns: "1.2fr 100px 1fr 140px auto", gap: 8, marginBottom: 10 }}>
                           <input value={b.name} onChange={(e) => { const n = [...recurringRows]; n[i].name = e.target.value; setRecurringRows(n); }} style={inputStyle} placeholder="Gym" />
                           <CurrencyInput
                             compact
@@ -912,7 +906,8 @@ export function OnboardingView({
                 >
                   + Add recurring transaction
                 </button>
-                <div style={{ display: "flex", gap: 10, marginTop: 24 }}>
+                <div className="fety-onboarding-actions"
+                  style={{ display: "flex", gap: 10, marginTop: 24 }}>
                   <button type="button" style={btnSecondary} onClick={goBack}>Back</button>
                   <button type="button" style={btnSecondary} onClick={() => { onReplaceRecurringTransactions([]); goNext(); }}>Skip</button>
                   <button type="button" style={btnPrimary} onClick={saveRecurringTransactions}>Continue</button>
@@ -959,7 +954,8 @@ export function OnboardingView({
                     Detected columns: {parsedCsv.headers.join(", ")}
                   </p>
                 )}
-                <div style={{ display: "flex", gap: 10, marginTop: 24 }}>
+                <div className="fety-onboarding-actions"
+                  style={{ display: "flex", gap: 10, marginTop: 24 }}>
                   <button type="button" style={btnSecondary} onClick={goBack}>Back</button>
                   <button type="button" style={btnSecondary} onClick={skipImport}>Skip import</button>
                   {parsedCsv && (
@@ -988,7 +984,8 @@ export function OnboardingView({
                   onColumnAssignmentsChange={setColumnAssignments}
                 />
                 {importError && <p style={{ color: "var(--trouble-dk)", fontSize: 12, marginTop: 12 }}>{importError}</p>}
-                <div style={{ display: "flex", gap: 10, marginTop: 24 }}>
+                <div className="fety-onboarding-actions"
+                  style={{ display: "flex", gap: 10, marginTop: 24 }}>
                   <button type="button" style={btnSecondary} onClick={() => setStep("import")}>Back</button>
                   <button
                     type="button"
@@ -1012,7 +1009,7 @@ export function OnboardingView({
                 <p style={{ fontSize: 12, color: "var(--ink-3)", marginBottom: 12 }}>
                   {importDrafts.filter((d) => d.include).length} of {importDrafts.length} rows selected
                 </p>
-                <div style={{ maxHeight: 360, overflow: "auto", border: "1px solid var(--border)", borderRadius: 12 }}>
+                <div className="fety-onboarding-table-wrap" style={{ maxHeight: 360, overflow: "auto", border: "1px solid var(--border)", borderRadius: 12 }}>
                   <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 11 }}>
                     <thead>
                       <tr style={{ background: "var(--bg)", textAlign: "left" }}>
@@ -1127,7 +1124,8 @@ export function OnboardingView({
                     </tbody>
                   </table>
                 </div>
-                <div style={{ display: "flex", gap: 10, marginTop: 24 }}>
+                <div className="fety-onboarding-actions"
+                  style={{ display: "flex", gap: 10, marginTop: 24 }}>
                   <button type="button" style={btnSecondary} onClick={() => setStep("map")}>Back</button>
                   <button type="button" style={btnPrimary} onClick={commitImport}>Import selected</button>
                 </div>

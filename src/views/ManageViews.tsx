@@ -2157,8 +2157,8 @@ export function NetWorthManageView({
   });
 
   return (
-    <div style={{ display: "flex", flexDirection: "column", gap: 16, maxWidth: 720 }}>
-      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(160px, 1fr))", gap: 12 }}>
+    <div style={{ display: "flex", flexDirection: "column", gap: 16, maxWidth: 720 }} className="fety-networth-manage">
+      <div className="fety-networth-summary-grid" style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(160px, 1fr))", gap: 12 }}>
         <div style={{ background: "var(--surface)", border: "1px solid var(--border)", borderRadius: 14, padding: "16px 18px" }}>
           <p className="fety-label" style={{ marginBottom: 6 }}>Assets</p>
           <p style={{ fontSize: 22, fontWeight: 600, color: "var(--ink)" }}>{usdF(totals.assets)}</p>
@@ -2209,6 +2209,7 @@ export function NetWorthManageView({
               });
               resetAddForm();
             }}
+            className="fety-networth-add-form"
             style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(140px, 1fr))", gap: 10, alignItems: "end", paddingTop: 4, borderTop: "1px solid var(--border-soft)" }}
           >
             <div>

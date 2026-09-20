@@ -615,6 +615,141 @@ html, body, #root {
   min-width: 0;
 }
 
+/* ─── Setup / onboarding ─────────────────────────────────────────────────── */
+
+.fety-onboarding {
+  min-height: 100dvh;
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+  background: var(--bg);
+  color: var(--ink);
+}
+
+.fety-onboarding-header {
+  flex-shrink: 0;
+  padding: 16px 20px;
+  border-bottom: 1px solid var(--border);
+  background: var(--surface);
+}
+
+.fety-onboarding-scroll {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+}
+
+.fety-onboarding-inner {
+  width: 100%;
+  max-width: 640px;
+  margin: 0 auto;
+  padding: 20px 20px 32px;
+  box-sizing: border-box;
+}
+
+.fety-onboarding-steps {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-bottom: 16px;
+}
+
+.fety-onboarding-step {
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  padding: 5px 10px;
+  border-radius: 99px;
+  border: 1px solid var(--border-soft);
+  background: var(--surface);
+  color: var(--ink-3);
+  white-space: nowrap;
+}
+
+.fety-onboarding-step-active {
+  background: var(--ink);
+  border-color: var(--ink);
+  color: #fff;
+}
+
+.fety-onboarding-step-done {
+  color: var(--ink-2);
+  border-color: var(--border);
+}
+
+.fety-onboarding-card {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 16px;
+  padding: 22px 22px 26px;
+  box-shadow: 0 1px 0 rgba(0, 0, 0, 0.04);
+}
+
+.fety-onboarding-two-col {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 14px;
+}
+
+.fety-onboarding-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin-top: 24px;
+}
+
+.fety-onboarding-actions button {
+  min-height: 44px;
+}
+
+.fety-onboarding-schedule-grid {
+  display: grid;
+  grid-template-columns: 1.2fr 100px 1fr auto;
+  gap: 8px;
+  margin-bottom: 10px;
+  align-items: end;
+}
+
+.fety-onboarding-budget-row {
+  display: grid;
+  grid-template-columns: auto 1fr minmax(110px, 130px) auto;
+  gap: 8px;
+  align-items: end;
+}
+
+.fety-onboarding-table-wrap {
+  overflow: auto;
+  -webkit-overflow-scrolling: touch;
+}
+
+.fety-onboarding-table-wrap table {
+  min-width: 560px;
+}
+
+/* ─── Calendar layout hooks ──────────────────────────────────────────────── */
+
+.fety-calendar-root {
+  min-width: 0;
+}
+
+.fety-cal-month-wrap {
+  width: 100%;
+  min-width: 0;
+}
+
+.fety-cal-week-stack {
+  width: 100%;
+}
+
+.fety-cal-year-scroll-wrap {
+  width: 100%;
+  min-width: 0;
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+}
+
 /* Smaller desktop / tablet: stack compact tiles; full-width as large tiles */
 @media (max-width: 1024px) {
   .fety-widget-row-grid {
@@ -845,6 +980,180 @@ html, body, #root {
 
   .fety-calendar-body {
     flex-direction: column !important;
+  }
+
+  .fety-calendar-root {
+    width: 100% !important;
+    flex: 1;
+    min-height: 0;
+  }
+
+  .fety-calendar-toolbar {
+    padding: 12px 14px !important;
+    gap: 10px !important;
+    align-items: stretch !important;
+  }
+
+  .fety-calendar-toolbar-title {
+    flex: 1 1 100%;
+    font-size: 14px !important;
+  }
+
+  .fety-calendar-toolbar-spacer {
+    display: none;
+  }
+
+  .fety-calendar-toolbar-views {
+    flex: 1 1 100%;
+    width: 100%;
+    overflow-x: auto;
+    flex-wrap: nowrap !important;
+    scrollbar-width: none;
+    -webkit-overflow-scrolling: touch;
+  }
+
+  .fety-calendar-toolbar-views::-webkit-scrollbar {
+    display: none;
+  }
+
+  .fety-calendar-toolbar-views button {
+    flex-shrink: 0;
+    padding: 6px 12px !important;
+  }
+
+  .fety-calendar-toolbar-nav {
+    flex: 1 1 100%;
+    width: 100%;
+    justify-content: space-between !important;
+  }
+
+  .fety-calendar-main {
+    flex: 1 1 auto;
+    min-height: 0;
+    width: 100%;
+  }
+
+  .fety-calendar-scroll {
+    padding: 12px 14px 16px !important;
+  }
+
+  .fety-calendar-side-panel {
+    width: 100% !important;
+    max-width: none !important;
+    flex: 0 0 auto;
+    max-height: min(52vh, 420px);
+    border-left: none !important;
+    border-top: 1px solid var(--border);
+  }
+
+  .fety-calendar-body[data-cal-view="weekly"] .fety-cal-week-row,
+  .fety-calendar-body[data-cal-view="biweekly"] .fety-cal-week-row {
+    grid-template-columns: 1fr !important;
+  }
+
+  .fety-cal-month-dow {
+    display: none;
+  }
+
+  .fety-cal-month-grid {
+    grid-template-columns: 1fr !important;
+    gap: 8px !important;
+  }
+
+  .fety-cal-month-grid button {
+    min-height: 72px !important;
+  }
+
+  .fety-cal-year-scroll-wrap .fety-cal-year-grid {
+    min-width: 520px;
+  }
+
+  .fety-cal-daily-totals {
+    flex-direction: column !important;
+  }
+
+  .fety-yearly-dow-wrap {
+    padding: 0 10px;
+  }
+
+  .fety-yearly-legend {
+    padding: 10px 14px 12px;
+  }
+
+  .fety-onboarding-header {
+    padding: 14px 16px;
+    padding-top: calc(14px + env(safe-area-inset-top, 0px));
+  }
+
+  .fety-onboarding-inner {
+    padding: 16px 14px calc(24px + env(safe-area-inset-bottom, 0px));
+  }
+
+  .fety-onboarding-card {
+    padding: 18px 16px 22px;
+    border-radius: 14px;
+  }
+
+  .fety-onboarding-steps {
+    flex-wrap: nowrap;
+    overflow-x: auto;
+    scrollbar-width: none;
+    margin-bottom: 14px;
+    padding-bottom: 2px;
+  }
+
+  .fety-onboarding-steps::-webkit-scrollbar {
+    display: none;
+  }
+
+  .fety-onboarding-two-col {
+    grid-template-columns: 1fr;
+  }
+
+  .fety-onboarding-schedule-grid,
+  .fety-onboarding-schedule-grid--wide {
+    grid-template-columns: 1fr !important;
+    gap: 10px !important;
+    padding: 12px;
+    border: 1px solid var(--border-soft);
+    border-radius: 12px;
+    background: var(--bg);
+  }
+
+  .fety-onboarding-budget-row {
+    grid-template-columns: 1fr !important;
+  }
+
+  .fety-onboarding-budget-row > button,
+  .fety-onboarding-budget-row > div:last-child {
+    justify-self: start;
+  }
+
+  .fety-onboarding-actions {
+    flex-direction: column;
+  }
+
+  .fety-onboarding-actions button {
+    width: 100%;
+  }
+
+  .fety-page-header {
+    flex-direction: column !important;
+    align-items: stretch !important;
+    gap: 12px;
+  }
+
+  .fety-page-header-text h1 {
+    font-size: 22px !important;
+  }
+
+  .fety-networth-summary-grid,
+  .fety-networth-add-form {
+    grid-template-columns: 1fr !important;
+  }
+
+  .fety-networth-manage {
+    max-width: none !important;
   }
 
   .fety-widget-row-grid {

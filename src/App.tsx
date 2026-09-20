@@ -1012,18 +1012,18 @@ function CalendarView({
   };
 
   return (
-    <div style={{ display: "flex", flexDirection: "column", flex: 1, width: 0, height: "100%", overflow: "hidden" }}>
-      <div style={{ display: "flex", alignItems: "center", gap: 12, padding: "14px 24px", borderBottom: "1px solid var(--border)", background: "var(--surface)", flexShrink: 0, flexWrap: "wrap" }}>
-        <h2 style={{ fontSize: 15, fontWeight: 600, color: "var(--ink)", letterSpacing: "-0.3px" }}>Financial Calendar</h2>
-        <div style={{ flex: 1 }}/>
-        <div style={{ display: "inline-flex", background: "var(--bg)", borderRadius: 99, padding: 3, border: "1px solid var(--border)", gap: 2, flexWrap: "wrap" }}>
+    <div className="fety-calendar-root" style={{ display: "flex", flexDirection: "column", flex: 1, width: 0, height: "100%", overflow: "hidden" }}>
+      <div className="fety-calendar-toolbar" style={{ display: "flex", alignItems: "center", gap: 12, padding: "14px 24px", borderBottom: "1px solid var(--border)", background: "var(--surface)", flexShrink: 0, flexWrap: "wrap" }}>
+        <h2 className="fety-calendar-toolbar-title" style={{ fontSize: 15, fontWeight: 600, color: "var(--ink)", letterSpacing: "-0.3px" }}>Financial Calendar</h2>
+        <div className="fety-calendar-toolbar-spacer" style={{ flex: 1 }}/>
+        <div className="fety-calendar-toolbar-views" style={{ display: "inline-flex", background: "var(--bg)", borderRadius: 99, padding: 3, border: "1px solid var(--border)", gap: 2, flexWrap: "wrap" }}>
           {VIEWS.map((v) => (
             <button key={v.id} onClick={() => setCalView(v.id)} style={{ padding: "5px 14px", borderRadius: 99, fontSize: 11.5, fontWeight: 500, border: "none", cursor: "pointer", transition: "all 0.15s", background: calView === v.id ? "var(--ink)" : "transparent", color: calView === v.id ? "#fff" : "var(--ink-2)" }}>
               {v.label}
             </button>
           ))}
         </div>
-        <div style={{ display: "flex", alignItems: "center", gap: 4 }}>
+        <div className="fety-calendar-toolbar-nav" style={{ display: "flex", alignItems: "center", gap: 4 }}>
           <button onClick={navBack} style={{ width: 30, height: 30, borderRadius: 8, border: "1px solid var(--border)", background: "var(--surface)", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center" }}>
             <svg width="13" height="13" viewBox="0 0 13 13" fill="none"><path d="M8 2.5L5 6.5L8 10.5" stroke="#5A5A55" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/></svg>
           </button>
@@ -1044,11 +1044,11 @@ function CalendarView({
         </div>
       </div>
 
-      <div className="fety-calendar-body" style={{ flex: 1, overflow: "hidden", display: "flex", minHeight: 0 }}>
-        <div style={{ flex: 1, display: "flex", flexDirection: "column", minHeight: 0, minWidth: 0 }}>
+      <div className="fety-calendar-body" data-cal-view={calView} style={{ flex: 1, overflow: "hidden", display: "flex", minHeight: 0 }}>
+        <div className="fety-calendar-main" style={{ flex: 1, display: "flex", flexDirection: "column", minHeight: 0, minWidth: 0 }}>
           {calView === "yearly" && <YearlyWeekdayBar />}
           <div
-            className={calView === "yearly" ? "fety-yearly-scroll" : undefined}
+            className={`fety-calendar-scroll${calView === "yearly" ? " fety-yearly-scroll" : ""}`}
             style={{ flex: 1, overflowY: "auto", padding: calView === "yearly" ? "8px 16px 0" : "16px 20px", minHeight: 0 }}
           >
             {calView === "monthly" && <MonthlyCalGrid month={focusDate} calendarMap={calendarMap} selected={selected} onSelect={setSelected} />}
@@ -1115,8 +1115,8 @@ function YearlyCalGrid({
   const today = new Date();
 
   return (
-    <div>
-      <div style={{ display: "grid", gridTemplateColumns: "repeat(7, 1fr)", gap: 2 }}>
+    <div className="fety-cal-year-scroll-wrap">
+      <div className="fety-cal-year-grid" style={{ display: "grid", gridTemplateColumns: "repeat(7, 1fr)", gap: 2 }}>
         {cells.map((date, i) => {
           if (!date) return <div key={`pad-${i}`} style={{ minHeight: 46, borderRadius: 8, background: "transparent" }} />;
           const key = CAL_KEY(date);
@@ -1232,16 +1232,17 @@ function MonthlyCalGrid({ month, calendarMap, selected, onSelect }: { month: Dat
   const today = new Date();
 
   return (
-    <div>
+    <div className="fety-cal-month-wrap">
+    <div className="fety-cal-month-inner">
       {/* Day headers */}
-      <div style={{ display: "grid", gridTemplateColumns: "repeat(7, 1fr)", gap: 3, marginBottom: 3 }}>
+      <div className="fety-cal-month-dow" style={{ display: "grid", gridTemplateColumns: "repeat(7, 1fr)", gap: 3, marginBottom: 3 }}>
         {DAYS_SHORT.map(d => (
           <div key={d} style={{ textAlign: "center", fontSize: 10, fontWeight: 600, color: "var(--ink-3)", textTransform: "uppercase", letterSpacing: "0.16em", padding: "4px 0" }}>{d}</div>
         ))}
       </div>
 
       {/* Day cells */}
-      <div style={{ display: "grid", gridTemplateColumns: "repeat(7, 1fr)", gap: 3 }}>
+      <div className="fety-cal-month-grid" style={{ display: "grid", gridTemplateColumns: "repeat(7, 1fr)", gap: 3 }}>
         {cells.map((date, i) => {
           if (!date) return <div key={i} />;
           const key  = CAL_KEY(date);
@@ -1334,6 +1335,7 @@ function MonthlyCalGrid({ month, calendarMap, selected, onSelect }: { month: Dat
         </div>
       </div>
     </div>
+    </div>
   );
 }
 
@@ -1408,9 +1410,9 @@ function WeeklyCalGrid({ anchor, days, calendarMap, selected, onSelect }: { anch
   };
 
   return (
-    <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+    <div className="fety-cal-week-stack" style={{ display: "flex", flexDirection: "column", gap: 6 }}>
       {rows.map((row, ri) => (
-        <div key={ri} style={{ display: "grid", gridTemplateColumns: "repeat(7, 1fr)", gap: 6 }}>
+        <div key={ri} className="fety-cal-week-row" style={{ display: "grid", gridTemplateColumns: "repeat(7, 1fr)", gap: 6 }}>
           {row.map(date => DayCell(date))}
         </div>
       ))}
@@ -1510,8 +1512,8 @@ function DailyCalView({ date, calendarMap, store }: { date: Date; calendarMap: C
   const data = calendarMap.get(key);
 
   return (
-    <div style={{ maxWidth: 680, width: "100%", margin: "0 auto", display: "flex", flexDirection: "column", gap: 14 }}>
-      <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+    <div className="fety-cal-daily" style={{ maxWidth: 680, width: "100%", margin: "0 auto", display: "flex", flexDirection: "column", gap: 14 }}>
+      <div className="fety-cal-daily-balance-stack" style={{ display: "flex", flexDirection: "column", gap: 10 }}>
         <div style={{ background: "var(--surface)", borderRadius: 16, padding: "18px 20px", border: "1px solid var(--border)" }}>
           <p style={{ fontSize: 10, fontWeight: 600, color: "var(--ink-3)", marginBottom: 6, textTransform: "uppercase", letterSpacing: "0.16em" }}>Starting Balance</p>
           <p style={{ fontSize: 24, fontWeight: 400, color: calBalanceColor(data?.startBal ?? 0), letterSpacing: "-0.8px", fontFamily: "var(--font-sans)" }}>{data ? usd(data.startBal) : "—"}</p>
@@ -1525,7 +1527,7 @@ function DailyCalView({ date, calendarMap, store }: { date: Date; calendarMap: C
 
       {/* Income / Expenses sub-totals */}
       {data && (data.income > 0 || data.expenses < 0) && (
-        <div style={{ display: "flex", gap: 10 }}>
+        <div className="fety-cal-daily-totals" style={{ display: "flex", gap: 10 }}>
           {data.income > 0 && (
             <div style={{ flex: 1, background: "var(--surface)", border: "1px solid var(--border)", borderRadius: 12, padding: "14px 16px", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
               <span style={{ fontSize: 12, fontWeight: 500, color: "var(--ink-2)" }}>Total In</span>
@@ -1784,7 +1786,7 @@ function CalendarSidePanel({
   };
 
   return (
-    <div style={{ width: 280, flexShrink: 0, borderLeft: "1px solid var(--border)", background: "var(--surface)", display: "flex", flexDirection: "column", overflow: "hidden", minHeight: 0 }}>
+    <div className="fety-calendar-side-panel" style={{ width: 280, flexShrink: 0, borderLeft: "1px solid var(--border)", background: "var(--surface)", display: "flex", flexDirection: "column", overflow: "hidden", minHeight: 0 }}>
       {calView === "yearly" && (
         <div style={{ padding: "12px 14px", borderBottom: "1px solid var(--border)", background: "var(--bg)" }}>
           <p className="fety-label" style={{ marginBottom: 8 }}>Jump to date</p>
@@ -2531,8 +2533,8 @@ export default function App() {
           ) : (
             <>
               <main className="fety-main-scroll" style={{ flex: 1, overflowY: "auto", padding: "24px 24px 48px", minWidth: 0 }}>
-                <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", marginBottom: 20 }}>
-                  <div>
+                <div className="fety-page-header" style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", marginBottom: 20 }}>
+                  <div className="fety-page-header-text">
                     <h1 style={{ fontSize: 26, fontWeight: 600, color: "var(--ink)", letterSpacing: "-0.02em", lineHeight: 1.2 }}>{pageTitle}</h1>
                     <p style={{ fontSize: 15, color: "var(--ink-2)", marginTop: 4, lineHeight: 1.45 }}>{PAGE_META[page].sub}</p>
                   </div>
