@@ -66,9 +66,14 @@ const tileIconBtn: React.CSSProperties = {
   border: "none",
   background: "transparent",
   cursor: "pointer",
-  fontSize: 10,
-  padding: 2,
+  fontSize: 14,
+  padding: "4px 5px",
   lineHeight: 1,
+  minWidth: 28,
+  minHeight: 28,
+  display: "flex",
+  alignItems: "center",
+  justifyContent: "center",
 };
 
 export function BudgetManageView({
@@ -477,7 +482,7 @@ export function BudgetManageView({
           const editingCap = editingCategoryCapId === c.id;
           return (
             <div key={c.id} style={{ position: "relative", background: "var(--surface)", borderRadius: 14, padding: "16px 18px", border: "1px solid var(--border)" }}>
-              <div style={{ position: "absolute", top: 10, right: 10, display: "flex", gap: 2, zIndex: 1 }}>
+              <div style={{ position: "absolute", top: 8, right: 8, display: "flex", gap: 0, zIndex: 1 }}>
                 <button
                   type="button"
                   title="Edit monthly cap"
@@ -501,7 +506,7 @@ export function BudgetManageView({
                   ×
                 </button>
               </div>
-              <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 10, paddingRight: 36 }}>
+              <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 10, paddingRight: 44 }}>
                 <span style={{ fontSize: 18 }}>{c.icon}</span>
                 <span style={{ fontSize: 13, fontWeight: 600, flex: 1 }}>{c.name}</span>
                 {over && <span style={{ fontSize: 9, color: "var(--trouble-dk)", background: "#FFECE8", padding: "2px 6px", borderRadius: 99 }}>Over</span>}
