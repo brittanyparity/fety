@@ -25,20 +25,12 @@ import {
   PieChart, Pie, Cell,
 } from "recharts";
 import { nextBillOccurrenceOnOrAfter } from "./lib/billScheduling";
+import WidgetPinIcon from "./components/WidgetPinIcon";
 
 // ─── Types ─────────────────────────────────────────────────────────────────────
 type Page = "dashboard" | "budget" | "spending" | "goals" | "settings" | "calendar";
 type ViewMode = "cards" | "list";
 type CalView = "monthly" | "weekly" | "biweekly" | "daily" | "yearly";
-
-function ThumbtackIcon({ size = 14, color = "currentColor", headFilled = false }: { size?: number; color?: string; headFilled?: boolean }) {
-  return (
-    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" aria-hidden>
-      <circle cx="15.5" cy="6.5" r="4.25" fill={headFilled ? color : "none"} stroke={color} strokeWidth="2" />
-      <path d="M15.5 10.5L8.5 22" stroke={color} strokeWidth="2.25" strokeLinecap="round" />
-    </svg>
-  );
-}
 
 function WidgetDashboardToggleIcon({ onDashboard }: { onDashboard: boolean }) {
   const stroke = "var(--ink)";
@@ -1955,11 +1947,7 @@ function DashboardView({
                                 transition: "background 0.12s, border-color 0.12s",
                               }}
                             >
-                              <ThumbtackIcon
-                                size={14}
-                                color={positionLocked ? "#fff" : "var(--ink-2)"}
-                                headFilled={positionLocked}
-                              />
+                              <WidgetPinIcon locked={positionLocked} size={16} onDark={positionLocked} />
                             </button>
                           )}
                           <button
