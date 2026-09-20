@@ -1,5 +1,6 @@
 import type { Bill, BudgetCategory, ChatMessage, FetyStore, Goal, Transaction, Account, TransactionType, TypeIconMap } from "../types/fety";
 import { applyBillScheduleToStore, dedupeBills, isScheduledTransaction } from "./billScheduling";
+import { normalizeAccountRecord } from "./ledger";
 import { defaultTransactionTypes, typeIconsFromTransactionTypes } from "./transactionTypes";
 
 export const DEFAULT_TYPE_ICONS: TypeIconMap = {
@@ -66,9 +67,9 @@ const DEFAULT_GOALS: Goal[] = [
 ];
 
 const DEFAULT_ACCOUNTS: Account[] = [
-  { id: "a1", name: "Chase Checking", type: "Checking", balance: 3278, icon: "🏦" },
-  { id: "a2", name: "Marcus Savings", type: "Savings", balance: 8420, icon: "💰" },
-  { id: "a3", name: "Visa Platinum", type: "Credit Card", balance: -614, icon: "💳" },
+  { id: "a1", name: "Chase Checking", type: "Checking", balance: 3278, icon: "🏦", balanceAsOfISO: isoDaysAgo(30) },
+  { id: "a2", name: "Marcus Savings", type: "Savings", balance: 8420, icon: "💰", balanceAsOfISO: isoDaysAgo(30) },
+  { id: "a3", name: "Visa Platinum", type: "Credit Card", balance: -614, icon: "💳", kind: "debt", balanceAsOfISO: isoDaysAgo(30) },
 ];
 
 /** Former dashboard hero blocks — available in picker, not pinned by default. */
@@ -177,10 +178,7 @@ function migrateStore(store: FetyStore): FetyStore {
   if (!next.recurringTransactions) next = { ...next, recurringTransactions: [] };
   next = {
     ...next,
-    accounts: (next.accounts ?? []).map((a) => ({
-      ...a,
-      kind: a.kind ?? (a.balance < 0 || /credit|debt|loan/i.test(a.type) ? "debt" : "asset"),
-    })),
+    accounts: (next.accounts ?? []).map((a) => normalizeAccountRecord(a, next)),
     transactions: next.transactions.filter((t) => !isScheduledTransaction(t.id)),
   };
   return applyBillScheduleToStore(next);

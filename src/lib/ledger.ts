@@ -1,8 +1,14 @@
 import type { Account, AccountKind, FetyStore, Goal, Transaction } from "../types/fety";
+import { todayISO } from "./fetyCalculations";
 import { flowForTransactionType } from "./transactionTypes";
 
 function balanceAsOfISO(store: FetyStore): string {
   return store.profile.balanceAsOfISO ?? "1970-01-01";
+}
+
+/** Date from which this account's opening balance and linked transactions apply. */
+export function accountBalanceAsOfISO(account: Account, store: FetyStore): string {
+  return account.balanceAsOfISO ?? store.profile.balanceAsOfISO ?? "1970-01-01";
 }
 
 export function transactionAmountMagnitude(t: Transaction): number {
@@ -42,8 +48,9 @@ export function accountName(store: FetyStore, accountId: string | undefined): st
 export function accountBalanceWithTransactions(store: FetyStore, accountId: string, throughISO?: string): number {
   const account = store.accounts.find((a) => a.id === accountId);
   if (!account) return 0;
-  const asOf = balanceAsOfISO(store);
+  const asOf = accountBalanceAsOfISO(account, store);
   const end = throughISO ?? new Date().toISOString().slice(0, 10);
+  if (end < asOf) return 0;
   let bal = account.balance;
   const txs = store.transactions
     .filter((t) => t.dateISO >= asOf && t.dateISO <= end)
@@ -107,6 +114,18 @@ export function normalizeAccountOpeningBalance(kind: AccountKind, raw: number): 
   return raw;
 }
 
+/** Ensure debt/asset kind, signed opening balance, and as-of date are set for ledger math. */
+export function normalizeAccountRecord(account: Account, store: FetyStore): Account {
+  const kind = accountKind(account);
+  const magnitude = kind === "debt" ? Math.abs(account.balance) : account.balance;
+  return {
+    ...account,
+    kind,
+    balance: normalizeAccountOpeningBalance(kind, magnitude),
+    balanceAsOfISO: account.balanceAsOfISO ?? store.profile.balanceAsOfISO ?? todayISO(),
+  };
+}
+
 export function formatAccountBalanceDisplay(account: Account, balance: number): string {
   if (isDebtAccount(account)) {
     const owed = Math.abs(balance);
@@ -122,7 +141,8 @@ export type AccountActivityRow = {
 };
 
 export function accountActivityForAccount(store: FetyStore, accountId: string, limit = 40): AccountActivityRow[] {
-  const asOf = balanceAsOfISO(store);
+  const account = store.accounts.find((a) => a.id === accountId);
+  const asOf = account ? accountBalanceAsOfISO(account, store) : balanceAsOfISO(store);
   const rows: AccountActivityRow[] = [];
   for (const t of store.transactions) {
     if (t.dateISO < asOf) continue;

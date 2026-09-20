@@ -95,6 +95,8 @@ export interface Account {
   balance: number;
   icon: string;
   kind?: AccountKind;
+  /** Opening balance applies from this date (inclusive). Transactions before this date do not affect this account. */
+  balanceAsOfISO?: string;
 }
 
 export interface ChatMessage {

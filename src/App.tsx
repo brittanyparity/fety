@@ -2,7 +2,7 @@ import { useState, useRef, useEffect, useCallback, useMemo } from "react";
 import { FetyLogo } from "./FetyLogo";
 import { useFetyData } from "./hooks/useFetyData";
 import { buildCalendarMap, endingBalanceOnDate, formatNavDate, last6MonthsSpending, last7DayEndingBalances, categorySpendShares, todayISO } from "./lib/fetyCalculations";
-import { formatTransactionDetailLine, goalSavedTotal, accountBalanceWithTransactions, formatAccountBalanceDisplay, isDebtAccount, netWorthTotalsOnDate } from "./lib/ledger";
+import { formatTransactionDetailLine, goalSavedTotal, accountBalanceWithTransactions, accountBalanceAsOfISO, formatAccountBalanceDisplay, isDebtAccount, netWorthTotalsOnDate } from "./lib/ledger";
 import { flowForTransactionType, getTransactionTypes, isTransferTransactionType } from "./lib/transactionTypes";
 import { calendarDailyBalanceBg, calendarDailyBalanceBgStrong, calendarEndingBalanceBg, calendarEndingBalanceBgStrong, calBalanceColor, calSignedColor } from "./lib/calendarUi";
 import { CalendarPeriodMenu } from "./components/CalendarPeriodMenu";
@@ -1424,6 +1424,7 @@ function CalendarAccountsBreakdown({ store, dateISO, compact }: { store: FetySto
   const accounts = store.accounts;
   const rows = useMemo(() => {
     return [...accounts]
+      .filter((a) => dateISO >= accountBalanceAsOfISO(a, store))
       .sort((a, b) => {
         const da = isDebtAccount(a) ? 1 : 0;
         const db = isDebtAccount(b) ? 1 : 0;
@@ -1448,6 +1449,7 @@ function CalendarAccountsBreakdown({ store, dateISO, compact }: { store: FetySto
 
   const assets = rows.filter((r) => !isDebtAccount(r.account));
   const debts = rows.filter((r) => isDebtAccount(r.account));
+  const pending = accounts.filter((a) => dateISO < accountBalanceAsOfISO(a, store));
 
   return (
     <details className={`fety-cal-acct-details${compact ? " fety-cal-acct-details-compact" : ""}`}>
@@ -1458,6 +1460,15 @@ function CalendarAccountsBreakdown({ store, dateISO, compact }: { store: FetySto
         </span>
       </summary>
       <div className="fety-cal-acct-details-body">
+        {rows.length === 0 && pending.length > 0 ? (
+          <p style={{ fontSize: 10, color: "var(--ink-3)", margin: 0, lineHeight: 1.4 }}>
+            No accounts active on this date yet. Earliest balance as of{" "}
+            {pending
+              .map((a) => accountBalanceAsOfISO(a, store))
+              .sort()[0]}
+            .
+          </p>
+        ) : null}
         {assets.length > 0 ? (
           <div className="fety-cal-acct-details-group">
             <p className="fety-cal-acct-details-heading">Assets</p>

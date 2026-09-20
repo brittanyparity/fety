@@ -23,7 +23,7 @@ import IncomeScheduleFields from "../components/IncomeScheduleFields";
 import { BILL_FREQUENCY_LABELS, INCOME_FREQUENCY_LABELS } from "../lib/billScheduling";
 import { flowForTransactionType, isTransferTransactionType } from "../lib/transactionTypes";
 import { APP_BUILD_LABEL } from "../lib/appBuildLabel";
-import { accountBalanceWithTransactions, accountActivityForAccount, accountKind, formatAccountBalanceDisplay, formatTransactionDetailLine, goalContributionsFromTransactions, goalSavedTotal, goalsLinkedToAccount, isDebtAccount, netWorthTotals, normalizeAccountOpeningBalance } from "../lib/ledger";
+import { accountBalanceWithTransactions, accountActivityForAccount, accountBalanceAsOfISO, accountKind, formatAccountBalanceDisplay, formatTransactionDetailLine, goalContributionsFromTransactions, goalSavedTotal, goalsLinkedToAccount, isDebtAccount, netWorthTotals, normalizeAccountOpeningBalance } from "../lib/ledger";
 import CurrencyInput, { amountToEditString } from "../components/CurrencyInput";
 
 const usd = (n: number) =>
@@ -37,6 +37,18 @@ const FLOW_LABELS: Record<TransactionFlow, string> = {
   bill: "Bill / recurring due",
   transfer: "Transfer",
 };
+
+function accountBalanceAsOfLabel(kind: AccountKind): string {
+  return kind === "debt" ? "Debt balance as of" : "Balance as of";
+}
+
+function accountOpeningBaselineCopy(account: Account, store: import("../types/fety").FetyStore): string {
+  const asOf = accountBalanceAsOfISO(account, store);
+  const amount = formatAccountBalanceDisplay(account, account.balance);
+  return isDebtAccount(account)
+    ? `Baseline ${amount} · tracked from ${asOf}`
+    : `Opening ${amount} as of ${asOf}`;
+}
 
 const editBtnStyle: React.CSSProperties = {
   borderRadius: 8,
@@ -2077,7 +2089,7 @@ export function NetWorthManageView({
 }: {
   accounts: Account[];
   ledgerStore: import("../types/fety").FetyStore;
-  onUpdateAccount: (id: string, u: Partial<Pick<Account, "name" | "type" | "balance" | "icon" | "kind">>) => void;
+  onUpdateAccount: (id: string, u: Partial<Pick<Account, "name" | "type" | "balance" | "icon" | "kind" | "balanceAsOfISO">>) => void;
   onAddAccount: (input: Omit<Account, "id">) => void;
   onDeleteAccount: (id: string) => void;
   onOpenTransactionsForAccount?: (accountId: string) => void;
@@ -2088,12 +2100,14 @@ export function NetWorthManageView({
   const [editType, setEditType] = useState("");
   const [editKind, setEditKind] = useState<AccountKind>("asset");
   const [editBalance, setEditBalance] = useState("");
+  const [editBalanceAsOf, setEditBalanceAsOf] = useState(() => todayISO());
   const [editIcon, setEditIcon] = useState("🏦");
   const [showAdd, setShowAdd] = useState(false);
   const [newAcctName, setNewAcctName] = useState("");
   const [newAcctType, setNewAcctType] = useState("Checking");
   const [newAcctKind, setNewAcctKind] = useState<AccountKind>("asset");
   const [newAcctBalance, setNewAcctBalance] = useState("");
+  const [newAcctBalanceAsOf, setNewAcctBalanceAsOf] = useState(() => todayISO());
   const [newAcctIcon, setNewAcctIcon] = useState("🏦");
 
   const openAddForm = (kind: AccountKind) => {
@@ -2102,6 +2116,7 @@ export function NetWorthManageView({
     setNewAcctIcon(kind === "debt" ? "💳" : "🏦");
     setNewAcctName("");
     setNewAcctBalance("");
+    setNewAcctBalanceAsOf(todayISO());
     setShowAdd(true);
   };
 
@@ -2111,6 +2126,7 @@ export function NetWorthManageView({
     setNewAcctType("Checking");
     setNewAcctKind("asset");
     setNewAcctBalance("");
+    setNewAcctBalanceAsOf(todayISO());
     setNewAcctIcon("🏦");
   };
 
@@ -2121,6 +2137,7 @@ export function NetWorthManageView({
     setEditKind(accountKind(a));
     setEditIcon(a.icon);
     setEditBalance(amountToEditString(isDebtAccount(a) ? Math.abs(a.balance) : a.balance));
+    setEditBalanceAsOf(a.balanceAsOfISO ?? accountBalanceAsOfISO(a, ledgerStore));
   };
 
   const cancelEdit = () => setEditingId(null);
@@ -2133,6 +2150,7 @@ export function NetWorthManageView({
       kind,
       icon: editIcon || "🏦",
       balance: normalizeAccountOpeningBalance(kind, parseFloat(editBalance) || 0),
+      balanceAsOfISO: editBalanceAsOf || todayISO(),
     });
     cancelEdit();
   };
@@ -2162,7 +2180,7 @@ export function NetWorthManageView({
       </div>
 
       <p style={{ fontSize: 12, color: "var(--ink-2)", lineHeight: 1.45 }}>
-        Current balances include opening amounts plus transactions (including transfers and goal-linked payments). Filter by account on the Transactions page for the full list.
+        Set each account&apos;s opening amount and as-of date (assets and debt). That baseline is the balance on that day; linked transactions update it afterward.
       </p>
 
       <div style={{ background: "var(--surface)", border: "1px solid var(--border)", borderRadius: 14, padding: "16px 18px" }}>
@@ -2193,6 +2211,7 @@ export function NetWorthManageView({
                 balance: normalizeAccountOpeningBalance(kind, parseFloat(newAcctBalance) || 0),
                 icon: newAcctIcon || (kind === "debt" ? "💳" : "🏦"),
                 kind,
+                balanceAsOfISO: newAcctBalanceAsOf || todayISO(),
               });
               resetAddForm();
             }}
@@ -2225,6 +2244,15 @@ export function NetWorthManageView({
               </label>
               <CurrencyInput value={newAcctBalance} onChange={setNewAcctBalance} placeholder="0.00" />
             </div>
+            <div>
+              <label className="fety-label" style={{ display: "block", marginBottom: 4 }}>{accountBalanceAsOfLabel(newAcctKind)}</label>
+              <input
+                type="date"
+                value={newAcctBalanceAsOf}
+                onChange={(e) => setNewAcctBalanceAsOf(e.target.value)}
+                style={inputStyle}
+              />
+            </div>
             <div style={{ display: "flex", gap: 8, alignItems: "flex-end", flexWrap: "wrap" }}>
               <EmojiIconPicker value={newAcctIcon} onChange={setNewAcctIcon} />
               <button type="submit" style={{ ...editBtnStyle, background: "var(--ink)", color: "#fff", border: "none", height: 36, padding: "0 14px" }}>
@@ -2241,7 +2269,11 @@ export function NetWorthManageView({
       {sorted.length === 0 ? (
         <p style={{ fontSize: 13, color: "var(--ink-3)" }}>No accounts yet. Use Add asset or Add debt above.</p>
       ) : (
-        sorted.map((a) => {
+        (() => {
+          const assetAccounts = sorted.filter((a) => !isDebtAccount(a));
+          const debtAccounts = sorted.filter((a) => isDebtAccount(a));
+
+          const renderAccountCard = (a: Account) => {
           const current = accountBalanceWithTransactions(ledgerStore, a.id);
           const activity = accountActivityForAccount(ledgerStore, a.id, 12);
           const linkedGoals = goalsLinkedToAccount(ledgerStore, a.id);
@@ -2260,9 +2292,14 @@ export function NetWorthManageView({
                     </span>
                   </div>
                   {!editing ? (
-                    <p style={{ fontSize: 28, fontWeight: 500, color: debt ? "var(--trouble-dk)" : "var(--ink)", marginTop: 8, letterSpacing: "-0.02em" }}>
-                      {formatAccountBalanceDisplay(a, current)}
-                    </p>
+                    <>
+                      <p style={{ fontSize: 28, fontWeight: 500, color: debt ? "var(--trouble-dk)" : "var(--ink)", marginTop: 8, letterSpacing: "-0.02em" }}>
+                        {formatAccountBalanceDisplay(a, current)}
+                      </p>
+                      <p style={{ fontSize: 11, color: "var(--ink-3)", marginTop: 6 }}>
+                        {accountOpeningBaselineCopy(a, ledgerStore)}
+                      </p>
+                    </>
                   ) : null}
                   {linkedGoals.length > 0 && !editing ? (
                     <p style={{ fontSize: 11, color: "var(--ink-3)", marginTop: 6 }}>
@@ -2311,6 +2348,10 @@ export function NetWorthManageView({
                       {editKind === "debt" ? "Amount owed" : "Opening balance"}
                     </label>
                     <CurrencyInput value={editBalance} onChange={setEditBalance} placeholder="0.00" />
+                  </div>
+                  <div>
+                    <label className="fety-label" style={{ display: "block", marginBottom: 4 }}>{accountBalanceAsOfLabel(editKind)}</label>
+                    <input type="date" value={editBalanceAsOf} onChange={(e) => setEditBalanceAsOf(e.target.value)} style={inputStyle} />
                   </div>
                   <div style={{ display: "flex", gap: 8, alignItems: "flex-end" }}>
                     <EmojiIconPicker value={editIcon} onChange={setEditIcon} />
@@ -2381,7 +2422,28 @@ export function NetWorthManageView({
               ) : null}
             </div>
           );
-        })
+          };
+
+          return (
+            <>
+              {assetAccounts.length > 0 ? (
+                <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+                  <p className="fety-label-strong" style={{ margin: 0 }}>Asset accounts</p>
+                  {assetAccounts.map(renderAccountCard)}
+                </div>
+              ) : null}
+              {debtAccounts.length > 0 ? (
+                <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+                  <p className="fety-label-strong" style={{ margin: 0 }}>Debt accounts</p>
+                  <p style={{ fontSize: 11, color: "var(--ink-3)", marginTop: -6, lineHeight: 1.45 }}>
+                    Set amount owed and debt balance as of date; payments and transfers to this account reduce what you owe after that date.
+                  </p>
+                  {debtAccounts.map(renderAccountCard)}
+                </div>
+              ) : null}
+            </>
+          );
+        })()
       )}
     </div>
   );

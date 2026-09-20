@@ -11,6 +11,7 @@ import {
 } from "../lib/billScheduling";
 import { loadStore, newId, saveStore, resetStore as resetStored, resetToEmptyStore } from "../lib/fetyStorage";
 import { toggleWidgetPositionLock } from "../lib/widgetLayout";
+import { normalizeAccountRecord } from "../lib/ledger";
 import {
   flowForTransactionType,
   iconForTransactionType,
@@ -333,10 +334,12 @@ export function useFetyData() {
   );
 
   const updateAccount = useCallback(
-    (id: string, updates: Partial<Pick<Account, "name" | "type" | "balance" | "icon" | "kind">>) => {
+    (id: string, updates: Partial<Pick<Account, "name" | "type" | "balance" | "icon" | "kind" | "balanceAsOfISO">>) => {
       patch((prev) => ({
         ...prev,
-        accounts: prev.accounts.map((a) => (a.id === id ? { ...a, ...updates } : a)),
+        accounts: prev.accounts.map((a) =>
+          a.id === id ? normalizeAccountRecord({ ...a, ...updates }, prev) : a,
+        ),
       }));
     },
     [patch],
@@ -384,7 +387,7 @@ export function useFetyData() {
     (input: Omit<Account, "id">) => {
       patch((prev) => ({
         ...prev,
-        accounts: [...prev.accounts, { ...input, id: newId("acct") }],
+        accounts: [...prev.accounts, normalizeAccountRecord({ ...input, id: newId("acct") }, prev)],
       }));
     },
     [patch],
