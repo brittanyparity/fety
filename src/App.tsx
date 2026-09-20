@@ -2,7 +2,7 @@ import { useState, useRef, useEffect, useCallback, useMemo } from "react";
 import { FetyLogo } from "./FetyLogo";
 import { useFetyData } from "./hooks/useFetyData";
 import { buildCalendarMap, endingBalanceOnDate, formatNavDate, last6MonthsSpending, last7DayEndingBalances, categorySpendShares, todayISO } from "./lib/fetyCalculations";
-import { formatTransactionDetailLine, goalSavedTotal } from "./lib/ledger";
+import { formatTransactionDetailLine, goalSavedTotal, accountBalanceWithTransactions, formatAccountBalanceDisplay, isDebtAccount, netWorthTotalsOnDate } from "./lib/ledger";
 import { flowForTransactionType, getTransactionTypes, isTransferTransactionType } from "./lib/transactionTypes";
 import { calendarDailyBalanceBg, calendarDailyBalanceBgStrong, calendarEndingBalanceBg, calendarEndingBalanceBgStrong, calBalanceColor, calSignedColor } from "./lib/calendarUi";
 import { CalendarPeriodMenu } from "./components/CalendarPeriodMenu";
@@ -1055,7 +1055,7 @@ function CalendarView({
             {calView === "monthly" && <MonthlyCalGrid month={focusDate} calendarMap={calendarMap} selected={selected} onSelect={setSelected} />}
             {calView === "weekly" && <WeeklyCalGrid anchor={focusDate} days={7} calendarMap={calendarMap} selected={selected} onSelect={setSelected} />}
             {calView === "biweekly" && <WeeklyCalGrid anchor={focusDate} days={14} calendarMap={calendarMap} selected={selected} onSelect={setSelected} />}
-            {calView === "daily" && <DailyCalView date={focusDate} calendarMap={calendarMap} />}
+            {calView === "daily" && <DailyCalView date={focusDate} calendarMap={calendarMap} store={store} />}
             {calView === "yearly" && (
               <YearlyCalGrid
                 year={year}
@@ -1420,7 +1420,82 @@ function WeeklyCalGrid({ anchor, days, calendarMap, selected, onSelect }: { anch
 }
 
 // ─── Daily Calendar View ───────────────────────────────────────────────────────
-function DailyCalView({ date, calendarMap }: { date: Date; calendarMap: CalendarMap }) {
+function CalendarAccountsBreakdown({ store, dateISO, compact }: { store: FetyStore; dateISO: string; compact?: boolean }) {
+  const accounts = store.accounts;
+  const rows = useMemo(() => {
+    return [...accounts]
+      .sort((a, b) => {
+        const da = isDebtAccount(a) ? 1 : 0;
+        const db = isDebtAccount(b) ? 1 : 0;
+        if (da !== db) return da - db;
+        return a.name.localeCompare(b.name);
+      })
+      .map((a) => ({
+        account: a,
+        balance: accountBalanceWithTransactions(store, a.id, dateISO),
+      }));
+  }, [accounts, store, dateISO]);
+
+  const totals = useMemo(() => netWorthTotalsOnDate(store, dateISO), [store, dateISO]);
+
+  if (accounts.length === 0) {
+    return (
+      <p style={{ fontSize: 10, color: "var(--ink-3)", margin: compact ? "8px 0 0" : "10px 0 0", lineHeight: 1.4 }}>
+        Add accounts in Profile Settings to see balances by account here.
+      </p>
+    );
+  }
+
+  const assets = rows.filter((r) => !isDebtAccount(r.account));
+  const debts = rows.filter((r) => isDebtAccount(r.account));
+
+  return (
+    <details className={`fety-cal-acct-details${compact ? " fety-cal-acct-details-compact" : ""}`}>
+      <summary>
+        <span className="fety-cal-acct-details-label">Accounts &amp; debt</span>
+        <span className="fety-cal-acct-details-meta">
+          {usdF(totals.net)} net
+        </span>
+      </summary>
+      <div className="fety-cal-acct-details-body">
+        {assets.length > 0 ? (
+          <div className="fety-cal-acct-details-group">
+            <p className="fety-cal-acct-details-heading">Assets</p>
+            {assets.map(({ account, balance }) => (
+              <div key={account.id} className="fety-cal-acct-details-row">
+                <span className="fety-cal-acct-details-name">
+                  {account.icon} {account.name}
+                </span>
+                <span className="fety-cal-acct-details-amt">{formatAccountBalanceDisplay(account, balance)}</span>
+              </div>
+            ))}
+          </div>
+        ) : null}
+        {debts.length > 0 ? (
+          <div className="fety-cal-acct-details-group">
+            <p className="fety-cal-acct-details-heading">Debt</p>
+            {debts.map(({ account, balance }) => (
+              <div key={account.id} className="fety-cal-acct-details-row">
+                <span className="fety-cal-acct-details-name">
+                  {account.icon} {account.name}
+                </span>
+                <span className="fety-cal-acct-details-amt fety-cal-acct-details-amt-debt">
+                  {formatAccountBalanceDisplay(account, balance)}
+                </span>
+              </div>
+            ))}
+          </div>
+        ) : null}
+        <div className="fety-cal-acct-details-totals">
+          <span>Assets {usdF(totals.assets)}</span>
+          <span>Debt {usdF(totals.debts)}</span>
+        </div>
+      </div>
+    </details>
+  );
+}
+
+function DailyCalView({ date, calendarMap, store }: { date: Date; calendarMap: CalendarMap; store: FetyStore }) {
   const key = CAL_KEY(date);
   const data = calendarMap.get(key);
 
@@ -1429,16 +1504,19 @@ function DailyCalView({ date, calendarMap }: { date: Date; calendarMap: Calendar
   return (
     <div style={{ maxWidth: 680, width: "100%", margin: "0 auto", display: "flex", flexDirection: "column", gap: 14 }}>
       <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
-        {[
-          { label: "Starting Balance", value: data ? usd(data.startBal) : "—", bg: "var(--surface)", colorAmount: data?.startBal ?? 0 },
-          { label: "Ending Balance", value: data ? usd(data.endBal) : "—", bg: data ? calendarEndingBalanceBgStrong(data.endBal) : "var(--surface)", colorAmount: data?.endBal ?? 0 },
-          { label: "Net Cash Flow", value: data ? (net > 0 ? `+${usd(net)}` : usd(net)) : "—", bg: calendarDailyBalanceBgStrong(net), colorAmount: net },
-        ].map(card => (
-          <div key={card.label} style={{ background: card.bg, borderRadius: 16, padding: "18px 20px", border: "1px solid var(--border)" }}>
-            <p style={{ fontSize: 10, fontWeight: 600, color: "var(--ink-3)", marginBottom: 6, textTransform: "uppercase", letterSpacing: "0.16em" }}>{card.label}</p>
-            <p style={{ fontSize: 24, fontWeight: 400, color: card.label.endsWith("Balance") ? calBalanceColor(card.colorAmount) : calSignedColor(card.colorAmount), letterSpacing: "-0.8px", fontFamily: "var(--font-sans)" }}>{card.value}</p>
-          </div>
-        ))}
+        <div style={{ background: "var(--surface)", borderRadius: 16, padding: "18px 20px", border: "1px solid var(--border)" }}>
+          <p style={{ fontSize: 10, fontWeight: 600, color: "var(--ink-3)", marginBottom: 6, textTransform: "uppercase", letterSpacing: "0.16em" }}>Starting Balance</p>
+          <p style={{ fontSize: 24, fontWeight: 400, color: calBalanceColor(data?.startBal ?? 0), letterSpacing: "-0.8px", fontFamily: "var(--font-sans)" }}>{data ? usd(data.startBal) : "—"}</p>
+        </div>
+        <div style={{ background: data ? calendarEndingBalanceBgStrong(data.endBal) : "var(--surface)", borderRadius: 16, padding: "18px 20px", border: "1px solid var(--border)" }}>
+          <p style={{ fontSize: 10, fontWeight: 600, color: "var(--ink-3)", marginBottom: 6, textTransform: "uppercase", letterSpacing: "0.16em" }}>Ending Balance</p>
+          <p style={{ fontSize: 24, fontWeight: 400, color: calBalanceColor(data?.endBal ?? 0), letterSpacing: "-0.8px", fontFamily: "var(--font-sans)" }}>{data ? usd(data.endBal) : "—"}</p>
+          <CalendarAccountsBreakdown store={store} dateISO={key} compact />
+        </div>
+        <div style={{ background: calendarDailyBalanceBgStrong(net), borderRadius: 16, padding: "18px 20px", border: "1px solid var(--border)" }}>
+          <p style={{ fontSize: 10, fontWeight: 600, color: "var(--ink-3)", marginBottom: 6, textTransform: "uppercase", letterSpacing: "0.16em" }}>Net Cash Flow</p>
+          <p style={{ fontSize: 24, fontWeight: 400, color: calSignedColor(net), letterSpacing: "-0.8px", fontFamily: "var(--font-sans)" }}>{data ? (net > 0 ? `+${usd(net)}` : usd(net)) : "—"}</p>
+        </div>
       </div>
 
       {/* Income / Expenses sub-totals */}
@@ -1756,6 +1834,9 @@ function CalendarSidePanel({
                   <span style={{ fontSize: 12, fontWeight: 600, fontFamily: "var(--font-sans)", color: r.color }}>{r.value}</span>
                 </div>
               ))}
+              {calView !== "daily" ? (
+                <CalendarAccountsBreakdown store={ledgerStore} dateISO={CAL_KEY(day.date)} compact />
+              ) : null}
             </div>
 
             <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 8 }}>

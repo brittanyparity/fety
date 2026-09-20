@@ -225,6 +225,118 @@ html, body, #root {
   font-weight: 600;
 }
 
+.fety-cal-acct-details {
+  margin-top: 10px;
+  padding-top: 10px;
+  border-top: 1px solid var(--border);
+}
+
+.fety-cal-acct-details-compact {
+  margin-top: 12px;
+}
+
+.fety-cal-acct-details > summary {
+  list-style: none;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  cursor: pointer;
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--ink-2);
+  user-select: none;
+}
+
+.fety-cal-acct-details > summary::-webkit-details-marker {
+  display: none;
+}
+
+.fety-cal-acct-details > summary::before {
+  content: "▸";
+  font-size: 10px;
+  color: var(--ink-3);
+  margin-right: 6px;
+  transition: transform 0.15s ease;
+}
+
+.fety-cal-acct-details[open] > summary::before {
+  transform: rotate(90deg);
+}
+
+.fety-cal-acct-details-label {
+  flex: 1;
+  min-width: 0;
+}
+
+.fety-cal-acct-details-meta {
+  font-size: 10px;
+  font-weight: 600;
+  color: var(--ink-3);
+  font-family: var(--font-sans);
+}
+
+.fety-cal-acct-details-body {
+  padding: 8px 0 2px 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.fety-cal-acct-details-group {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.fety-cal-acct-details-heading {
+  font-size: 9px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.12em;
+  color: var(--ink-3);
+  margin: 0;
+}
+
+.fety-cal-acct-details-row {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 8px;
+  font-size: 10px;
+  line-height: 1.35;
+}
+
+.fety-cal-acct-details-name {
+  color: var(--ink-2);
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.fety-cal-acct-details-amt {
+  font-family: var(--font-sans);
+  font-weight: 600;
+  color: var(--ink);
+  flex-shrink: 0;
+}
+
+.fety-cal-acct-details-amt-debt {
+  color: var(--trouble-dk);
+}
+
+.fety-cal-acct-details-totals {
+  display: flex;
+  justify-content: space-between;
+  gap: 8px;
+  font-size: 9px;
+  color: var(--ink-3);
+  padding-top: 6px;
+  border-top: 1px dashed var(--border-soft);
+  font-family: var(--font-sans);
+}
+
 .fety-nav-hamburger {
   display: none;
   align-items: center;

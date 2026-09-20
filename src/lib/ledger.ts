@@ -148,6 +148,22 @@ export function netWorthTotals(store: FetyStore): { assets: number; debts: numbe
   return { assets, debts, net: assets - debts };
 }
 
+/** Net worth from accounts through `throughISO` (inclusive), aligned with calendar day ending. */
+export function netWorthTotalsOnDate(store: FetyStore, throughISO: string): { assets: number; debts: number; net: number } {
+  let assets = 0;
+  let debts = 0;
+  for (const a of store.accounts) {
+    const bal = accountBalanceWithTransactions(store, a.id, throughISO);
+    if (isDebtAccount(a)) {
+      if (bal < 0) debts += Math.abs(bal);
+      else if (bal > 0) assets += bal;
+    } else {
+      assets += bal;
+    }
+  }
+  return { assets, debts, net: assets - debts };
+}
+
 export function goalsLinkedToAccount(store: FetyStore, accountId: string): Goal[] {
   return store.goals.filter((g) => g.accountId === accountId);
 }
