@@ -3,7 +3,7 @@ import { FetyLogo } from "./FetyLogo";
 import { useFetyData } from "./hooks/useFetyData";
 import { buildCalendarMap, endingBalanceOnDate, formatNavDate, last6MonthsSpending, last7DayEndingBalances, categorySpendShares, todayISO } from "./lib/fetyCalculations";
 import { formatTransactionDetailLine, goalSavedTotal } from "./lib/ledger";
-import { flowForTransactionType, getTransactionTypes } from "./lib/transactionTypes";
+import { flowForTransactionType, getTransactionTypes, isTransferTransactionType } from "./lib/transactionTypes";
 import { calendarDailyBalanceBg, calendarDailyBalanceBgStrong, calendarEndingBalanceBg, calendarEndingBalanceBgStrong, calBalanceColor, calSignedColor } from "./lib/calendarUi";
 import { CalendarPeriodMenu } from "./components/CalendarPeriodMenu";
 import EmojiIconPicker from "./components/EmojiIconPicker";
@@ -1542,38 +1542,43 @@ function CalendarSidePanel({
     type: TransactionType,
     fromId: string,
     toId: string,
-    goalId: string,
+    goalIdVal: string,
     onFrom: (v: string) => void,
     onTo: (v: string) => void,
     onGoal: (v: string) => void,
   ) => {
-    const flow = flowForTransactionType(ledgerStore, type);
-    const acctEmpty = accounts.length === 0 ? "No accounts" : "— Account —";
+    const isTransfer = isTransferTransactionType(ledgerStore, type);
+    const acctEmpty = accounts.length === 0 ? "Add accounts in Settings" : "Select account";
+    const validGoalId = goals.some((g) => g.id === goalIdVal) ? goalIdVal : "";
     return (
-      <>
-        {(flow === "transfer" || flow === "expense" || flow === "bill") && (
-          <select value={fromId} onChange={(e) => onFrom(e.target.value)} style={panelInput} disabled={accounts.length === 0}>
-            <option value="">{acctEmpty}</option>
-            {accounts.map((a) => (
-              <option key={a.id} value={a.id}>{a.name}</option>
+      <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+        {isTransfer ? (
+          <div style={{ padding: 8, borderRadius: 8, border: "1px solid var(--border)", background: "var(--bg)" }}>
+            <p className="fety-label" style={{ marginBottom: 6 }}>Transfer between accounts</p>
+            <select value={fromId} onChange={(e) => onFrom(e.target.value)} style={{ ...panelInput, marginBottom: 6 }} disabled={accounts.length === 0}>
+              <option value="">{acctEmpty} (from)</option>
+              {accounts.map((a) => (
+                <option key={a.id} value={a.id}>{a.name}</option>
+              ))}
+            </select>
+            <select value={toId} onChange={(e) => onTo(e.target.value)} style={panelInput} disabled={accounts.length === 0}>
+              <option value="">{acctEmpty} (to)</option>
+              {accounts.map((a) => (
+                <option key={a.id} value={a.id}>{a.name}</option>
+              ))}
+            </select>
+          </div>
+        ) : null}
+        <div>
+          <p className="fety-label" style={{ marginBottom: 4 }}>Apply to goal</p>
+          <select value={validGoalId} onChange={(e) => onGoal(e.target.value)} style={panelInput} disabled={goals.length === 0}>
+            <option value="">{goals.length === 0 ? "Create goals on Goals page" : "— None —"}</option>
+            {goals.map((g) => (
+              <option key={g.id} value={g.id}>{g.icon} {g.name}</option>
             ))}
           </select>
-        )}
-        {(flow === "transfer" || flow === "income") && (
-          <select value={toId} onChange={(e) => onTo(e.target.value)} style={panelInput} disabled={accounts.length === 0}>
-            <option value="">{acctEmpty}</option>
-            {accounts.map((a) => (
-              <option key={a.id} value={a.id}>{a.name}</option>
-            ))}
-          </select>
-        )}
-        <select value={goalId} onChange={(e) => onGoal(e.target.value)} style={panelInput} disabled={goals.length === 0}>
-          <option value="">{goals.length === 0 ? "No goals" : "— Goal —"}</option>
-          {goals.map((g) => (
-            <option key={g.id} value={g.id}>{g.name}</option>
-          ))}
-        </select>
-      </>
+        </div>
+      </div>
     );
   };
 

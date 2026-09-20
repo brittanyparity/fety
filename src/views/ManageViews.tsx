@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import type {
   Account,
   Bill,
@@ -21,7 +21,7 @@ import EmojiIconPicker from "../components/EmojiIconPicker";
 import BillScheduleFields from "../components/BillScheduleFields";
 import IncomeScheduleFields from "../components/IncomeScheduleFields";
 import { BILL_FREQUENCY_LABELS, INCOME_FREQUENCY_LABELS } from "../lib/billScheduling";
-import { flowForTransactionType } from "../lib/transactionTypes";
+import { flowForTransactionType, isTransferTransactionType } from "../lib/transactionTypes";
 import { accountBalanceWithTransactions, formatTransactionDetailLine, goalContributionsFromTransactions, goalSavedTotal } from "../lib/ledger";
 import CurrencyInput, { amountToEditString } from "../components/CurrencyInput";
 
@@ -69,9 +69,117 @@ function accountSelectOptions(accounts: Account[]) {
   return accounts;
 }
 
+function TransactionGoalSelect({
+  goals,
+  goalId,
+  onGoalId,
+}: {
+  goals: Goal[];
+  goalId: string;
+  onGoalId: (v: string) => void;
+}) {
+  const validGoalId = goals.some((g) => g.id === goalId) ? goalId : "";
+  return (
+    <div>
+      <label className="fety-label" style={{ display: "block", marginBottom: 4 }}>
+        Apply to goal
+      </label>
+      <select
+        value={validGoalId}
+        onChange={(e) => onGoalId(e.target.value)}
+        style={inputStyle}
+        disabled={goals.length === 0}
+      >
+        <option value="">{goals.length === 0 ? "Create goals on the Goals page" : "— None —"}</option>
+        {goals.map((g) => (
+          <option key={g.id} value={g.id}>
+            {g.icon} {g.name}
+          </option>
+        ))}
+      </select>
+      {goals.length === 0 ? (
+        <p style={{ fontSize: 11, color: "var(--ink-3)", marginTop: 4 }}>Linked amounts count toward that goal&apos;s saved total.</p>
+      ) : null}
+    </div>
+  );
+}
+
+function TransferAccountFields({
+  accounts,
+  fromAccountId,
+  toAccountId,
+  onFromAccountId,
+  onToAccountId,
+}: {
+  accounts: Account[];
+  fromAccountId: string;
+  toAccountId: string;
+  onFromAccountId: (v: string) => void;
+  onToAccountId: (v: string) => void;
+}) {
+  const emptyAcct = accounts.length === 0 ? "Add accounts in Settings" : "Select account";
+  return (
+    <div
+      style={{
+        display: "grid",
+        gridTemplateColumns: "repeat(auto-fill, minmax(200px, 1fr))",
+        gap: 10,
+        padding: "12px 14px",
+        borderRadius: 12,
+        border: "1px solid var(--border)",
+        background: "var(--bg)",
+      }}
+    >
+      <p className="fety-label-strong" style={{ gridColumn: "1 / -1", margin: 0 }}>
+        Transfer between accounts
+      </p>
+      {accounts.length === 0 ? (
+        <p style={{ gridColumn: "1 / -1", fontSize: 12, color: "var(--ink-2)", margin: 0 }}>
+          Add checking, savings, or other accounts under Settings to choose where money moves from and to.
+        </p>
+      ) : null}
+      <div>
+        <label className="fety-label" style={{ display: "block", marginBottom: 4 }}>
+          From account
+        </label>
+        <select
+          value={fromAccountId}
+          onChange={(e) => onFromAccountId(e.target.value)}
+          style={inputStyle}
+          disabled={accounts.length === 0}
+        >
+          <option value="">{emptyAcct}</option>
+          {accountSelectOptions(accounts).map((a) => (
+            <option key={a.id} value={a.id}>
+              {a.icon} {a.name}
+            </option>
+          ))}
+        </select>
+      </div>
+      <div>
+        <label className="fety-label" style={{ display: "block", marginBottom: 4 }}>
+          To account
+        </label>
+        <select
+          value={toAccountId}
+          onChange={(e) => onToAccountId(e.target.value)}
+          style={inputStyle}
+          disabled={accounts.length === 0}
+        >
+          <option value="">{emptyAcct}</option>
+          {accountSelectOptions(accounts).map((a) => (
+            <option key={a.id} value={a.id}>
+              {a.icon} {a.name}
+            </option>
+          ))}
+        </select>
+      </div>
+    </div>
+  );
+}
+
 function TransactionRoutingFields({
   type,
-  transactionTypes,
   accounts,
   goals,
   fromAccountId,
@@ -83,7 +191,6 @@ function TransactionRoutingFields({
   storeForFlow,
 }: {
   type: TransactionType;
-  transactionTypes: FetyTransactionType[];
   accounts: Account[];
   goals: Goal[];
   fromAccountId: string;
@@ -92,55 +199,21 @@ function TransactionRoutingFields({
   onFromAccountId: (v: string) => void;
   onToAccountId: (v: string) => void;
   onGoalId: (v: string) => void;
-  storeForFlow: { transactionTypes?: FetyTransactionType[]; typeIcons: import("../types/fety").TypeIconMap };
+  storeForFlow: import("../types/fety").FetyStore;
 }) {
-  const flow = flowForTransactionType(storeForFlow as import("../types/fety").FetyStore, type);
-  const showFrom = flow === "transfer" || flow === "expense" || flow === "bill";
-  const showTo = flow === "transfer" || flow === "income";
-  const emptyAcct = accounts.length === 0 ? "Add accounts in Settings" : "— None —";
+  const isTransfer = isTransferTransactionType(storeForFlow, type);
   return (
     <>
-      {showFrom ? (
-        <div>
-          <label className="fety-label" style={{ display: "block", marginBottom: 4 }}>
-            {flow === "transfer" ? "From account" : "Paid from account"}
-          </label>
-          <select value={fromAccountId} onChange={(e) => onFromAccountId(e.target.value)} style={inputStyle} disabled={accounts.length === 0}>
-            <option value="">{emptyAcct}</option>
-            {accountSelectOptions(accounts).map((a) => (
-              <option key={a.id} value={a.id}>
-                {a.icon} {a.name}
-              </option>
-            ))}
-          </select>
-        </div>
+      {isTransfer ? (
+        <TransferAccountFields
+          accounts={accounts}
+          fromAccountId={fromAccountId}
+          toAccountId={toAccountId}
+          onFromAccountId={onFromAccountId}
+          onToAccountId={onToAccountId}
+        />
       ) : null}
-      {showTo ? (
-        <div>
-          <label className="fety-label" style={{ display: "block", marginBottom: 4 }}>
-            {flow === "transfer" ? "To account" : "Deposited to account"}
-          </label>
-          <select value={toAccountId} onChange={(e) => onToAccountId(e.target.value)} style={inputStyle} disabled={accounts.length === 0}>
-            <option value="">{emptyAcct}</option>
-            {accountSelectOptions(accounts).map((a) => (
-              <option key={a.id} value={a.id}>
-                {a.icon} {a.name}
-              </option>
-            ))}
-          </select>
-        </div>
-      ) : null}
-      <div>
-        <label className="fety-label" style={{ display: "block", marginBottom: 4 }}>Goal contribution</label>
-        <select value={goalId} onChange={(e) => onGoalId(e.target.value)} style={inputStyle} disabled={goals.length === 0}>
-          <option value="">{goals.length === 0 ? "Add goals first" : "— None —"}</option>
-          {goals.map((g) => (
-            <option key={g.id} value={g.id}>
-              {g.icon} {g.name}
-            </option>
-          ))}
-        </select>
-      </div>
+      <TransactionGoalSelect goals={goals} goalId={goalId} onGoalId={onGoalId} />
     </>
   );
 }
@@ -804,7 +877,6 @@ export function BudgetManageView({
             <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(200px, 1fr))", gap: 10 }}>
               <TransactionRoutingFields
                 type={recurTransactionType}
-                transactionTypes={transactionTypes}
                 accounts={accounts}
                 goals={goals}
                 fromAccountId={recurFromAccountId}
@@ -1097,10 +1169,9 @@ export function BudgetManageView({
                     </div>
                     <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(200px, 1fr))", gap: 10 }}>
                       <TransactionRoutingFields
-                        type={recurEditDraft.transactionType}
-                        transactionTypes={transactionTypes}
-                        accounts={accounts}
-                        goals={goals}
+                type={recurEditDraft.transactionType}
+                accounts={accounts}
+                goals={goals}
                         fromAccountId={recurEditDraft.fromAccountId}
                         toAccountId={recurEditDraft.toAccountId}
                         goalId={recurEditDraft.goalId}
@@ -1328,6 +1399,13 @@ export function TransactionsManageView({
   const [editGoalId, setEditGoalId] = useState("");
   const [addError, setAddError] = useState<string | null>(null);
 
+  useEffect(() => {
+    if (!isTransferTransactionType(ledgerStore, type)) {
+      setFromAccountId("");
+      setToAccountId("");
+    }
+  }, [type, transactionTypes, typeIcons]);
+
   const shown =
     filter === "All"
       ? transactions
@@ -1388,9 +1466,8 @@ export function TransactionsManageView({
     <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
       {accounts.length === 0 ? (
         <p style={{ fontSize: 13, color: "var(--ink-2)", lineHeight: 1.45, padding: "12px 14px", background: "var(--bg)", borderRadius: 12, border: "1px solid var(--border-soft)" }}>
-          To record transfers (from → to) and update account balances, add at least two accounts in{" "}
-          <strong style={{ fontWeight: 600 }}>Settings</strong>. Then edit or add a transaction, choose type{" "}
-          <strong style={{ fontWeight: 600 }}>Transfer</strong>, and pick accounts and an optional goal below the date field.
+          Choose <strong style={{ fontWeight: 600 }}>Apply to goal</strong> below to update Goals progress. For transfers, pick type{" "}
+          <strong style={{ fontWeight: 600 }}>Transfer</strong> to reveal account from/to fields (add accounts in Settings first).
         </p>
       ) : null}
       <form onSubmit={submit} className="fety-txn-add-form" style={{ background: "var(--surface)", border: "1px solid var(--border)", borderRadius: 14, padding: "16px 18px" }}>
@@ -1441,11 +1518,9 @@ export function TransactionsManageView({
           </div>
         </div>
         <div className="fety-txn-add-form__routing">
-          <p className="fety-label-strong fety-txn-add-form__routing-title">Accounts &amp; goals</p>
-          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(200px, 1fr))", gap: 10 }}>
+          <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
             <TransactionRoutingFields
               type={type}
-              transactionTypes={transactionTypes}
               accounts={accounts}
               goals={goals}
               fromAccountId={fromAccountId}
@@ -1528,7 +1603,6 @@ export function TransactionsManageView({
                     <div style={{ gridColumn: "1 / -1", display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(180px, 1fr))", gap: 8 }}>
                       <TransactionRoutingFields
                         type={editType}
-                        transactionTypes={transactionTypes}
                         accounts={accounts}
                         goals={goals}
                         fromAccountId={editFromAccountId}
@@ -1699,6 +1773,10 @@ export function GoalsManageView({
 
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+      <p style={{ fontSize: 13, color: "var(--ink-2)", lineHeight: 1.45, maxWidth: 560 }}>
+        Progress includes <strong style={{ fontWeight: 600 }}>Starting saved</strong> plus any transaction you link with{" "}
+        <strong style={{ fontWeight: 600 }}>Apply to goal</strong> on the Transactions page (or calendar).
+      </p>
       <div style={{ display: "grid", gridTemplateColumns: viewMode === "cards" ? "repeat(auto-fill, minmax(280px, 1fr))" : "1fr", gap: 12 }}>
         {goals.map((g) => {
           const savedTotal = goalSavedTotal(goalLedgerStore, g);

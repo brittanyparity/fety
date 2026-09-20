@@ -32,6 +32,10 @@ export function flowForTransactionType(store: FetyStore, typeId: string): Transa
   return "expense";
 }
 
+export function isTransferTransactionType(store: FetyStore, typeId: string): boolean {
+  return flowForTransactionType(store, typeId) === "transfer";
+}
+
 export function iconForTransactionType(store: FetyStore, typeId: string): string {
   const tt = getTransactionTypes(store).find((t) => t.id === typeId);
   if (tt) return tt.icon;
