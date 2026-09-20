@@ -15,7 +15,6 @@ import type {
   TransactionType,
 } from "../types/fety";
 import { formatTransactionGroupDate, todayISO } from "../lib/fetyCalculations";
-import { goalSavedTotal } from "../lib/ledger";
 import { EditableNumber, EditableText } from "../components/EditableField";
 import EmojiIconPicker from "../components/EmojiIconPicker";
 import BillScheduleFields from "../components/BillScheduleFields";
