@@ -1947,7 +1947,11 @@ function DashboardView({
                                 transition: "background 0.12s, border-color 0.12s",
                               }}
                             >
-                              <WidgetPinIcon locked={positionLocked} size={16} onDark={positionLocked} />
+                              <WidgetPinIcon
+                                locked={positionLocked}
+                                size={16}
+                                color={positionLocked ? "#fff" : "var(--ink-2)"}
+                              />
                             </button>
                           )}
                           <button

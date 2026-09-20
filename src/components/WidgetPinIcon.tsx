@@ -1,42 +1,44 @@
 /**
- * Dashboard widget position lock icons from The Noun Project.
- * Active pair: pin (unlocked) + pinned (locked). Additional variants kept in assets for future UI.
- *
- * @see https://thenounproject.com/icon/pin-8477301/
- * @see https://thenounproject.com/icon/pin-8478551/
- * @see https://thenounproject.com/icon/pin-8285897/
- * @see https://thenounproject.com/icon/pinned-8285888/
- * @see https://thenounproject.com/icon/unpin-1856568/
- * @see https://thenounproject.com/icon/unpin-1856571/
+ * Thumbtack pin icons from Tabler Icons (MIT).
+ * @see https://tabler.io/icons/icon/pin
+ * @see https://tabler.io/icons/icon/pinned
  */
-import pinIcon from "../assets/icons/noun/pin-8477301.png";
-import pinnedIcon from "../assets/icons/noun/pinned-8285888.png";
 
 type WidgetPinIconProps = {
   locked: boolean;
   size?: number;
-  /** When true, inverts for dark button backgrounds (locked state). */
-  onDark?: boolean;
+  color?: string;
 };
 
-export default function WidgetPinIcon({ locked, size = 16, onDark = false }: WidgetPinIconProps) {
-  const src = locked ? pinnedIcon : pinIcon;
+export default function WidgetPinIcon({ locked, size = 16, color = "currentColor" }: WidgetPinIconProps) {
+  const stroke = color;
+  const common = {
+    width: size,
+    height: size,
+    viewBox: "0 0 24 24",
+    fill: "none" as const,
+    stroke,
+    strokeWidth: 2,
+    strokeLinecap: "round" as const,
+    strokeLinejoin: "round" as const,
+    "aria-hidden": true,
+  };
+
+  if (locked) {
+    return (
+      <svg {...common}>
+        <path d="M9 4v6l-2 4v2h10v-2l-2 -4v-6" />
+        <path d="M12 16l0 5" />
+        <path d="M8 4l8 0" />
+      </svg>
+    );
+  }
+
   return (
-    <img
-      src={src}
-      alt=""
-      aria-hidden
-      width={size}
-      height={size}
-      draggable={false}
-      style={{
-        display: "block",
-        width: size,
-        height: size,
-        objectFit: "contain",
-        filter: onDark ? "brightness(0) invert(1)" : undefined,
-        opacity: locked ? 1 : 0.85,
-      }}
-    />
+    <svg {...common}>
+      <path d="M15 4.5l-4 4l-4 1.5l-1.5 1.5l7 7l1.5 -1.5l1.5 -4l4 -4" />
+      <path d="M9 15l-4.5 4.5" />
+      <path d="M14.5 4l5.5 5.5" />
+    </svg>
   );
 }
