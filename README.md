@@ -23,6 +23,17 @@ Open [http://localhost:5173](http://localhost:5173) (or the port Vite prints if 
    - **Output directory:** `dist`
 4. Deploy. No environment variables are required for a standard static deploy.
 
+### Verify the live site matches Git
+
+After each deploy, check:
+
+1. **On-screen:** a pill at the bottom center shows `Build fety-…` (from `src/lib/appBuildLabel.ts`).
+2. **View page source:** look for `<meta name="fety-build" content="…" />` in `<head>`.
+
+If neither matches the label in `src/lib/appBuildLabel.ts` on `main`, the URL is serving an **old deployment** or a **different project/repo**. In Vercel: open the project → **Deployments** → confirm the latest deployment succeeded and matches your Git commit; trigger **Redeploy** if needed.
+
+For **Figma Make** preview (not Vercel), sync Git in the Make file and run a fresh preview deploy (`.figma/make/deploy-preview`); the live dev iframe does not update automatically from GitHub pushes alone.
+
 Site title, description, and meta tags come from `.figma/make/site.json` via `vite.config.ts`.
 
 ## Scripts

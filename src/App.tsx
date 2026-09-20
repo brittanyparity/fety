@@ -27,6 +27,7 @@ import {
 } from "recharts";
 import { nextBillOccurrenceOnOrAfter } from "./lib/billScheduling";
 import WidgetPinIcon from "./components/WidgetPinIcon";
+import FetyBuildStrip from "./components/FetyBuildStrip";
 
 // ─── Types ─────────────────────────────────────────────────────────────────────
 type Page = "dashboard" | "budget" | "spending" | "goals" | "settings" | "calendar";
@@ -2332,16 +2333,19 @@ export default function App() {
 
   if (!store.onboardingCompleted) {
     return (
-      <OnboardingView
-        store={store}
-        onUpdateProfile={updateProfile}
-        onReplaceCategories={replaceCategories}
-        onReplaceBills={replaceBills}
-        onReplaceIncomeStreams={replaceIncomeStreams}
-        onReplaceRecurringTransactions={replaceRecurringTransactions}
-        onImportTransactionsBulk={importTransactionsBulk}
-        onComplete={completeOnboarding}
-      />
+      <>
+        <OnboardingView
+          store={store}
+          onUpdateProfile={updateProfile}
+          onReplaceCategories={replaceCategories}
+          onReplaceBills={replaceBills}
+          onReplaceIncomeStreams={replaceIncomeStreams}
+          onReplaceRecurringTransactions={replaceRecurringTransactions}
+          onImportTransactionsBulk={importTransactionsBulk}
+          onComplete={completeOnboarding}
+        />
+        <FetyBuildStrip />
+      </>
     );
   }
 
@@ -2433,6 +2437,7 @@ export default function App() {
           />
         )}
       </div>
+      <FetyBuildStrip />
     </div>
   );
 }

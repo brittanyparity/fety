@@ -1,9 +1,33 @@
 import { defineConfig, type HtmlTagDescriptor, type Plugin } from 'vite'
 import react from '@vitejs/plugin-react'
 import tailwindcss from '@tailwindcss/vite'
+import fs from 'node:fs'
 import path from 'node:path'
 
 import siteConfiguration from './.figma/make/site.json'
+
+function readAppBuildLabel(): string {
+  const file = path.resolve(__dirname, 'src/lib/appBuildLabel.ts')
+  const text = fs.readFileSync(file, 'utf8')
+  const m = text.match(/APP_BUILD_LABEL\s*=\s*"([^"]+)"/)
+  return m?.[1] ?? 'unknown'
+}
+
+/** Embeds build id in dist/index.html for View Source checks on Vercel / Figma deploy. */
+function fetyBuildLabelMeta(): Plugin {
+  const label = readAppBuildLabel()
+  return {
+    name: 'fety-build-label-meta',
+    transformIndexHtml: {
+      order: 'post',
+      handler(html) {
+        const tag = `<meta name="fety-build" content="${label}" />`
+        if (html.includes('name="fety-build"')) return html
+        return html.replace('</head>', `    ${tag}\n  </head>`)
+      },
+    },
+  }
+}
 
 // Vite config — https://vitejs.dev/config/
 export default defineConfig(({ mode }) => {
@@ -20,6 +44,7 @@ export default defineConfig(({ mode }) => {
       react(),
       tailwindcss(),
       figmaSiteConfiguration(siteConfiguration),
+      fetyBuildLabelMeta(),
       figmaErrorOverlayReplay(),
       figmaReactRefreshBoundaryFallback(),
       figmaMakeKitPlugin({ storiesGlob: '/src/**/*.stories.{ts,tsx,js,jsx}' }),
