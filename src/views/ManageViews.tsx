@@ -62,6 +62,15 @@ const inputStyle: React.CSSProperties = {
 
 type ViewMode = "cards" | "list";
 
+const tileIconBtn: React.CSSProperties = {
+  border: "none",
+  background: "transparent",
+  cursor: "pointer",
+  fontSize: 10,
+  padding: 2,
+  lineHeight: 1,
+};
+
 export function BudgetManageView({
   categories,
   bills,
@@ -127,6 +136,8 @@ export function BudgetManageView({
   const [typeIcon, setTypeIcon] = useState("🏷️");
   const [typeFlow, setTypeFlow] = useState<TransactionFlow>("expense");
   const [budgetAddMode, setBudgetAddMode] = useState<"bill" | "income" | "recur" | "type">("bill");
+  const [editingCategoryCapId, setEditingCategoryCapId] = useState<string | null>(null);
+  const [categoryCapDraft, setCategoryCapDraft] = useState("");
   const [incomeName, setIncomeName] = useState("");
   const [incomeAmount, setIncomeAmount] = useState("");
   const [incomeDue, setIncomeDue] = useState(1);
@@ -463,28 +474,74 @@ export function BudgetManageView({
         {categories.map((c) => {
           const pct = c.monthlyBudget > 0 ? Math.min((c.spent / c.monthlyBudget) * 100, 100) : 0;
           const over = c.spent > c.monthlyBudget;
+          const editingCap = editingCategoryCapId === c.id;
           return (
-            <div key={c.id} style={{ background: "var(--surface)", borderRadius: 14, padding: "16px 18px", border: "1px solid var(--border)" }}>
-              <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 10 }}>
+            <div key={c.id} style={{ position: "relative", background: "var(--surface)", borderRadius: 14, padding: "16px 18px", border: "1px solid var(--border)" }}>
+              <div style={{ position: "absolute", top: 10, right: 10, display: "flex", gap: 2, zIndex: 1 }}>
+                <button
+                  type="button"
+                  title="Edit monthly cap"
+                  onClick={() => {
+                    setEditingCategoryCapId(c.id);
+                    setCategoryCapDraft(c.monthlyBudget === 0 ? "" : String(c.monthlyBudget));
+                  }}
+                  style={{ ...tileIconBtn, color: "var(--ink-3)" }}
+                >
+                  ✎
+                </button>
+                <button
+                  type="button"
+                  title="Remove category"
+                  onClick={() => {
+                    if (editingCategoryCapId === c.id) setEditingCategoryCapId(null);
+                    onDeleteCategory(c.id);
+                  }}
+                  style={{ ...tileIconBtn, color: "var(--trouble-dk)" }}
+                >
+                  ×
+                </button>
+              </div>
+              <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 10, paddingRight: 36 }}>
                 <span style={{ fontSize: 18 }}>{c.icon}</span>
                 <span style={{ fontSize: 13, fontWeight: 600, flex: 1 }}>{c.name}</span>
                 {over && <span style={{ fontSize: 9, color: "var(--trouble-dk)", background: "#FFECE8", padding: "2px 6px", borderRadius: 99 }}>Over</span>}
-                <button
-                  type="button"
-                  onClick={() => onDeleteCategory(c.id)}
-                  style={{ border: "none", background: "transparent", color: "var(--ink-3)", cursor: "pointer", fontSize: 11, flexShrink: 0 }}
-                >
-                  Remove
-                </button>
               </div>
-              <EditableNumber
-                label="Monthly cap"
-                value={c.monthlyBudget}
-                format={usd}
-                currency
-                onSave={(n) => onUpdateBudget(c.id, n)}
-                valueStyle={{ fontSize: 18 }}
-              />
+              {editingCap ? (
+                <div>
+                  <label className="fety-label" style={{ display: "block", marginBottom: 4 }}>Monthly cap</label>
+                  <CurrencyInput value={categoryCapDraft} onChange={setCategoryCapDraft} placeholder="0.00" />
+                  <div style={{ display: "flex", gap: 6, marginTop: 8 }}>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        const n = categoryCapDraft === "" ? 0 : parseFloat(categoryCapDraft);
+                        if (!Number.isFinite(n)) return;
+                        onUpdateBudget(c.id, n);
+                        setEditingCategoryCapId(null);
+                        setCategoryCapDraft("");
+                      }}
+                      style={{ padding: "6px 12px", borderRadius: "var(--radius-ctrl)", border: "none", background: "var(--ink)", color: "#fff", fontSize: 11, fontWeight: 600, cursor: "pointer" }}
+                    >
+                      Save
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setEditingCategoryCapId(null);
+                        setCategoryCapDraft("");
+                      }}
+                      style={{ padding: "6px 12px", borderRadius: "var(--radius-ctrl)", border: "1px solid var(--border)", background: "transparent", fontSize: 11, cursor: "pointer" }}
+                    >
+                      Cancel
+                    </button>
+                  </div>
+                </div>
+              ) : (
+                <>
+                  <p className="fety-label" style={{ marginBottom: 4 }}>Monthly cap</p>
+                  <p style={{ fontSize: 18, fontWeight: 400, color: "var(--ink)", letterSpacing: "-0.02em" }}>{usd(c.monthlyBudget)}</p>
+                </>
+              )}
               <p style={{ fontSize: 11, color: "var(--ink-3)", marginTop: 8 }}>
                 Spent {usd(c.spent)} · {over ? `${usd(c.spent - c.monthlyBudget)} over` : `${usd(c.monthlyBudget - c.spent)} left`}
               </p>
@@ -1296,6 +1353,8 @@ export function GoalsManageView({
   const [editName, setEditName] = useState("");
   const [editSaved, setEditSaved] = useState("");
   const [editTarget, setEditTarget] = useState("");
+  const [editTargetDate, setEditTargetDate] = useState("");
+  const [editMonthly, setEditMonthly] = useState("");
   const [name, setName] = useState("");
   const [target, setTarget] = useState("");
   const [saved, setSaved] = useState("");
@@ -1323,53 +1382,126 @@ export function GoalsManageView({
     setShowForm(false);
   };
 
+  const startEditGoal = (g: Goal) => {
+    setEditGoalId(g.id);
+    setEditName(g.name);
+    setEditSaved(g.saved === 0 ? "" : String(g.saved));
+    setEditTarget(g.target === 0 ? "" : String(g.target));
+    setEditTargetDate(g.targetDate === "TBD" ? "" : g.targetDate);
+    setEditMonthly(g.monthlyContribution === 0 ? "" : String(g.monthlyContribution));
+  };
+
+  const cancelEditGoal = () => {
+    setEditGoalId(null);
+  };
+
+  const saveEditGoal = (id: string) => {
+    const t = parseFloat(editTarget);
+    const s = parseFloat(editSaved);
+    if (!editName.trim() || !Number.isFinite(t)) return;
+    onUpdate(id, {
+      name: editName.trim(),
+      target: t,
+      saved: Number.isFinite(s) ? s : 0,
+      targetDate: editTargetDate.trim() || "TBD",
+      monthlyContribution: parseFloat(editMonthly) || 0,
+    });
+    setEditGoalId(null);
+  };
+
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
-      <div style={{ display: "grid", gridTemplateColumns: viewMode === "cards" ? "repeat(auto-fill, minmax(240px, 1fr))" : "1fr", gap: 12 }}>
+      <div style={{ display: "grid", gridTemplateColumns: viewMode === "cards" ? "repeat(auto-fill, minmax(280px, 1fr))" : "1fr", gap: 12 }}>
         {goals.map((g) => {
           const pct = g.target > 0 ? Math.round((g.saved / g.target) * 100) : 0;
           const editing = editGoalId === g.id;
           return (
-            <div key={g.id} style={{ background: "var(--surface)", borderRadius: 16, padding: "20px 22px", border: "1px solid var(--border)" }}>
-              <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 12 }}>
-                <span style={{ fontSize: 22 }}>{g.icon}</span>
-                <div style={{ flex: 1 }}>
-                  {editing ? (
-                    <input value={editName} onChange={(e) => setEditName(e.target.value)} style={inputStyle} placeholder="Goal name" />
-                  ) : (
-                    <>
-                      <p style={{ fontSize: 14, fontWeight: 600, color: "var(--ink)" }}>{g.name}</p>
-                      <p style={{ fontSize: 10, color: "var(--ink-3)", marginTop: 2 }}>Target {g.targetDate}</p>
-                    </>
-                  )}
-                </div>
-                {!editing ? (
-                  <button type="button" onClick={() => { setEditGoalId(g.id); setEditName(g.name); setEditSaved(g.saved === 0 ? "" : String(g.saved)); setEditTarget(g.target === 0 ? "" : String(g.target)); }} style={{ border: "none", background: "transparent", color: "var(--ink-2)", cursor: "pointer", fontSize: 11, fontWeight: 600 }}>Edit</button>
-                ) : (
-                  <button type="button" onClick={() => { const s = parseFloat(editSaved); const t = parseFloat(editTarget); if (editName.trim() && Number.isFinite(s) && Number.isFinite(t)) { onUpdate(g.id, { name: editName.trim(), saved: s, target: t }); setEditGoalId(null); } }} style={{ border: "none", background: "var(--ink)", color: "#fff", cursor: "pointer", fontSize: 11, fontWeight: 600, padding: "6px 10px", borderRadius: 8 }}>Save</button>
-                )}
-                <button type="button" onClick={() => onDelete(g.id)} style={{ border: "none", background: "transparent", color: "var(--ink-3)", cursor: "pointer", fontSize: 11 }}>Remove</button>
-              </div>
+            <div
+              key={g.id}
+              style={{
+                background: "var(--surface)",
+                borderRadius: 16,
+                padding: "20px 22px",
+                border: "1px solid var(--border)",
+                minWidth: 0,
+                overflow: "hidden",
+              }}
+            >
               {editing ? (
-                <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8 }}>
+                <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
                   <div>
-                    <label className="fety-label" style={{ display: "block", marginBottom: 4 }}>Saved So Far</label>
-                    <CurrencyInput value={editSaved} onChange={setEditSaved} placeholder="0.00" />
+                    <label className="fety-label" style={{ display: "block", marginBottom: 4 }}>Goal Name</label>
+                    <input value={editName} onChange={(e) => setEditName(e.target.value)} style={inputStyle} placeholder="Goal name" />
                   </div>
                   <div>
                     <label className="fety-label" style={{ display: "block", marginBottom: 4 }}>Target Amount</label>
                     <CurrencyInput value={editTarget} onChange={setEditTarget} placeholder="0.00" />
                   </div>
+                  <div>
+                    <label className="fety-label" style={{ display: "block", marginBottom: 4 }}>Saved So Far</label>
+                    <CurrencyInput value={editSaved} onChange={setEditSaved} placeholder="0.00" />
+                  </div>
+                  <div>
+                    <label className="fety-label" style={{ display: "block", marginBottom: 4 }}>Target date</label>
+                    <input value={editTargetDate} onChange={(e) => setEditTargetDate(e.target.value)} style={inputStyle} placeholder="Dec 2026" />
+                  </div>
+                  <div>
+                    <label className="fety-label" style={{ display: "block", marginBottom: 4 }}>Monthly Contribution</label>
+                    <CurrencyInput value={editMonthly} onChange={setEditMonthly} placeholder="0.00" />
+                  </div>
+                  <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginTop: 4 }}>
+                    <button
+                      type="button"
+                      onClick={() => saveEditGoal(g.id)}
+                      style={{ padding: "6px 14px", borderRadius: "var(--radius-ctrl)", border: "none", background: "var(--ink)", color: "#fff", fontSize: 11, fontWeight: 600, cursor: "pointer" }}
+                    >
+                      Save
+                    </button>
+                    <button
+                      type="button"
+                      onClick={cancelEditGoal}
+                      style={{ padding: "6px 14px", borderRadius: "var(--radius-ctrl)", border: "1px solid var(--border)", background: "transparent", fontSize: 11, cursor: "pointer" }}
+                    >
+                      Cancel
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        onDelete(g.id);
+                        cancelEditGoal();
+                      }}
+                      style={{ marginLeft: "auto", border: "none", background: "transparent", color: "var(--trouble-dk)", cursor: "pointer", fontSize: 11 }}
+                    >
+                      Remove
+                    </button>
+                  </div>
                 </div>
               ) : (
                 <>
-                  <p style={{ fontSize: 18, fontWeight: 400, color: "var(--ink)" }}>{usd(g.saved)} <span style={{ fontSize: 12, color: "var(--ink-3)" }}>of {usd(g.target)}</span></p>
+                  <div style={{ display: "flex", alignItems: "flex-start", gap: 10, marginBottom: 12 }}>
+                    <span style={{ fontSize: 22, flexShrink: 0 }}>{g.icon}</span>
+                    <div style={{ flex: 1, minWidth: 0 }}>
+                      <p style={{ fontSize: 14, fontWeight: 600, color: "var(--ink)" }}>{g.name}</p>
+                      <p style={{ fontSize: 10, color: "var(--ink-3)", marginTop: 2 }}>Target {g.targetDate}</p>
+                    </div>
+                    <div style={{ display: "flex", gap: 2, flexShrink: 0 }}>
+                      <button type="button" onClick={() => startEditGoal(g)} title="Edit" style={{ ...tileIconBtn, color: "var(--ink-3)" }}>
+                        ✎
+                      </button>
+                      <button type="button" onClick={() => onDelete(g.id)} title="Remove" style={{ ...tileIconBtn, color: "var(--trouble-dk)" }}>
+                        ×
+                      </button>
+                    </div>
+                  </div>
+                  <p style={{ fontSize: 18, fontWeight: 400, color: "var(--ink)" }}>
+                    {usd(g.saved)} <span style={{ fontSize: 12, color: "var(--ink-3)" }}>of {usd(g.target)}</span>
+                  </p>
                   <p style={{ fontSize: 12, color: "var(--ink-2)", marginTop: 8 }}>{pct}% of target</p>
+                  <div style={{ height: 6, background: "var(--paper)", borderRadius: 99, marginTop: 8, overflow: "hidden" }}>
+                    <div style={{ width: `${Math.min(pct, 100)}%`, height: "100%", background: "var(--later)" }} />
+                  </div>
                 </>
               )}
-              <div style={{ height: 6, background: "var(--paper)", borderRadius: 99, marginTop: 8, overflow: "hidden" }}>
-                <div style={{ width: `${Math.min(pct, 100)}%`, height: "100%", background: "var(--later)" }} />
-              </div>
             </div>
           );
         })}

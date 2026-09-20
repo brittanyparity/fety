@@ -32,22 +32,6 @@ type Page = "dashboard" | "budget" | "spending" | "goals" | "settings" | "calend
 type ViewMode = "cards" | "list";
 type CalView = "monthly" | "weekly" | "biweekly" | "daily" | "yearly";
 
-function WidgetDashboardToggleIcon({ onDashboard }: { onDashboard: boolean }) {
-  const stroke = "var(--ink)";
-  if (onDashboard) {
-    return (
-      <svg width="14" height="14" viewBox="0 0 14 14" fill="none" aria-hidden>
-        <path d="M3.5 3.5l7 7M10.5 3.5l-7 7" stroke={stroke} strokeWidth="1.75" strokeLinecap="round" />
-      </svg>
-    );
-  }
-  return (
-    <svg width="14" height="14" viewBox="0 0 14 14" fill="none" aria-hidden>
-      <circle cx="7" cy="7" r="4.75" stroke={stroke} strokeWidth="1.75" />
-    </svg>
-  );
-}
-
 const CAL_KEY = (d: Date) => d.toISOString().slice(0, 10);
 
 const compactUsd = (n: number) => {
@@ -765,35 +749,34 @@ function WidgetPicker({
                 {groupWidgets.map(w => {
                   const active = pinned.includes(w.id);
                   return (
-                    <div key={w.id} style={{ borderRadius: 12, border: `1.5px solid ${active ? "var(--ink)" : "var(--border)"}`, overflow: "hidden", background: active ? "var(--bg)" : "var(--surface)", transition: "all 0.13s" }}>
-                      {/* Preview thumbnail */}
+                    <div
+                      key={w.id}
+                      role="button"
+                      tabIndex={0}
+                      onClick={() => onDashboardToggle(w.id)}
+                      onKeyDown={(e) => {
+                        if (e.key === "Enter" || e.key === " ") {
+                          e.preventDefault();
+                          onDashboardToggle(w.id);
+                        }
+                      }}
+                      style={{
+                        borderRadius: 12,
+                        border: `1.5px solid ${active ? "var(--ink)" : "var(--border)"}`,
+                        overflow: "hidden",
+                        background: active ? "var(--bg)" : "var(--surface)",
+                        transition: "all 0.13s",
+                        cursor: "pointer",
+                      }}
+                    >
                       <div style={{ padding: "10px 12px", borderBottom: `1px solid ${active ? "rgba(0,0,0,0.08)" : "var(--border)"}` }}>
                         {w.preview()}
                       </div>
-                      {/* Action row */}
-                      <div style={{ width: "100%", display: "flex", alignItems: "center", justifyContent: "space-between", padding: "8px 12px", gap: 8 }}>
-                        <div style={{ minWidth: 0 }}>
-                          <p style={{ fontSize: 11, fontWeight: 600, color: "var(--ink)" }}>{w.label}</p>
-                          <p style={{ fontSize: 9, color: "var(--ink-3)", marginTop: 1 }}>{w.size === "full" ? "Full width" : w.size === "half" ? "Half width" : "Stat card"}</p>
-                        </div>
-                        <button
-                          type="button"
-                          title={active ? "Remove from dashboard" : "Add to dashboard"}
-                          onClick={() => onDashboardToggle(w.id)}
-                          style={{
-                            width: 30,
-                            height: 30,
-                            borderRadius: 8,
-                            border: "1px solid var(--ink)",
-                            background: "var(--surface)",
-                            cursor: "pointer",
-                            display: "flex",
-                            alignItems: "center",
-                            justifyContent: "center",
-                          }}
-                        >
-                          <WidgetDashboardToggleIcon onDashboard={active} />
-                        </button>
+                      <div style={{ padding: "8px 12px" }}>
+                        <p style={{ fontSize: 11, fontWeight: 600, color: "var(--ink)" }}>{w.label}</p>
+                        <p style={{ fontSize: 9, color: "var(--ink-3)", marginTop: 1 }}>
+                          {w.size === "full" ? "Full width" : w.size === "half" ? "Half width" : "Stat card"}
+                        </p>
                       </div>
                     </div>
                   );
