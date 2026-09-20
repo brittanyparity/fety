@@ -314,7 +314,7 @@ export function useFetyData() {
     (updates: Partial<UserProfile>) => {
       patch((prev) => {
         const profile = { ...prev.profile, ...updates };
-        if (updates.startingBalance !== undefined) {
+        if (updates.startingBalance !== undefined && updates.balanceAsOfISO === undefined) {
           profile.balanceAsOfISO = todayISO();
         }
         return { ...prev, profile };

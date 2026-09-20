@@ -12,6 +12,8 @@ import {
 } from "../lib/fetyCsvImport";
 import { CsvColumnMapper } from "../components/CsvColumnMapper";
 import CurrencyInput, { amountToEditString } from "../components/CurrencyInput";
+import EmojiIconPicker from "../components/EmojiIconPicker";
+import { todayISO } from "../lib/fetyCalculations";
 import { newId } from "../lib/fetyStorage";
 import BillScheduleFields from "../components/BillScheduleFields";
 import IncomeScheduleFields from "../components/IncomeScheduleFields";
@@ -66,21 +68,39 @@ type IncomeDraftRow = {
 };
 
 type BudgetDraftRow = {
+  draftId: string;
   name: string;
   icon: string;
   monthlyBudget: string;
 };
 
-const STARTER_BUDGET_ROWS: BudgetDraftRow[] = [
-  { name: "Housing", icon: "🏠", monthlyBudget: "" },
-  { name: "Groceries", icon: "🛒", monthlyBudget: "" },
-  { name: "Dining Out", icon: "🍽️", monthlyBudget: "" },
-  { name: "Transportation", icon: "🚗", monthlyBudget: "" },
-  { name: "Shopping", icon: "🛍️", monthlyBudget: "" },
-  { name: "Bills", icon: "⚡", monthlyBudget: "" },
-  { name: "Entertainment", icon: "🎬", monthlyBudget: "" },
-  { name: "Personal", icon: "💆", monthlyBudget: "" },
+const CUSTOM_EXPENSE_CATEGORY = "__custom__";
+
+const EXPENSE_CATEGORY_PRESETS: { name: string; icon: string }[] = [
+  { name: "Housing", icon: "🏠" },
+  { name: "Groceries", icon: "🛒" },
+  { name: "Dining Out", icon: "🍽️" },
+  { name: "Transportation", icon: "🚗" },
+  { name: "Shopping", icon: "🛍️" },
+  { name: "Bills", icon: "⚡" },
+  { name: "Entertainment", icon: "🎬" },
+  { name: "Personal", icon: "💆" },
+  { name: "Health", icon: "💊" },
+  { name: "Travel", icon: "✈️" },
+  { name: "Subscriptions", icon: "📱" },
+  { name: "Education", icon: "🎓" },
 ];
+
+const STARTER_BUDGET_PRESETS = EXPENSE_CATEGORY_PRESETS.slice(0, 8);
+
+function newBudgetDraftRow(partial?: Partial<Omit<BudgetDraftRow, "draftId">>): BudgetDraftRow {
+  return {
+    draftId: newId("bcat-draft"),
+    name: partial?.name ?? "",
+    icon: partial?.icon ?? "📁",
+    monthlyBudget: partial?.monthlyBudget ?? "",
+  };
+}
 
 const inputStyle: React.CSSProperties = {
   width: "100%",
@@ -138,15 +158,19 @@ export function OnboardingView({
   const [email, setEmail] = useState(store.profile.email);
   const [currency, setCurrency] = useState(store.profile.currency || "USD");
   const [startingBalance, setStartingBalance] = useState(() => amountToEditString(store.profile.startingBalance));
+  const [balanceAsOfISO, setBalanceAsOfISO] = useState(
+    () => store.profile.balanceAsOfISO ?? todayISO(),
+  );
 
   const [budgetRows, setBudgetRows] = useState<BudgetDraftRow[]>(() =>
     store.categories.length > 0
       ? store.categories.map((c) => ({
+          draftId: newId("bcat-draft"),
           name: c.name,
           icon: c.icon,
           monthlyBudget: amountToEditString(c.monthlyBudget),
         }))
-      : STARTER_BUDGET_ROWS,
+      : STARTER_BUDGET_PRESETS.map((p) => newBudgetDraftRow({ name: p.name, icon: p.icon })),
   );
 
   const [billRows, setBillRows] = useState<ScheduleDraftRow[]>([]);
@@ -192,7 +216,16 @@ export function OnboardingView({
 
   const stepIndex = STEPS.findIndex((s) => s.id === step);
 
-  const categoryNames = useMemo(() => budgetRows.map((r) => r.name).filter(Boolean), [budgetRows]);
+  const categoryNames = useMemo(() => budgetRows.map((r) => r.name.trim()).filter(Boolean), [budgetRows]);
+
+  const expenseCategoryOptions = useMemo(() => {
+    const fromBudget = categoryNames;
+    const merged = [...EXPENSE_CATEGORY_PRESETS.map((p) => p.name), ...fromBudget, "Income", "Savings", "Other"];
+    return [...new Set(merged)];
+  }, [categoryNames]);
+
+  const categorySelectValue = (current: string, fallback: string) =>
+    expenseCategoryOptions.includes(current) ? current : fallback;
 
   const goNext = () => {
     const next = STEPS[stepIndex + 1]?.id;
@@ -210,6 +243,7 @@ export function OnboardingView({
       email: email.trim(),
       currency: currency.trim() || "USD",
       startingBalance: parseFloat(startingBalance) || 0,
+      balanceAsOfISO: balanceAsOfISO || todayISO(),
     });
     goNext();
   };
@@ -400,16 +434,28 @@ export function OnboardingView({
                     <label className="fety-label" style={{ display: "block", marginBottom: 6 }}>Email (optional)</label>
                     <input value={email} onChange={(e) => setEmail(e.target.value)} type="email" style={inputStyle} placeholder="you@example.com" />
                   </div>
-                  <div style={{ display: "grid", gridTemplateColumns: "1fr 120px", gap: 12 }}>
+                  <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
                     <div>
                       <label className="fety-label" style={{ display: "block", marginBottom: 6 }}>Starting balance</label>
                       <CurrencyInput value={startingBalance} onChange={setStartingBalance} placeholder="0.00" />
                     </div>
                     <div>
-                      <label className="fety-label" style={{ display: "block", marginBottom: 6 }}>Currency</label>
-                      <input value={currency} onChange={(e) => setCurrency(e.target.value)} style={inputStyle} placeholder="USD" />
+                      <label className="fety-label" style={{ display: "block", marginBottom: 6 }}>Balance as of</label>
+                      <input
+                        type="date"
+                        value={balanceAsOfISO}
+                        onChange={(e) => setBalanceAsOfISO(e.target.value)}
+                        style={inputStyle}
+                      />
                     </div>
                   </div>
+                  <div style={{ maxWidth: 160 }}>
+                    <label className="fety-label" style={{ display: "block", marginBottom: 6 }}>Currency</label>
+                    <input value={currency} onChange={(e) => setCurrency(e.target.value)} style={inputStyle} placeholder="USD" />
+                  </div>
+                  <p style={{ fontSize: 11, color: "var(--ink-3)", margin: 0, lineHeight: 1.4 }}>
+                    Transactions before this date won&apos;t change your starting balance; activity on and after this date builds from the amount above.
+                  </p>
                 </div>
                 <div style={{ display: "flex", gap: 10, marginTop: 24 }}>
                   <button type="button" style={btnSecondary} onClick={goBack}>Back</button>
@@ -422,46 +468,115 @@ export function OnboardingView({
               <>
                 <h2 style={{ fontSize: 22, fontWeight: 600, marginBottom: 8 }}>Monthly budget</h2>
                 <p style={{ fontSize: 14, color: "var(--ink-2)", marginBottom: 16 }}>Set a monthly cap per category. You can edit these anytime in Budget.</p>
-                <div style={{ display: "flex", flexDirection: "column", gap: 8, maxHeight: 340, overflowY: "auto" }}>
-                  {budgetRows.map((row, i) => (
-                    <div key={i} style={{ display: "grid", gridTemplateColumns: "40px 1fr minmax(120px, 140px)", gap: 8, alignItems: "center" }}>
-                      <input
-                        value={row.icon}
-                        onChange={(e) => {
-                          const next = [...budgetRows];
-                          next[i] = { ...next[i], icon: e.target.value };
-                          setBudgetRows(next);
+                <div style={{ display: "flex", flexDirection: "column", gap: 10, maxHeight: 360, overflowY: "auto" }}>
+                  {budgetRows.map((row, i) => {
+                    const presetMatch = EXPENSE_CATEGORY_PRESETS.find((p) => p.name === row.name);
+                    const selectValue = presetMatch ? row.name : CUSTOM_EXPENSE_CATEGORY;
+                    const isCustom = selectValue === CUSTOM_EXPENSE_CATEGORY;
+                    return (
+                      <div
+                        key={row.draftId}
+                        style={{
+                          display: "grid",
+                          gridTemplateColumns: "auto 1fr minmax(110px, 130px) auto",
+                          gap: 8,
+                          alignItems: "end",
+                          padding: "10px 12px",
+                          border: "1px solid var(--border-soft)",
+                          borderRadius: 12,
                         }}
-                        style={{ ...inputStyle, textAlign: "center", padding: "8px" }}
-                        aria-label="Icon"
-                      />
-                      <input
-                        value={row.name}
-                        onChange={(e) => {
-                          const next = [...budgetRows];
-                          next[i] = { ...next[i], name: e.target.value };
-                          setBudgetRows(next);
-                        }}
-                        style={inputStyle}
-                        placeholder="Category name"
-                      />
-                      <CurrencyInput
-                        compact
-                        value={row.monthlyBudget}
-                        onChange={(monthlyBudget) => {
-                          const next = [...budgetRows];
-                          next[i] = { ...next[i], monthlyBudget };
-                          setBudgetRows(next);
-                        }}
-                        placeholder="0.00"
-                      />
-                    </div>
-                  ))}
+                      >
+                        <EmojiIconPicker
+                          compact
+                          hideLabel
+                          value={row.icon}
+                          defaultEmoji={row.icon || "📁"}
+                          onChange={(icon) => {
+                            const next = [...budgetRows];
+                            next[i] = { ...next[i], icon };
+                            setBudgetRows(next);
+                          }}
+                        />
+                        <div style={{ minWidth: 0 }}>
+                          <label className="fety-label" style={{ display: "block", marginBottom: 4 }}>Expense category</label>
+                          <select
+                            value={selectValue}
+                            onChange={(e) => {
+                              const next = [...budgetRows];
+                              const v = e.target.value;
+                              if (v === CUSTOM_EXPENSE_CATEGORY) {
+                                next[i] = { ...next[i], name: "", icon: next[i].icon || "📁" };
+                              } else {
+                                const preset = EXPENSE_CATEGORY_PRESETS.find((p) => p.name === v);
+                                next[i] = {
+                                  ...next[i],
+                                  name: v,
+                                  icon: preset?.icon ?? next[i].icon,
+                                };
+                              }
+                              setBudgetRows(next);
+                            }}
+                            style={inputStyle}
+                          >
+                            {EXPENSE_CATEGORY_PRESETS.map((p) => (
+                              <option key={p.name} value={p.name}>
+                                {p.name}
+                              </option>
+                            ))}
+                            <option value={CUSTOM_EXPENSE_CATEGORY}>Other (custom)</option>
+                          </select>
+                          {isCustom && (
+                            <input
+                              value={row.name}
+                              onChange={(e) => {
+                                const next = [...budgetRows];
+                                next[i] = { ...next[i], name: e.target.value };
+                                setBudgetRows(next);
+                              }}
+                              style={{ ...inputStyle, marginTop: 6 }}
+                              placeholder="Custom category name"
+                            />
+                          )}
+                        </div>
+                        <div>
+                          <label className="fety-label" style={{ display: "block", marginBottom: 4 }}>Monthly cap</label>
+                          <CurrencyInput
+                            compact
+                            value={row.monthlyBudget}
+                            onChange={(monthlyBudget) => {
+                              const next = [...budgetRows];
+                              next[i] = { ...next[i], monthlyBudget };
+                              setBudgetRows(next);
+                            }}
+                            placeholder="0.00"
+                          />
+                        </div>
+                        <button
+                          type="button"
+                          title="Remove category"
+                          onClick={() => setBudgetRows((rows) => rows.filter((r) => r.draftId !== row.draftId))}
+                          style={{
+                            border: "none",
+                            background: "transparent",
+                            cursor: "pointer",
+                            fontSize: 14,
+                            color: "var(--trouble-dk)",
+                            padding: "4px 5px",
+                            minWidth: 28,
+                            minHeight: 28,
+                            marginBottom: 2,
+                          }}
+                        >
+                          ×
+                        </button>
+                      </div>
+                    );
+                  })}
                 </div>
                 <button
                   type="button"
                   style={{ ...btnSecondary, marginTop: 12 }}
-                  onClick={() => setBudgetRows((r) => [...r, { name: "", icon: "📁", monthlyBudget: "" }])}
+                  onClick={() => setBudgetRows((r) => [...r, newBudgetDraftRow()])}
                 >
                   + Add category
                 </button>
@@ -496,7 +611,24 @@ export function OnboardingView({
                             }}
                             placeholder="0.00"
                           />
-                          <input value={b.category} onChange={(e) => { const n = [...billRows]; n[i].category = e.target.value; setBillRows(n); }} style={inputStyle} placeholder="Category" />
+                          <div>
+                            <label className="fety-label" style={{ display: "block", marginBottom: 4 }}>Category</label>
+                            <select
+                              value={categorySelectValue(b.category, "Bills")}
+                              onChange={(e) => {
+                                const n = [...billRows];
+                                n[i].category = e.target.value;
+                                setBillRows(n);
+                              }}
+                              style={inputStyle}
+                            >
+                              {expenseCategoryOptions.map((name) => (
+                                <option key={name} value={name}>
+                                  {name}
+                                </option>
+                              ))}
+                            </select>
+                          </div>
                           <button type="button" onClick={() => setBillRows(billRows.filter((_, j) => j !== i))} style={{ border: "none", background: "transparent", cursor: "pointer", color: "var(--ink-3)" }}>×</button>
                         </div>
                         <BillScheduleFields
@@ -554,7 +686,24 @@ export function OnboardingView({
                             }}
                             placeholder="0.00"
                           />
-                          <input value={b.category} onChange={(e) => { const n = [...incomeRows]; n[i].category = e.target.value; setIncomeRows(n); }} style={inputStyle} placeholder="Category" />
+                          <div>
+                            <label className="fety-label" style={{ display: "block", marginBottom: 4 }}>Category</label>
+                            <select
+                              value={categorySelectValue(b.category, "Income")}
+                              onChange={(e) => {
+                                const n = [...incomeRows];
+                                n[i].category = e.target.value;
+                                setIncomeRows(n);
+                              }}
+                              style={inputStyle}
+                            >
+                              {expenseCategoryOptions.map((name) => (
+                                <option key={name} value={name}>
+                                  {name}
+                                </option>
+                              ))}
+                            </select>
+                          </div>
                           <button type="button" onClick={() => setIncomeRows(incomeRows.filter((_, j) => j !== i))} style={{ border: "none", background: "transparent", cursor: "pointer", color: "var(--ink-3)" }}>×</button>
                         </div>
                         <IncomeScheduleFields
@@ -648,7 +797,24 @@ export function OnboardingView({
                             }}
                             placeholder="0.00"
                           />
-                          <input value={b.category} onChange={(e) => { const n = [...recurringRows]; n[i].category = e.target.value; setRecurringRows(n); }} style={inputStyle} placeholder="Category" />
+                          <div>
+                            <label className="fety-label" style={{ display: "block", marginBottom: 4 }}>Category</label>
+                            <select
+                              value={categorySelectValue(b.category, "Other")}
+                              onChange={(e) => {
+                                const n = [...recurringRows];
+                                n[i].category = e.target.value;
+                                setRecurringRows(n);
+                              }}
+                              style={inputStyle}
+                            >
+                              {expenseCategoryOptions.map((name) => (
+                                <option key={name} value={name}>
+                                  {name}
+                                </option>
+                              ))}
+                            </select>
+                          </div>
                           <select
                             value={b.transactionType}
                             onChange={(e) => {

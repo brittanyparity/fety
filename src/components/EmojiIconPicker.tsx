@@ -38,9 +38,10 @@ type EmojiIconPickerProps = {
   defaultEmoji: string;
   onChange: (emoji: string) => void;
   compact?: boolean;
+  hideLabel?: boolean;
 };
 
-export default function EmojiIconPicker({ value, defaultEmoji, onChange, compact }: EmojiIconPickerProps) {
+export default function EmojiIconPicker({ value, defaultEmoji, onChange, compact, hideLabel }: EmojiIconPickerProps) {
   const [open, setOpen] = useState(false);
   const rootRef = useRef<HTMLDivElement>(null);
   const display = value.trim() || defaultEmoji;
@@ -63,7 +64,7 @@ export default function EmojiIconPicker({ value, defaultEmoji, onChange, compact
 
   return (
     <div ref={rootRef} style={{ position: "relative", alignSelf: compact ? "flex-start" : undefined }}>
-      <label className="fety-label" style={{ display: "block", marginBottom: 4 }}>
+      <label className="fety-label" style={{ display: hideLabel ? "none" : "block", marginBottom: 4 }}>
         Icon
       </label>
       <button
