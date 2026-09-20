@@ -20,6 +20,12 @@ export interface Transaction {
   amount: number;
   type: TransactionType;
   icon: string;
+  /** Money leaving this account (expense, bill, or transfer source). */
+  fromAccountId?: string;
+  /** Money entering this account (income or transfer destination). */
+  toAccountId?: string;
+  /** Counts this transaction toward the goal's saved total. */
+  goalId?: string;
 }
 
 export interface BudgetCategory {
@@ -63,6 +69,9 @@ export interface IncomeStream extends Omit<RecurringScheduleBase, "frequency"> {
 /** Recurring expense/transfer/custom type — not bills or core income. */
 export interface RecurringTransaction extends RecurringScheduleBase {
   transactionType: TransactionType;
+  fromAccountId?: string;
+  toAccountId?: string;
+  goalId?: string;
 }
 
 export interface Goal {

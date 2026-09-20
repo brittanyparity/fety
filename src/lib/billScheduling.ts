@@ -436,6 +436,9 @@ export function rebuildTransactionsWithBillSchedule(store: RebuildStore, ref = n
           amount: signAmountForFlow(flow, Number(item.amount)),
           type: typeId,
           icon: item.icon || "🔄",
+          fromAccountId: recur.fromAccountId,
+          toAccountId: recur.toAccountId,
+          goalId: recur.goalId,
         };
       },
     },

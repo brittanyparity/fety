@@ -1,4 +1,5 @@
 import { computeSummary, todayISO } from "../lib/fetyCalculations";
+import { goalSavedTotal } from "../lib/ledger";
 import { nextBillOccurrenceOnOrAfter } from "../lib/billScheduling";
 import type { Bill, FinanceSummary, FetyStore, Transaction } from "../types/fety";
 
@@ -137,8 +138,9 @@ export function findBestTransactionMatch(store: FetyStore, query: string): Trans
 export function getGoalsProgress(store: FetyStore): { lines: string[] } {
   if (store.goals.length === 0) return { lines: ["No goals yet. Try: \"Create a $2,500 vacation goal.\""] };
   const lines = store.goals.map((g) => {
-    const pct = g.target > 0 ? Math.round((g.saved / g.target) * 100) : 0;
-    return `${g.name}: ${usd(g.saved)} of ${usd(g.target)} (${pct}%)`;
+    const saved = goalSavedTotal(store, g);
+    const pct = g.target > 0 ? Math.round((saved / g.target) * 100) : 0;
+    return `${g.name}: ${usd(saved)} of ${usd(g.target)} (${pct}%)`;
   });
   return { lines };
 }
@@ -147,10 +149,11 @@ export function getGoalProgress(store: FetyStore, nameHint: string): { lines: st
   const h = nameHint.toLowerCase();
   const g = store.goals.find((x) => x.name.toLowerCase().includes(h) || h.includes(x.name.toLowerCase()));
   if (!g) return { lines: [`I couldn't find a goal matching "${nameHint}".`] };
-  const pct = g.target > 0 ? Math.round((g.saved / g.target) * 100) : 0;
+  const saved = goalSavedTotal(store, g);
+  const pct = g.target > 0 ? Math.round((saved / g.target) * 100) : 0;
   return {
     lines: [
-      `${g.name}: ${usd(g.saved)} saved toward ${usd(g.target)} (${pct}%).`,
+      `${g.name}: ${usd(saved)} saved toward ${usd(g.target)} (${pct}%).`,
       `Target date: ${g.targetDate}. Monthly contribution: ${usd(g.monthlyContribution)}.`,
     ],
   };

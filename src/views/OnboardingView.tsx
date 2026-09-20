@@ -91,7 +91,40 @@ const EXPENSE_CATEGORY_PRESETS: { name: string; icon: string }[] = [
   { name: "Education", icon: "🎓" },
 ];
 
-const STARTER_BUDGET_PRESETS = EXPENSE_CATEGORY_PRESETS.slice(0, 8);
+/** Tap-to-add chips on the Budget step (includes income-style names users often need). */
+const CATEGORY_SUGGESTIONS: { name: string; icon: string }[] = [
+  ...EXPENSE_CATEGORY_PRESETS,
+  { name: "Income", icon: "💵" },
+  { name: "Savings", icon: "🎯" },
+];
+
+function SetupCategorySelect({
+  value,
+  onChange,
+  categoryNames,
+}: {
+  value: string;
+  onChange: (v: string) => void;
+  categoryNames: string[];
+}) {
+  const emptyLabel =
+    categoryNames.length === 0 ? "Add categories on the Budget step" : "Select category";
+  return (
+    <select
+      value={categoryNames.includes(value) ? value : ""}
+      onChange={(e) => onChange(e.target.value)}
+      style={inputStyle}
+      disabled={categoryNames.length === 0}
+    >
+      <option value="">{emptyLabel}</option>
+      {categoryNames.map((name) => (
+        <option key={name} value={name}>
+          {name}
+        </option>
+      ))}
+    </select>
+  );
+}
 
 function newBudgetDraftRow(partial?: Partial<Omit<BudgetDraftRow, "draftId">>): BudgetDraftRow {
   return {
@@ -170,7 +203,7 @@ export function OnboardingView({
           icon: c.icon,
           monthlyBudget: amountToEditString(c.monthlyBudget),
         }))
-      : STARTER_BUDGET_PRESETS.map((p) => newBudgetDraftRow({ name: p.name, icon: p.icon })),
+      : [],
   );
 
   const [billRows, setBillRows] = useState<ScheduleDraftRow[]>([]);
@@ -218,14 +251,12 @@ export function OnboardingView({
 
   const categoryNames = useMemo(() => budgetRows.map((r) => r.name.trim()).filter(Boolean), [budgetRows]);
 
-  const expenseCategoryOptions = useMemo(() => {
-    const fromBudget = categoryNames;
-    const merged = [...EXPENSE_CATEGORY_PRESETS.map((p) => p.name), ...fromBudget, "Income", "Savings", "Other"];
-    return [...new Set(merged)];
-  }, [categoryNames]);
-
-  const categorySelectValue = (current: string, fallback: string) =>
-    expenseCategoryOptions.includes(current) ? current : fallback;
+  const addSuggestedCategory = (suggestion: { name: string; icon: string }) => {
+    setBudgetRows((rows) => {
+      if (rows.some((r) => r.name.trim().toLowerCase() === suggestion.name.toLowerCase())) return rows;
+      return [...rows, newBudgetDraftRow({ name: suggestion.name, icon: suggestion.icon })];
+    });
+  };
 
   const goNext = () => {
     const next = STEPS[stepIndex + 1]?.id;
@@ -270,7 +301,7 @@ export function OnboardingView({
         amount: parseFloat(b.amount) || 0,
         dueDay: b.dueDay,
         frequency: b.frequency,
-        category: b.category.trim() || "Bills",
+        category: b.category.trim(),
         icon: "📄",
       }));
     onReplaceBills(bills);
@@ -286,7 +317,7 @@ export function OnboardingView({
         amount: parseFloat(b.amount) || 0,
         dueDay: b.dueDay,
         frequency: b.frequency,
-        category: b.category.trim() || "Income",
+        category: b.category.trim(),
         icon: "💵",
         semiMonthlyDays: b.frequency === "semimonthly" ? b.semiMonthlyDays : undefined,
         startDateISO: b.startDateISO.trim() || undefined,
@@ -305,7 +336,7 @@ export function OnboardingView({
         amount: parseFloat(b.amount) || 0,
         dueDay: b.dueDay,
         frequency: b.frequency,
-        category: b.category.trim() || "Other",
+        category: b.category.trim(),
         icon: "🔄",
         transactionType: b.transactionType || "expense",
       }));
@@ -467,7 +498,42 @@ export function OnboardingView({
             {step === "budget" && (
               <>
                 <h2 style={{ fontSize: 22, fontWeight: 600, marginBottom: 8 }}>Monthly budget</h2>
-                <p style={{ fontSize: 14, color: "var(--ink-2)", marginBottom: 16 }}>Set a monthly cap per category. You can edit these anytime in Budget.</p>
+                <p style={{ fontSize: 14, color: "var(--ink-2)", marginBottom: 12 }}>
+                  Add the categories you want to track. Suggested names are below — or add your own. Bills and recurring items later can only use categories you add here.
+                </p>
+                <p className="fety-label" style={{ marginBottom: 8 }}>Suggestions</p>
+                <div style={{ display: "flex", flexWrap: "wrap", gap: 6, marginBottom: 16 }}>
+                  {CATEGORY_SUGGESTIONS.map((s) => {
+                    const added = budgetRows.some(
+                      (r) => r.name.trim().toLowerCase() === s.name.toLowerCase(),
+                    );
+                    return (
+                      <button
+                        key={s.name}
+                        type="button"
+                        disabled={added}
+                        onClick={() => addSuggestedCategory(s)}
+                        style={{
+                          padding: "6px 12px",
+                          borderRadius: 99,
+                          border: `1px solid ${added ? "var(--border-soft)" : "var(--border)"}`,
+                          background: added ? "var(--bg)" : "var(--surface)",
+                          color: added ? "var(--ink-3)" : "var(--ink-2)",
+                          fontSize: 12,
+                          fontWeight: 500,
+                          cursor: added ? "default" : "pointer",
+                        }}
+                      >
+                        {s.icon} {s.name}
+                      </button>
+                    );
+                  })}
+                </div>
+                {budgetRows.length === 0 ? (
+                  <p style={{ fontSize: 13, color: "var(--ink-3)", marginBottom: 10 }}>
+                    No categories yet — tap a suggestion or add your own.
+                  </p>
+                ) : null}
                 <div style={{ display: "flex", flexDirection: "column", gap: 10, maxHeight: 360, overflowY: "auto" }}>
                   {budgetRows.map((row, i) => {
                     const presetMatch = EXPENSE_CATEGORY_PRESETS.find((p) => p.name === row.name);
@@ -613,21 +679,15 @@ export function OnboardingView({
                           />
                           <div>
                             <label className="fety-label" style={{ display: "block", marginBottom: 4 }}>Category</label>
-                            <select
-                              value={categorySelectValue(b.category, "Bills")}
-                              onChange={(e) => {
+                            <SetupCategorySelect
+                              value={b.category}
+                              categoryNames={categoryNames}
+                              onChange={(category) => {
                                 const n = [...billRows];
-                                n[i].category = e.target.value;
+                                n[i].category = category;
                                 setBillRows(n);
                               }}
-                              style={inputStyle}
-                            >
-                              {expenseCategoryOptions.map((name) => (
-                                <option key={name} value={name}>
-                                  {name}
-                                </option>
-                              ))}
-                            </select>
+                            />
                           </div>
                           <button type="button" onClick={() => setBillRows(billRows.filter((_, j) => j !== i))} style={{ border: "none", background: "transparent", cursor: "pointer", color: "var(--ink-3)" }}>×</button>
                         </div>
@@ -651,7 +711,7 @@ export function OnboardingView({
                     ))}
                   </div>
                 )}
-                <button type="button" style={btnSecondary} onClick={() => setBillRows((r) => [...r, { name: "", amount: "", dueDay: 1, frequency: "monthly", category: "Bills" }])}>
+                <button type="button" style={btnSecondary} onClick={() => setBillRows((r) => [...r, { name: "", amount: "", dueDay: 1, frequency: "monthly", category: "" }])}>
                   + Add bill
                 </button>
                 <div style={{ display: "flex", gap: 10, marginTop: 24 }}>
@@ -688,21 +748,15 @@ export function OnboardingView({
                           />
                           <div>
                             <label className="fety-label" style={{ display: "block", marginBottom: 4 }}>Category</label>
-                            <select
-                              value={categorySelectValue(b.category, "Income")}
-                              onChange={(e) => {
+                            <SetupCategorySelect
+                              value={b.category}
+                              categoryNames={categoryNames}
+                              onChange={(category) => {
                                 const n = [...incomeRows];
-                                n[i].category = e.target.value;
+                                n[i].category = category;
                                 setIncomeRows(n);
                               }}
-                              style={inputStyle}
-                            >
-                              {expenseCategoryOptions.map((name) => (
-                                <option key={name} value={name}>
-                                  {name}
-                                </option>
-                              ))}
-                            </select>
+                            />
                           </div>
                           <button type="button" onClick={() => setIncomeRows(incomeRows.filter((_, j) => j !== i))} style={{ border: "none", background: "transparent", cursor: "pointer", color: "var(--ink-3)" }}>×</button>
                         </div>
@@ -755,7 +809,7 @@ export function OnboardingView({
                         amount: "",
                         dueDay: 1,
                         frequency: "biweekly",
-                        category: "Income",
+                        category: "",
                         semiMonthlyDays: [1, 15],
                         startDateISO: "",
                         endDateISO: "",
@@ -799,21 +853,15 @@ export function OnboardingView({
                           />
                           <div>
                             <label className="fety-label" style={{ display: "block", marginBottom: 4 }}>Category</label>
-                            <select
-                              value={categorySelectValue(b.category, "Other")}
-                              onChange={(e) => {
+                            <SetupCategorySelect
+                              value={b.category}
+                              categoryNames={categoryNames}
+                              onChange={(category) => {
                                 const n = [...recurringRows];
-                                n[i].category = e.target.value;
+                                n[i].category = category;
                                 setRecurringRows(n);
                               }}
-                              style={inputStyle}
-                            >
-                              {expenseCategoryOptions.map((name) => (
-                                <option key={name} value={name}>
-                                  {name}
-                                </option>
-                              ))}
-                            </select>
+                            />
                           </div>
                           <select
                             value={b.transactionType}
@@ -858,7 +906,7 @@ export function OnboardingView({
                   onClick={() =>
                     setRecurringRows((r) => [
                       ...r,
-                      { name: "", amount: "", dueDay: 1, frequency: "monthly", category: "Other", transactionType: "expense" },
+                      { name: "", amount: "", dueDay: 1, frequency: "monthly", category: "", transactionType: "expense" },
                     ])
                   }
                 >

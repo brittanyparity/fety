@@ -8,6 +8,7 @@ import type {
   Transaction,
 } from "../types/fety";
 import { flowForTransactionType } from "./transactionTypes";
+import { globalBalanceContribution, goalSavedTotal } from "./ledger";
 
 export function todayISO(): string {
   return new Date().toISOString().slice(0, 10);
@@ -103,7 +104,7 @@ export function endingBalanceOnDate(store: FetyStore, dateISO: string): number {
   const txs = store.transactions
     .filter((t) => t.dateISO >= asOf && t.dateISO <= dateISO)
     .sort((a, b) => a.dateISO.localeCompare(b.dateISO) || a.id.localeCompare(b.id));
-  for (const t of txs) balance += t.amount;
+  for (const t of txs) balance += globalBalanceContribution(t, store);
   return balance;
 }
 
@@ -116,7 +117,7 @@ export function computeSummary(store: FetyStore, ref = new Date()): FinanceSumma
   const asOf = balanceAsOfISO(store);
   const balanceTx = store.transactions.filter((t) => t.dateISO >= asOf);
 
-  const txSum = balanceTx.reduce((s, t) => s + t.amount, 0);
+  const txSum = balanceTx.reduce((s, t) => s + globalBalanceContribution(t, store), 0);
   const balance = store.profile.startingBalance + txSum;
 
   const moneyInToday = balanceTx
@@ -144,7 +145,7 @@ export function computeSummary(store: FetyStore, ref = new Date()): FinanceSumma
   const weeklySpendingPower = Math.max(0, weeklyBudget - weeklySpent);
   const weeklyUsedPct = weeklyBudget > 0 ? Math.min(100, Math.round((weeklySpent / weeklyBudget) * 100)) : 0;
 
-  const savingsTotal = store.goals.reduce((s, g) => s + g.saved, 0);
+  const savingsTotal = store.goals.reduce((s, g) => s + goalSavedTotal(store, g), 0);
 
   const categoriesWithSpent = store.categories.map((c) => ({
     ...c,
@@ -187,7 +188,7 @@ export function buildCalendarMap(store: FetyStore, year: number): CalendarMap {
     .filter((t) => t.dateISO >= asOf)
     .sort((a, b) => a.dateISO.localeCompare(b.dateISO));
   for (const t of sorted) {
-    if (t.dateISO < `${yearPrefix}-01-01`) balance += t.amount;
+    if (t.dateISO < `${yearPrefix}-01-01`) balance += globalBalanceContribution(t, store);
   }
 
   const byDate = new Map<string, Transaction[]>();
@@ -225,8 +226,12 @@ export function buildCalendarMap(store: FetyStore, year: number): CalendarMap {
         category: t.category,
         txnType: t.type,
       }));
-      const income = txns.filter((t) => t.amount > 0).reduce((s, t) => s + t.amount, 0);
-      const expenses = txns.filter((t) => t.amount < 0).reduce((s, t) => s + t.amount, 0);
+      const income = txns
+        .filter((t) => globalBalanceContribution(t, store) > 0)
+        .reduce((s, t) => s + globalBalanceContribution(t, store), 0);
+      const expenses = txns
+        .filter((t) => globalBalanceContribution(t, store) < 0)
+        .reduce((s, t) => s + globalBalanceContribution(t, store), 0);
       const startBal = balance;
       const endBal = startBal + income + expenses;
       balance = endBal;

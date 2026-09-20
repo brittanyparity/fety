@@ -2,7 +2,8 @@ import { useState, useRef, useEffect, useCallback, useMemo } from "react";
 import { FetyLogo } from "./FetyLogo";
 import { useFetyData } from "./hooks/useFetyData";
 import { buildCalendarMap, endingBalanceOnDate, formatNavDate, last6MonthsSpending, last7DayEndingBalances, categorySpendShares, todayISO } from "./lib/fetyCalculations";
-import { getTransactionTypes } from "./lib/transactionTypes";
+import { formatTransactionDetailLine, goalSavedTotal } from "./lib/ledger";
+import { flowForTransactionType, getTransactionTypes } from "./lib/transactionTypes";
 import { calendarDailyBalanceBg, calendarDailyBalanceBgStrong, calendarEndingBalanceBg, calendarEndingBalanceBgStrong, calBalanceColor, calSignedColor } from "./lib/calendarUi";
 import { CalendarPeriodMenu } from "./components/CalendarPeriodMenu";
 import EmojiIconPicker from "./components/EmojiIconPicker";
@@ -648,7 +649,8 @@ const ALL_WIDGETS: WidgetDef[] = [
         <p style={{ fontSize: 12, fontWeight: 600, color: "var(--ink)", marginBottom: 16 }}>Savings Goals</p>
         <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(200px, 1fr))", gap: 12 }}>
           {goalRows.map(g => {
-            const pct = g.target > 0 ? Math.round((g.saved / g.target) * 100) : 0;
+            const saved = goalSavedTotal(store, g);
+            const pct = g.target > 0 ? Math.round((saved / g.target) * 100) : 0;
             return (
               <div key={g.id} style={{ background: "var(--bg)", borderRadius: 12, padding: "14px 16px" }}>
                 <div style={{ display: "flex", gap: 8, alignItems: "center", marginBottom: 10 }}>
@@ -659,7 +661,7 @@ const ALL_WIDGETS: WidgetDef[] = [
                   </div>
                 </div>
                 <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 6 }}>
-                  <span style={{ fontSize: 14, fontWeight: 400, color: "var(--ink)", fontFamily: "var(--font-sans)" }}>{usd(g.saved)}</span>
+                  <span style={{ fontSize: 14, fontWeight: 400, color: "var(--ink)", fontFamily: "var(--font-sans)" }}>{usd(saved)}</span>
                   <span style={{ fontSize: 10, color: "var(--ink-3)", alignSelf: "flex-end" }}>of {usd(g.target)}</span>
                 </div>
                 <div style={{ height: 5, background: "var(--border)", borderRadius: 99 }}>
@@ -1014,6 +1016,7 @@ function CalendarView({
             selectedISO={panelISO}
             day={panelDay}
             categories={store.categories}
+            ledgerStore={store}
             transactionTypes={transactionTypes}
             onJumpToDate={jumpToDateISO}
             onClose={() => setSelected(null)}
@@ -1457,6 +1460,7 @@ function CalendarSidePanel({
   selectedISO,
   day,
   categories,
+  ledgerStore,
   transactionTypes,
   onJumpToDate,
   onClose,
@@ -1469,7 +1473,8 @@ function CalendarSidePanel({
   selectedISO: string | null;
   day: CalDay | null;
   categories: BudgetCategory[];
-  transactionTypes: import("./types/fety").FetyTransactionType[];
+  ledgerStore: FetyStore;
+  transactionTypes: FetyTransactionType[];
   onJumpToDate: (iso: string) => void;
   onClose: () => void;
   onAddTransaction: (input: {
@@ -1479,15 +1484,30 @@ function CalendarSidePanel({
     category: string;
     dateISO?: string;
     icon?: string;
+    fromAccountId?: string;
+    toAccountId?: string;
+    goalId?: string;
   }) => void;
   onUpdateTransaction: (
     id: string,
-    updates: Partial<{ desc: string; amount: number; type: TransactionType; category: string; icon: string }>,
+    updates: Partial<{
+      desc: string;
+      amount: number;
+      type: TransactionType;
+      category: string;
+      icon: string;
+      fromAccountId?: string;
+      toAccountId?: string;
+      goalId?: string;
+    }>,
   ) => void;
   onDeleteTransaction: (id: string) => void;
 }) {
+  const accounts = ledgerStore.accounts;
+  const goals = ledgerStore.goals;
   const defaultTypeId = transactionTypes.find((t) => t.id === "expense")?.id ?? transactionTypes[0]?.id ?? "expense";
   const iconForType = (typeId: string) => transactionTypes.find((t) => t.id === typeId)?.icon ?? "💬";
+  const txById = useMemo(() => new Map(ledgerStore.transactions.map((t) => [t.id, t])), [ledgerStore.transactions]);
   const [jumpISO, setJumpISO] = useState(selectedISO ?? todayISO());
   const [showAdd, setShowAdd] = useState(false);
   const [addDesc, setAddDesc] = useState("");
@@ -1501,10 +1521,12 @@ function CalendarSidePanel({
   const [editType, setEditType] = useState<TransactionType>(defaultTypeId);
   const [editCategory, setEditCategory] = useState("Other");
   const [editIcon, setEditIcon] = useState("");
-
-  useEffect(() => {
-    if (selectedISO) setJumpISO(selectedISO);
-  }, [selectedISO]);
+  const [addFromAccountId, setAddFromAccountId] = useState("");
+  const [addToAccountId, setAddToAccountId] = useState("");
+  const [addGoalId, setAddGoalId] = useState("");
+  const [editFromAccountId, setEditFromAccountId] = useState("");
+  const [editToAccountId, setEditToAccountId] = useState("");
+  const [editGoalId, setEditGoalId] = useState("");
 
   const panelInput: React.CSSProperties = {
     width: "100%",
@@ -1515,6 +1537,49 @@ function CalendarSidePanel({
     fontFamily: "inherit",
     background: "var(--surface)",
   };
+
+  const renderRoutingSelects = (
+    type: TransactionType,
+    fromId: string,
+    toId: string,
+    goalId: string,
+    onFrom: (v: string) => void,
+    onTo: (v: string) => void,
+    onGoal: (v: string) => void,
+  ) => {
+    const flow = flowForTransactionType(ledgerStore, type);
+    const acctEmpty = accounts.length === 0 ? "No accounts" : "— Account —";
+    return (
+      <>
+        {(flow === "transfer" || flow === "expense" || flow === "bill") && (
+          <select value={fromId} onChange={(e) => onFrom(e.target.value)} style={panelInput} disabled={accounts.length === 0}>
+            <option value="">{acctEmpty}</option>
+            {accounts.map((a) => (
+              <option key={a.id} value={a.id}>{a.name}</option>
+            ))}
+          </select>
+        )}
+        {(flow === "transfer" || flow === "income") && (
+          <select value={toId} onChange={(e) => onTo(e.target.value)} style={panelInput} disabled={accounts.length === 0}>
+            <option value="">{acctEmpty}</option>
+            {accounts.map((a) => (
+              <option key={a.id} value={a.id}>{a.name}</option>
+            ))}
+          </select>
+        )}
+        <select value={goalId} onChange={(e) => onGoal(e.target.value)} style={panelInput} disabled={goals.length === 0}>
+          <option value="">{goals.length === 0 ? "No goals" : "— Goal —"}</option>
+          {goals.map((g) => (
+            <option key={g.id} value={g.id}>{g.name}</option>
+          ))}
+        </select>
+      </>
+    );
+  };
+
+  useEffect(() => {
+    if (selectedISO) setJumpISO(selectedISO);
+  }, [selectedISO]);
 
   const submitAdd = (e: React.FormEvent) => {
     e.preventDefault();
@@ -1528,20 +1593,30 @@ function CalendarSidePanel({
       category: addCategory,
       dateISO: CAL_KEY(day.date),
       icon: addIcon.trim() || undefined,
+      fromAccountId: addFromAccountId || undefined,
+      toAccountId: addToAccountId || undefined,
+      goalId: addGoalId || undefined,
     });
     setAddDesc("");
     setAddAmount("");
     setAddIcon("");
+    setAddFromAccountId("");
+    setAddToAccountId("");
+    setAddGoalId("");
     setShowAdd(false);
   };
 
   const startEdit = (item: CalDay["items"][0]) => {
+    const tx = txById.get(item.id);
     setEditId(item.id);
     setEditDesc(item.desc);
     setEditAmount(amountToEditString(item.amount));
     setEditType(item.txnType);
     setEditCategory(item.category);
     setEditIcon(item.icon);
+    setEditFromAccountId(tx?.fromAccountId ?? "");
+    setEditToAccountId(tx?.toAccountId ?? "");
+    setEditGoalId(tx?.goalId ?? "");
   };
 
   const saveEdit = () => {
@@ -1554,6 +1629,9 @@ function CalendarSidePanel({
       type: editType,
       category: editCategory,
       icon: editIcon.trim() || iconForType(editType),
+      fromAccountId: editFromAccountId || undefined,
+      toAccountId: editToAccountId || undefined,
+      goalId: editGoalId || undefined,
     });
     setEditId(null);
   };
@@ -1648,6 +1726,7 @@ function CalendarSidePanel({
                     <option key={name} value={name}>{name}</option>
                   ))}
                 </select>
+                {renderRoutingSelects(addType, addFromAccountId, addToAccountId, addGoalId, setAddFromAccountId, setAddToAccountId, setAddGoalId)}
                 <button type="submit" style={{ padding: "7px 0", borderRadius: 8, border: "none", background: "var(--ink)", color: "#fff", fontSize: 11, fontWeight: 600, cursor: "pointer" }}>Save transaction</button>
               </form>
             )}
@@ -1683,6 +1762,7 @@ function CalendarSidePanel({
                           <option key={name} value={name}>{name}</option>
                         ))}
                       </select>
+                      {renderRoutingSelects(editType, editFromAccountId, editToAccountId, editGoalId, setEditFromAccountId, setEditToAccountId, setEditGoalId)}
                       <div style={{ display: "flex", gap: 6 }}>
                         <button type="button" onClick={saveEdit} style={{ flex: 1, padding: "6px 0", borderRadius: 8, border: "none", background: "var(--ink)", color: "#fff", fontSize: 10, fontWeight: 600, cursor: "pointer" }}>Save</button>
                         <button type="button" onClick={() => setEditId(null)} style={{ flex: 1, padding: "6px 0", borderRadius: 8, border: "1px solid var(--border)", background: "transparent", fontSize: 10, cursor: "pointer" }}>Cancel</button>
@@ -1693,10 +1773,32 @@ function CalendarSidePanel({
                       <span style={{ fontSize: 15 }}>{item.icon}</span>
                       <div style={{ flex: 1, minWidth: 0 }}>
                         <p style={{ fontSize: 11, fontWeight: 600, color: "var(--ink)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{item.desc}</p>
-                        <p style={{ fontSize: 9, color: "var(--ink-3)" }}>{item.category}</p>
+                        <p style={{ fontSize: 9, color: "var(--ink-3)" }}>
+                          {item.category}
+                          {(() => {
+                            const tx = txById.get(item.id);
+                            const detail = tx ? formatTransactionDetailLine(tx, ledgerStore) : null;
+                            return detail ? ` · ${detail}` : "";
+                          })()}
+                        </p>
                       </div>
-                      <span style={{ fontFamily: "var(--font-sans)", fontWeight: 600, fontSize: 11, color: item.amount >= 0 ? "var(--clear-dk)" : "var(--trouble-dk)", flexShrink: 0 }}>
-                        {item.amount >= 0 ? "+" : ""}{usdF(item.amount)}
+                      <span
+                        style={{
+                          fontFamily: "var(--font-sans)",
+                          fontWeight: 600,
+                          fontSize: 11,
+                          color:
+                            flowForTransactionType(ledgerStore, item.txnType) === "transfer"
+                              ? "var(--ink-2)"
+                              : item.amount >= 0
+                                ? "var(--clear-dk)"
+                                : "var(--trouble-dk)",
+                          flexShrink: 0,
+                        }}
+                      >
+                        {flowForTransactionType(ledgerStore, item.txnType) === "transfer"
+                          ? usdF(Math.abs(item.amount))
+                          : `${item.amount >= 0 ? "+" : ""}${usdF(item.amount)}`}
                       </span>
                       <button type="button" onClick={() => startEdit(item)} title="Edit" style={{ border: "none", background: "transparent", cursor: "pointer", fontSize: 10, color: "var(--ink-3)", padding: 2 }}>✎</button>
                       <button type="button" onClick={() => onDeleteTransaction(item.id)} title="Remove" style={{ border: "none", background: "transparent", cursor: "pointer", fontSize: 10, color: "var(--trouble-dk)", padding: 2 }}>×</button>
@@ -2159,6 +2261,9 @@ export default function App() {
             onUpdateTransactionType={updateTransactionType}
             onDeleteTransactionType={deleteTransactionType}
             transactionTypeInUse={transactionTypeInUse}
+            accounts={store.accounts}
+            goals={store.goals}
+            typeIcons={store.typeIcons}
           />
         );
       case "spending":
@@ -2167,6 +2272,9 @@ export default function App() {
             transactions={store.transactions}
             categories={store.categories}
             transactionTypes={transactionTypes}
+            accounts={store.accounts}
+            goals={store.goals}
+            typeIcons={store.typeIcons}
             viewMode={viewMode}
             onAdd={addTransaction}
             onUpdate={updateTransaction}
@@ -2177,6 +2285,7 @@ export default function App() {
         return (
           <GoalsManageView
             goals={store.goals}
+            goalLedgerStore={store}
             viewMode={viewMode}
             onAdd={addGoal}
             onUpdate={updateGoal}
@@ -2188,6 +2297,7 @@ export default function App() {
           <SettingsManageView
             profile={store.profile}
             accounts={store.accounts}
+            ledgerStore={store}
             onUpdateProfile={updateProfile}
             onUpdateAccount={updateAccount}
             onAddAccount={addAccount}

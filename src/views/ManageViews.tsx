@@ -15,11 +15,14 @@ import type {
   TransactionType,
 } from "../types/fety";
 import { formatTransactionGroupDate, todayISO } from "../lib/fetyCalculations";
+import { goalSavedTotal } from "../lib/ledger";
 import { EditableNumber, EditableText } from "../components/EditableField";
 import EmojiIconPicker from "../components/EmojiIconPicker";
 import BillScheduleFields from "../components/BillScheduleFields";
 import IncomeScheduleFields from "../components/IncomeScheduleFields";
 import { BILL_FREQUENCY_LABELS, INCOME_FREQUENCY_LABELS } from "../lib/billScheduling";
+import { flowForTransactionType } from "../lib/transactionTypes";
+import { accountBalanceWithTransactions, formatTransactionDetailLine, goalContributionsFromTransactions, goalSavedTotal } from "../lib/ledger";
 import CurrencyInput, { amountToEditString } from "../components/CurrencyInput";
 
 const usd = (n: number) =>
@@ -62,6 +65,86 @@ const inputStyle: React.CSSProperties = {
 
 type ViewMode = "cards" | "list";
 
+function accountSelectOptions(accounts: Account[]) {
+  return accounts;
+}
+
+function TransactionRoutingFields({
+  type,
+  transactionTypes,
+  accounts,
+  goals,
+  fromAccountId,
+  toAccountId,
+  goalId,
+  onFromAccountId,
+  onToAccountId,
+  onGoalId,
+  storeForFlow,
+}: {
+  type: TransactionType;
+  transactionTypes: FetyTransactionType[];
+  accounts: Account[];
+  goals: Goal[];
+  fromAccountId: string;
+  toAccountId: string;
+  goalId: string;
+  onFromAccountId: (v: string) => void;
+  onToAccountId: (v: string) => void;
+  onGoalId: (v: string) => void;
+  storeForFlow: { transactionTypes?: FetyTransactionType[]; typeIcons: import("../types/fety").TypeIconMap };
+}) {
+  const flow = flowForTransactionType(storeForFlow as import("../types/fety").FetyStore, type);
+  const showFrom = flow === "transfer" || flow === "expense" || flow === "bill";
+  const showTo = flow === "transfer" || flow === "income";
+  const emptyAcct = accounts.length === 0 ? "Add accounts in Settings" : "— None —";
+  return (
+    <>
+      {showFrom ? (
+        <div>
+          <label className="fety-label" style={{ display: "block", marginBottom: 4 }}>
+            {flow === "transfer" ? "From account" : "Paid from account"}
+          </label>
+          <select value={fromAccountId} onChange={(e) => onFromAccountId(e.target.value)} style={inputStyle} disabled={accounts.length === 0}>
+            <option value="">{emptyAcct}</option>
+            {accountSelectOptions(accounts).map((a) => (
+              <option key={a.id} value={a.id}>
+                {a.icon} {a.name}
+              </option>
+            ))}
+          </select>
+        </div>
+      ) : null}
+      {showTo ? (
+        <div>
+          <label className="fety-label" style={{ display: "block", marginBottom: 4 }}>
+            {flow === "transfer" ? "To account" : "Deposited to account"}
+          </label>
+          <select value={toAccountId} onChange={(e) => onToAccountId(e.target.value)} style={inputStyle} disabled={accounts.length === 0}>
+            <option value="">{emptyAcct}</option>
+            {accountSelectOptions(accounts).map((a) => (
+              <option key={a.id} value={a.id}>
+                {a.icon} {a.name}
+              </option>
+            ))}
+          </select>
+        </div>
+      ) : null}
+      <div>
+        <label className="fety-label" style={{ display: "block", marginBottom: 4 }}>Goal contribution</label>
+        <select value={goalId} onChange={(e) => onGoalId(e.target.value)} style={inputStyle} disabled={goals.length === 0}>
+          <option value="">{goals.length === 0 ? "Add goals first" : "— None —"}</option>
+          {goals.map((g) => (
+            <option key={g.id} value={g.id}>
+              {g.icon} {g.name}
+            </option>
+          ))}
+        </select>
+      </div>
+    </>
+  );
+}
+
 const tileIconBtn: React.CSSProperties = {
   border: "none",
   background: "transparent",
@@ -98,6 +181,9 @@ export function BudgetManageView({
   onUpdateTransactionType,
   onDeleteTransactionType,
   transactionTypeInUse,
+  accounts,
+  goals,
+  typeIcons,
 }: {
   categories: CategoryWithSpent[];
   bills: Bill[];
@@ -123,7 +209,12 @@ export function BudgetManageView({
   onDeleteIncomeStream: (id: string) => void;
   onUpdateRecurringTransaction: (
     id: string,
-    updates: Partial<Pick<RecurringTransaction, "name" | "amount" | "dueDay" | "frequency" | "category" | "icon" | "transactionType">>,
+    updates: Partial<
+      Pick<
+        RecurringTransaction,
+        "name" | "amount" | "dueDay" | "frequency" | "category" | "icon" | "transactionType" | "fromAccountId" | "toAccountId" | "goalId"
+      >
+    >,
   ) => void;
   onAddRecurringTransaction: (item: Omit<RecurringTransaction, "id">) => void;
   onDeleteRecurringTransaction: (id: string) => void;
@@ -131,7 +222,11 @@ export function BudgetManageView({
   onUpdateTransactionType: (id: string, updates: Partial<Pick<FetyTransactionType, "name" | "icon" | "flow">>) => void;
   onDeleteTransactionType: (id: string) => void;
   transactionTypeInUse: (id: string) => boolean;
+  accounts: Account[];
+  goals: Goal[];
+  typeIcons: import("../types/fety").TypeIconMap;
 }) {
+  const ledgerStore = { accounts, goals, transactionTypes, typeIcons } as import("../types/fety").FetyStore;
   const [billName, setBillName] = useState("");
   const [billAmount, setBillAmount] = useState("");
   const [billDue, setBillDue] = useState(1);
@@ -157,6 +252,9 @@ export function BudgetManageView({
   const [recurFrequency, setRecurFrequency] = useState<BillFrequency>("monthly");
   const [recurCategory, setRecurCategory] = useState("Other");
   const [recurTransactionType, setRecurTransactionType] = useState<TransactionType>("expense");
+  const [recurFromAccountId, setRecurFromAccountId] = useState("");
+  const [recurToAccountId, setRecurToAccountId] = useState("");
+  const [recurGoalId, setRecurGoalId] = useState("");
   const [editingTypeId, setEditingTypeId] = useState<string | null>(null);
   const [typeEditDraft, setTypeEditDraft] = useState<{ name: string; icon: string; flow: TransactionFlow } | null>(null);
 
@@ -299,6 +397,9 @@ export function BudgetManageView({
     dueDay: number;
     icon: string;
     transactionType: TransactionType;
+    fromAccountId: string;
+    toAccountId: string;
+    goalId: string;
   } | null>(null);
 
   const startEditRecur = (r: RecurringTransaction) => {
@@ -311,6 +412,9 @@ export function BudgetManageView({
       dueDay: r.dueDay,
       icon: r.icon || "🔄",
       transactionType: r.transactionType || "expense",
+      fromAccountId: r.fromAccountId ?? "",
+      toAccountId: r.toAccountId ?? "",
+      goalId: r.goalId ?? "",
     });
   };
 
@@ -327,6 +431,9 @@ export function BudgetManageView({
       dueDay: recurEditDraft.dueDay,
       icon: recurEditDraft.icon,
       transactionType: recurEditDraft.transactionType,
+      fromAccountId: recurEditDraft.fromAccountId || undefined,
+      toAccountId: recurEditDraft.toAccountId || undefined,
+      goalId: recurEditDraft.goalId || undefined,
     });
     setEditingRecurId(null);
     setRecurEditDraft(null);
@@ -421,6 +528,9 @@ export function BudgetManageView({
       category: recurCategory,
       icon: "🔄",
       transactionType: recurTransactionType,
+      fromAccountId: recurFromAccountId || undefined,
+      toAccountId: recurToAccountId || undefined,
+      goalId: recurGoalId || undefined,
     });
     setRecurName("");
     setRecurAmount("");
@@ -691,6 +801,21 @@ export function BudgetManageView({
               onDueDayChange={setRecurDue}
               inputStyle={inputStyle}
             />
+            <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(200px, 1fr))", gap: 10 }}>
+              <TransactionRoutingFields
+                type={recurTransactionType}
+                transactionTypes={transactionTypes}
+                accounts={accounts}
+                goals={goals}
+                fromAccountId={recurFromAccountId}
+                toAccountId={recurToAccountId}
+                goalId={recurGoalId}
+                onFromAccountId={setRecurFromAccountId}
+                onToAccountId={setRecurToAccountId}
+                onGoalId={setRecurGoalId}
+                storeForFlow={ledgerStore}
+              />
+            </div>
             <button type="submit" style={{ padding: "8px 14px", borderRadius: "var(--radius-ctrl)", border: "none", background: "var(--ink)", color: "#fff", fontWeight: 600, cursor: "pointer", alignSelf: "flex-start" }}>
               Add recurring transaction
             </button>
@@ -970,6 +1095,21 @@ export function BudgetManageView({
                         </select>
                       </div>
                     </div>
+                    <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(200px, 1fr))", gap: 10 }}>
+                      <TransactionRoutingFields
+                        type={recurEditDraft.transactionType}
+                        transactionTypes={transactionTypes}
+                        accounts={accounts}
+                        goals={goals}
+                        fromAccountId={recurEditDraft.fromAccountId}
+                        toAccountId={recurEditDraft.toAccountId}
+                        goalId={recurEditDraft.goalId}
+                        onFromAccountId={(fromAccountId) => setRecurEditDraft((d) => (d ? { ...d, fromAccountId } : d))}
+                        onToAccountId={(toAccountId) => setRecurEditDraft((d) => (d ? { ...d, toAccountId } : d))}
+                        onGoalId={(goalId) => setRecurEditDraft((d) => (d ? { ...d, goalId } : d))}
+                        storeForFlow={ledgerStore}
+                      />
+                    </div>
                     <BillScheduleFields
                       compact
                       frequency={recurEditDraft.frequency}
@@ -1130,6 +1270,9 @@ export function TransactionsManageView({
   transactions,
   categories,
   transactionTypes,
+  accounts,
+  goals,
+  typeIcons,
   viewMode,
   onAdd,
   onUpdate,
@@ -1138,11 +1281,30 @@ export function TransactionsManageView({
   transactions: Transaction[];
   categories: BudgetCategory[];
   transactionTypes: FetyTransactionType[];
+  accounts: Account[];
+  goals: Goal[];
+  typeIcons: import("../types/fety").TypeIconMap;
   viewMode: ViewMode;
-  onAdd: (input: { desc: string; amount: number; type: TransactionType; category: string; dateISO?: string; icon?: string }) => void;
-  onUpdate: (id: string, updates: Partial<Pick<Transaction, "desc" | "amount" | "type" | "category" | "dateISO" | "icon">>) => void;
+  onAdd: (input: {
+    desc: string;
+    amount: number;
+    type: TransactionType;
+    category: string;
+    dateISO?: string;
+    icon?: string;
+    fromAccountId?: string;
+    toAccountId?: string;
+    goalId?: string;
+  }) => void;
+  onUpdate: (
+    id: string,
+    updates: Partial<
+      Pick<Transaction, "desc" | "amount" | "type" | "category" | "dateISO" | "icon" | "fromAccountId" | "toAccountId" | "goalId">
+    >,
+  ) => void;
   onDelete: (id: string) => void;
 }) {
+  const ledgerStore = { accounts, goals, transactionTypes, typeIcons, transactions, profile: { startingBalance: 0, displayName: "", email: "", currency: "USD" } } as import("../types/fety").FetyStore;
   const defaultTypeId = transactionTypes.find((t) => t.id === "expense")?.id ?? transactionTypes[0]?.id ?? "expense";
   const iconForType = (typeId: string) => transactionTypes.find((t) => t.id === typeId)?.icon ?? "💬";
   const [filter, setFilter] = useState("All");
@@ -1158,6 +1320,12 @@ export function TransactionsManageView({
   const [dateISO, setDateISO] = useState(todayISO());
   const [addIcon, setAddIcon] = useState("");
   const [editIcon, setEditIcon] = useState("");
+  const [fromAccountId, setFromAccountId] = useState("");
+  const [toAccountId, setToAccountId] = useState("");
+  const [goalId, setGoalId] = useState("");
+  const [editFromAccountId, setEditFromAccountId] = useState("");
+  const [editToAccountId, setEditToAccountId] = useState("");
+  const [editGoalId, setEditGoalId] = useState("");
 
   const shown =
     filter === "All"
@@ -1184,10 +1352,23 @@ export function TransactionsManageView({
     e.preventDefault();
     const n = parseFloat(amount);
     if (!desc.trim() || !Number.isFinite(n)) return;
-    onAdd({ desc: desc.trim(), amount: n, type, category, dateISO, icon: addIcon.trim() || undefined });
+    onAdd({
+      desc: desc.trim(),
+      amount: n,
+      type,
+      category,
+      dateISO,
+      icon: addIcon.trim() || undefined,
+      fromAccountId: fromAccountId || undefined,
+      toAccountId: toAccountId || undefined,
+      goalId: goalId || undefined,
+    });
     setDesc("");
     setAmount("");
     setAddIcon("");
+    setFromAccountId("");
+    setToAccountId("");
+    setGoalId("");
   };
 
   return (
@@ -1231,6 +1412,21 @@ export function TransactionsManageView({
           <label className="fety-label" style={{ display: "block", marginBottom: 4 }}>Date</label>
           <input type="date" value={dateISO} onChange={(e) => setDateISO(e.target.value)} style={inputStyle} />
         </div>
+        <div style={{ gridColumn: "1 / -1", display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(200px, 1fr))", gap: 10 }}>
+          <TransactionRoutingFields
+            type={type}
+            transactionTypes={transactionTypes}
+            accounts={accounts}
+            goals={goals}
+            fromAccountId={fromAccountId}
+            toAccountId={toAccountId}
+            goalId={goalId}
+            onFromAccountId={setFromAccountId}
+            onToAccountId={setToAccountId}
+            onGoalId={setGoalId}
+            storeForFlow={ledgerStore}
+          />
+        </div>
         <button type="submit" style={{ padding: "8px 14px", borderRadius: "var(--radius-ctrl)", border: "none", background: "var(--ink)", color: "#fff", fontWeight: 600, cursor: "pointer" }}>Save</button>
       </form>
 
@@ -1246,7 +1442,9 @@ export function TransactionsManageView({
             <div style={{ padding: "9px 18px", background: "var(--bg)", borderTop: gi > 0 ? "1px solid var(--border)" : undefined }}>
               <span className="fety-label">{formatTransactionGroupDate(dateISO)}</span>
             </div>
-            {txns.map((t) => (
+            {txns.map((t) => {
+              const detail = formatTransactionDetailLine(t, { ...ledgerStore, transactions });
+              return (
               <div key={t.id} style={{ display: "flex", alignItems: "center", padding: "12px 18px", borderTop: "1px solid var(--border)", gap: 12 }}>
                 {editId === t.id ? (
                   <div style={{ flex: 1, display: "grid", gridTemplateColumns: "auto minmax(140px, 2.5fr) minmax(100px, 1fr) minmax(100px, 1fr) minmax(100px, 1fr) auto auto", gap: 8, alignItems: "end", overflow: "visible", position: "relative", zIndex: 2 }}>
@@ -1282,6 +1480,21 @@ export function TransactionsManageView({
                         ))}
                       </select>
                     </div>
+                    <div style={{ gridColumn: "1 / -1", display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(180px, 1fr))", gap: 8 }}>
+                      <TransactionRoutingFields
+                        type={editType}
+                        transactionTypes={transactionTypes}
+                        accounts={accounts}
+                        goals={goals}
+                        fromAccountId={editFromAccountId}
+                        toAccountId={editToAccountId}
+                        goalId={editGoalId}
+                        onFromAccountId={setEditFromAccountId}
+                        onToAccountId={setEditToAccountId}
+                        onGoalId={setEditGoalId}
+                        storeForFlow={ledgerStore}
+                      />
+                    </div>
                     <button
                       type="button"
                       onClick={() => {
@@ -1293,6 +1506,9 @@ export function TransactionsManageView({
                             type: editType,
                             category: editCategory,
                             icon: editIcon.trim() || iconForType(editType),
+                            fromAccountId: editFromAccountId || undefined,
+                            toAccountId: editToAccountId || undefined,
+                            goalId: editGoalId || undefined,
                           });
                           setEditId(null);
                         }
@@ -1308,10 +1524,26 @@ export function TransactionsManageView({
                     <div style={{ width: 36, height: 36, borderRadius: 11, background: "var(--paper)", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 16 }}>{t.icon}</div>
                     <div style={{ flex: 1, minWidth: 0 }}>
                       <p style={{ fontSize: 13, fontWeight: 600, color: "var(--ink)" }}>{t.desc}</p>
-                      <p style={{ fontSize: 10, color: "var(--ink-3)" }}>{t.category}</p>
+                      <p style={{ fontSize: 10, color: "var(--ink-3)" }}>
+                        {t.category}
+                        {detail ? ` · ${detail}` : ""}
+                      </p>
                     </div>
-                    <span style={{ fontSize: 13, fontWeight: 500, color: t.amount >= 0 ? "var(--clear-dk)" : "var(--trouble-dk)" }}>
-                      {t.amount >= 0 ? "+" : ""}{usdF(t.amount)}
+                    <span
+                      style={{
+                        fontSize: 13,
+                        fontWeight: 500,
+                        color:
+                          flowForTransactionType(ledgerStore, t.type) === "transfer"
+                            ? "var(--ink-2)"
+                            : t.amount >= 0
+                              ? "var(--clear-dk)"
+                              : "var(--trouble-dk)",
+                      }}
+                    >
+                      {flowForTransactionType(ledgerStore, t.type) === "transfer"
+                        ? usdF(Math.abs(t.amount))
+                        : `${t.amount >= 0 ? "+" : ""}${usdF(t.amount)}`}
                     </span>
                     <button
                       type="button"
@@ -1322,6 +1554,9 @@ export function TransactionsManageView({
                         setEditType(t.type);
                         setEditCategory(t.category);
                         setEditIcon(t.icon);
+                        setEditFromAccountId(t.fromAccountId ?? "");
+                        setEditToAccountId(t.toAccountId ?? "");
+                        setEditGoalId(t.goalId ?? "");
                       }}
                       style={{ border: "none", background: "transparent", color: "var(--ink-3)", cursor: "pointer", fontSize: 11 }}
                     >
@@ -1331,7 +1566,8 @@ export function TransactionsManageView({
                   </>
                 )}
               </div>
-            ))}
+              );
+            })}
           </div>
         ))}
         {shown.length === 0 && <p style={{ padding: 24, textAlign: "center", color: "var(--ink-3)", fontSize: 13 }}>No transactions yet.</p>}
@@ -1342,12 +1578,14 @@ export function TransactionsManageView({
 
 export function GoalsManageView({
   goals,
+  goalLedgerStore,
   viewMode,
   onAdd,
   onUpdate,
   onDelete,
 }: {
   goals: Goal[];
+  goalLedgerStore: import("../types/fety").FetyStore;
   viewMode: ViewMode;
   onAdd: (goal: Omit<Goal, "id">) => void;
   onUpdate: (id: string, updates: Partial<Goal>) => void;
@@ -1418,7 +1656,9 @@ export function GoalsManageView({
     <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
       <div style={{ display: "grid", gridTemplateColumns: viewMode === "cards" ? "repeat(auto-fill, minmax(280px, 1fr))" : "1fr", gap: 12 }}>
         {goals.map((g) => {
-          const pct = g.target > 0 ? Math.round((g.saved / g.target) * 100) : 0;
+          const savedTotal = goalSavedTotal(goalLedgerStore, g);
+          const fromTx = goalContributionsFromTransactions(goalLedgerStore, g.id);
+          const pct = g.target > 0 ? Math.round((savedTotal / g.target) * 100) : 0;
           const editing = editGoalId === g.id;
           return (
             <div
@@ -1443,7 +1683,7 @@ export function GoalsManageView({
                     <CurrencyInput value={editTarget} onChange={setEditTarget} placeholder="0.00" />
                   </div>
                   <div>
-                    <label className="fety-label" style={{ display: "block", marginBottom: 4 }}>Saved So Far</label>
+                    <label className="fety-label" style={{ display: "block", marginBottom: 4 }}>Starting saved</label>
                     <CurrencyInput value={editSaved} onChange={setEditSaved} placeholder="0.00" />
                   </div>
                   <div>
@@ -1499,8 +1739,11 @@ export function GoalsManageView({
                     </div>
                   </div>
                   <p style={{ fontSize: 18, fontWeight: 400, color: "var(--ink)" }}>
-                    {usd(g.saved)} <span style={{ fontSize: 12, color: "var(--ink-3)" }}>of {usd(g.target)}</span>
+                    {usd(savedTotal)} <span style={{ fontSize: 12, color: "var(--ink-3)" }}>of {usd(g.target)}</span>
                   </p>
+                  {fromTx > 0 ? (
+                    <p style={{ fontSize: 10, color: "var(--ink-3)", marginTop: 2 }}>{usd(fromTx)} from linked transactions</p>
+                  ) : null}
                   <p style={{ fontSize: 12, color: "var(--ink-2)", marginTop: 8 }}>{pct}% of target</p>
                   <div style={{ height: 6, background: "var(--paper)", borderRadius: 99, marginTop: 8, overflow: "hidden" }}>
                     <div style={{ width: `${Math.min(pct, 100)}%`, height: "100%", background: "var(--later)" }} />
@@ -1538,7 +1781,7 @@ export function GoalsManageView({
               <CurrencyInput value={target} onChange={setTarget} placeholder="0.00" />
             </div>
             <div>
-              <label className="fety-label" style={{ display: "block", marginBottom: 4 }}>Saved So Far</label>
+              <label className="fety-label" style={{ display: "block", marginBottom: 4 }}>Starting saved</label>
               <CurrencyInput value={saved} onChange={setSaved} placeholder="0.00" />
             </div>
             <div>
@@ -1567,6 +1810,7 @@ export function GoalsManageView({
 export function SettingsManageView({
   profile,
   accounts,
+  ledgerStore,
   onUpdateProfile,
   onUpdateAccount,
   onAddAccount,
@@ -1576,6 +1820,7 @@ export function SettingsManageView({
 }: {
   profile: { displayName: string; email: string; currency: string; startingBalance: number };
   accounts: Account[];
+  ledgerStore: import("../types/fety").FetyStore;
   onUpdateProfile: (u: Partial<{ displayName: string; email: string; currency: string; startingBalance: number }>) => void;
   onUpdateAccount: (id: string, u: Partial<Pick<Account, "name" | "type" | "balance" | "icon">>) => void;
   onAddAccount: (input: Omit<Account, "id">) => void;
@@ -1627,7 +1872,7 @@ export function SettingsManageView({
       <div style={{ background: "var(--surface)", borderRadius: 14, border: "1px solid var(--border)", padding: "18px 20px" }}>
         <p className="fety-label-strong" style={{ marginBottom: 6 }}>Accounts</p>
         <p style={{ fontSize: 12, color: "var(--ink-2)", marginBottom: 14, lineHeight: 1.45 }}>
-          Track where your money lives — checking, savings, credit cards, and more.
+          Track where your money lives. Opening balance plus linked transactions update the current balance shown below.
         </p>
         {accounts.length === 0 ? (
           <p style={{ fontSize: 13, color: "var(--ink-3)", marginBottom: 12 }}>No accounts yet. Add one below.</p>
@@ -1644,7 +1889,7 @@ export function SettingsManageView({
                     <EditableText label="Account name" value={a.name} onSave={(name) => onUpdateAccount(a.id, { name })} />
                     <EditableText label="Account type" value={a.type} onSave={(type) => onUpdateAccount(a.id, { type })} valueStyle={{ fontSize: 12 }} />
                     <EditableNumber
-                      label="Balance"
+                      label="Opening balance"
                       value={a.balance}
                       format={usdF}
                       currency
@@ -1652,6 +1897,10 @@ export function SettingsManageView({
                       onSave={(balance) => onUpdateAccount(a.id, { balance })}
                       valueStyle={{ fontSize: 18 }}
                     />
+                    <p style={{ fontSize: 11, color: "var(--ink-3)", marginTop: 6 }}>
+                      Current balance:{" "}
+                      <span style={{ fontWeight: 600, color: "var(--ink-2)" }}>{usdF(accountBalanceWithTransactions(ledgerStore, a.id))}</span>
+                    </p>
                   </div>
                   <button
                     type="button"

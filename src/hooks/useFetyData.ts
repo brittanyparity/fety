@@ -58,6 +58,9 @@ export function useFetyData() {
       category: string;
       dateISO?: string;
       icon?: string;
+      fromAccountId?: string;
+      toAccountId?: string;
+      goalId?: string;
     }) => {
       let created: Transaction | null = null;
       patch((prev) => {
@@ -71,6 +74,9 @@ export function useFetyData() {
           amount: signAmountForFlow(flow, input.amount),
           type: input.type,
           icon,
+          fromAccountId: input.fromAccountId || undefined,
+          toAccountId: input.toAccountId || undefined,
+          goalId: input.goalId || undefined,
         };
         created = tx;
         return { ...prev, transactions: [tx, ...prev.transactions] };
@@ -100,7 +106,7 @@ export function useFetyData() {
   );
 
   const updateTransaction = useCallback(
-    (id: string, updates: Partial<Pick<Transaction, "desc" | "amount" | "type" | "category" | "dateISO" | "icon">>) => {
+    (id: string, updates: Partial<Pick<Transaction, "desc" | "amount" | "type" | "category" | "dateISO" | "icon" | "fromAccountId" | "toAccountId" | "goalId">>) => {
       patch((prev) => ({
         ...prev,
         transactions: prev.transactions.map((t) => {
@@ -113,6 +119,9 @@ export function useFetyData() {
             next.amount = signAmountForFlow(flow, raw);
             next.type = type;
           }
+          if (updates.fromAccountId === "") next.fromAccountId = undefined;
+          if (updates.toAccountId === "") next.toAccountId = undefined;
+          if (updates.goalId === "") next.goalId = undefined;
           return next;
         }),
       }));
@@ -240,7 +249,7 @@ export function useFetyData() {
     (
       id: string,
       updates: Partial<
-        Pick<RecurringTransaction, "name" | "amount" | "dueDay" | "frequency" | "category" | "icon" | "transactionType">
+        Pick<RecurringTransaction, "name" | "amount" | "dueDay" | "frequency" | "category" | "icon" | "transactionType" | "fromAccountId" | "toAccountId" | "goalId">
       >,
     ) => {
       patch((prev) => ({
