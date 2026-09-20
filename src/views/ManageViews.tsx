@@ -118,7 +118,7 @@ function TransferAccountFields({
   onFromAccountId: (v: string) => void;
   onToAccountId: (v: string) => void;
 }) {
-  const emptyAcct = accounts.length === 0 ? "Add accounts in Settings" : "Select account";
+  const emptyAcct = accounts.length === 0 ? "Add accounts on Net Worth" : "Select account";
   return (
     <div
       style={{
@@ -2004,16 +2004,12 @@ export function GoalsManageView({
 
 export function ProfileSettingsView({
   profile,
-  accounts,
   onUpdateProfile,
-  onAddAccount,
   onReset,
   onRestartSetup,
 }: {
   profile: { displayName: string; email: string; currency: string; startingBalance: number };
-  accounts: Account[];
   onUpdateProfile: (u: Partial<{ displayName: string; email: string; currency: string; startingBalance: number }>) => void;
-  onAddAccount: (input: Omit<Account, "id">) => void;
   onReset: () => void;
   onRestartSetup?: () => void;
 }) {
@@ -2022,11 +2018,6 @@ export function ProfileSettingsView({
   const [pEmail, setPEmail] = useState(profile.email);
   const [pCurrency, setPCurrency] = useState(profile.currency);
   const [pStart, setPStart] = useState(String(profile.startingBalance));
-  const [newAcctName, setNewAcctName] = useState("");
-  const [newAcctType, setNewAcctType] = useState("Checking");
-  const [newAcctKind, setNewAcctKind] = useState<AccountKind>("asset");
-  const [newAcctBalance, setNewAcctBalance] = useState("");
-  const [newAcctIcon, setNewAcctIcon] = useState("🏦");
 
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 16, maxWidth: 560 }}>
@@ -2059,82 +2050,6 @@ export function ProfileSettingsView({
         )}
       </div>
 
-      <div style={{ background: "var(--surface)", borderRadius: 14, border: "1px solid var(--border)", padding: "18px 20px" }}>
-        <p className="fety-label-strong" style={{ marginBottom: 6 }}>Add accounts</p>
-        <p style={{ fontSize: 12, color: "var(--ink-2)", marginBottom: 14, lineHeight: 1.45 }}>
-          Add checking, savings, and debt accounts here. Balances and activity live on Net Worth (profile menu).
-        </p>
-        {accounts.length > 0 ? (
-          <div style={{ display: "flex", flexWrap: "wrap", gap: 8, marginBottom: 14 }}>
-            {accounts.map((a) => (
-              <span
-                key={a.id}
-                style={{
-                  fontSize: 11,
-                  padding: "6px 10px",
-                  borderRadius: 99,
-                  border: "1px solid var(--border-soft)",
-                  color: "var(--ink-2)",
-                }}
-              >
-                {a.icon} {a.name}
-                {isDebtAccount(a) ? " · debt" : ""}
-              </span>
-            ))}
-          </div>
-        ) : (
-          <p style={{ fontSize: 13, color: "var(--ink-3)", marginBottom: 12 }}>No accounts yet. Add one below.</p>
-        )}
-        <form
-          onSubmit={(e) => {
-            e.preventDefault();
-            if (!newAcctName.trim()) return;
-            const kind = newAcctKind;
-            onAddAccount({
-              name: newAcctName.trim(),
-              type: newAcctType.trim() || "Account",
-              balance: normalizeAccountOpeningBalance(kind, parseFloat(newAcctBalance) || 0),
-              icon: newAcctIcon || "🏦",
-              kind,
-            });
-            setNewAcctName("");
-            setNewAcctType("Checking");
-            setNewAcctKind("asset");
-            setNewAcctBalance("");
-            setNewAcctIcon("🏦");
-          }}
-          style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(140px, 1fr))", gap: 10, alignItems: "end" }}
-        >
-          <div>
-            <label className="fety-label" style={{ display: "block", marginBottom: 4 }}>Name</label>
-            <input value={newAcctName} onChange={(e) => setNewAcctName(e.target.value)} style={inputStyle} placeholder="Chase Checking" />
-          </div>
-          <div>
-            <label className="fety-label" style={{ display: "block", marginBottom: 4 }}>Type</label>
-            <input value={newAcctType} onChange={(e) => setNewAcctType(e.target.value)} style={inputStyle} placeholder="Checking" />
-          </div>
-          <div>
-            <label className="fety-label" style={{ display: "block", marginBottom: 4 }}>Category</label>
-            <select value={newAcctKind} onChange={(e) => setNewAcctKind(e.target.value as AccountKind)} style={inputStyle}>
-              <option value="asset">Asset (cash, savings)</option>
-              <option value="debt">Debt (loan, credit card)</option>
-            </select>
-          </div>
-          <div>
-            <label className="fety-label" style={{ display: "block", marginBottom: 4 }}>
-              {newAcctKind === "debt" ? "Amount owed" : "Opening balance"}
-            </label>
-            <CurrencyInput value={newAcctBalance} onChange={setNewAcctBalance} placeholder="0.00" />
-          </div>
-          <div style={{ display: "flex", gap: 8, alignItems: "flex-end" }}>
-            <EmojiIconPicker value={newAcctIcon} onChange={setNewAcctIcon} />
-            <button type="submit" style={{ padding: "8px 14px", borderRadius: "var(--radius-ctrl)", border: "none", background: "var(--ink)", color: "#fff", fontWeight: 600, cursor: "pointer", height: 36 }}>
-              Add
-            </button>
-          </div>
-        </form>
-      </div>
-
       <button type="button" onClick={() => { if (confirm("Reset all local data to demo sample data?")) onReset(); }} style={{ padding: "10px 16px", borderRadius: "var(--radius-ctrl)", border: "1px solid var(--trouble-dk)", background: "transparent", color: "var(--trouble-dk)", cursor: "pointer", fontWeight: 600 }}>
         Load demo sample data
       </button>
@@ -2156,12 +2071,14 @@ export function NetWorthManageView({
   accounts,
   ledgerStore,
   onUpdateAccount,
+  onAddAccount,
   onDeleteAccount,
   onOpenTransactionsForAccount,
 }: {
   accounts: Account[];
   ledgerStore: import("../types/fety").FetyStore;
   onUpdateAccount: (id: string, u: Partial<Pick<Account, "name" | "type" | "balance" | "icon" | "kind">>) => void;
+  onAddAccount: (input: Omit<Account, "id">) => void;
   onDeleteAccount: (id: string) => void;
   onOpenTransactionsForAccount?: (accountId: string) => void;
 }) {
@@ -2172,6 +2089,30 @@ export function NetWorthManageView({
   const [editKind, setEditKind] = useState<AccountKind>("asset");
   const [editBalance, setEditBalance] = useState("");
   const [editIcon, setEditIcon] = useState("🏦");
+  const [showAdd, setShowAdd] = useState(false);
+  const [newAcctName, setNewAcctName] = useState("");
+  const [newAcctType, setNewAcctType] = useState("Checking");
+  const [newAcctKind, setNewAcctKind] = useState<AccountKind>("asset");
+  const [newAcctBalance, setNewAcctBalance] = useState("");
+  const [newAcctIcon, setNewAcctIcon] = useState("🏦");
+
+  const openAddForm = (kind: AccountKind) => {
+    setNewAcctKind(kind);
+    setNewAcctType(kind === "debt" ? "Credit card" : "Checking");
+    setNewAcctIcon(kind === "debt" ? "💳" : "🏦");
+    setNewAcctName("");
+    setNewAcctBalance("");
+    setShowAdd(true);
+  };
+
+  const resetAddForm = () => {
+    setShowAdd(false);
+    setNewAcctName("");
+    setNewAcctType("Checking");
+    setNewAcctKind("asset");
+    setNewAcctBalance("");
+    setNewAcctIcon("🏦");
+  };
 
   const startEdit = (a: Account) => {
     setEditingId(a.id);
@@ -2224,8 +2165,81 @@ export function NetWorthManageView({
         Current balances include opening amounts plus transactions (including transfers and goal-linked payments). Filter by account on the Transactions page for the full list.
       </p>
 
+      <div style={{ background: "var(--surface)", border: "1px solid var(--border)", borderRadius: 14, padding: "16px 18px" }}>
+        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 10, flexWrap: "wrap", marginBottom: showAdd ? 12 : 0 }}>
+          <p className="fety-label-strong" style={{ margin: 0 }}>Add account or debt</p>
+          <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+            <button type="button" onClick={() => openAddForm("asset")} style={{ ...editBtnStyle, height: 32 }}>
+              Add asset
+            </button>
+            <button
+              type="button"
+              onClick={() => openAddForm("debt")}
+              style={{ ...editBtnStyle, height: 32, color: "var(--trouble-dk)", borderColor: "var(--border-soft)" }}
+            >
+              Add debt
+            </button>
+          </div>
+        </div>
+        {showAdd ? (
+          <form
+            onSubmit={(e) => {
+              e.preventDefault();
+              if (!newAcctName.trim()) return;
+              const kind = newAcctKind;
+              onAddAccount({
+                name: newAcctName.trim(),
+                type: newAcctType.trim() || (kind === "debt" ? "Debt" : "Account"),
+                balance: normalizeAccountOpeningBalance(kind, parseFloat(newAcctBalance) || 0),
+                icon: newAcctIcon || (kind === "debt" ? "💳" : "🏦"),
+                kind,
+              });
+              resetAddForm();
+            }}
+            style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(140px, 1fr))", gap: 10, alignItems: "end", paddingTop: 4, borderTop: "1px solid var(--border-soft)" }}
+          >
+            <div>
+              <label className="fety-label" style={{ display: "block", marginBottom: 4 }}>Name</label>
+              <input
+                value={newAcctName}
+                onChange={(e) => setNewAcctName(e.target.value)}
+                style={inputStyle}
+                placeholder={newAcctKind === "debt" ? "Chase Visa" : "Chase Checking"}
+                autoFocus
+              />
+            </div>
+            <div>
+              <label className="fety-label" style={{ display: "block", marginBottom: 4 }}>Type</label>
+              <input value={newAcctType} onChange={(e) => setNewAcctType(e.target.value)} style={inputStyle} placeholder={newAcctKind === "debt" ? "Credit card" : "Checking"} />
+            </div>
+            <div>
+              <label className="fety-label" style={{ display: "block", marginBottom: 4 }}>Category</label>
+              <select value={newAcctKind} onChange={(e) => setNewAcctKind(e.target.value as AccountKind)} style={inputStyle}>
+                <option value="asset">Asset</option>
+                <option value="debt">Debt</option>
+              </select>
+            </div>
+            <div>
+              <label className="fety-label" style={{ display: "block", marginBottom: 4 }}>
+                {newAcctKind === "debt" ? "Amount owed" : "Opening balance"}
+              </label>
+              <CurrencyInput value={newAcctBalance} onChange={setNewAcctBalance} placeholder="0.00" />
+            </div>
+            <div style={{ display: "flex", gap: 8, alignItems: "flex-end", flexWrap: "wrap" }}>
+              <EmojiIconPicker value={newAcctIcon} onChange={setNewAcctIcon} />
+              <button type="submit" style={{ ...editBtnStyle, background: "var(--ink)", color: "#fff", border: "none", height: 36, padding: "0 14px" }}>
+                Save
+              </button>
+              <button type="button" onClick={resetAddForm} style={{ ...editBtnStyle, height: 36 }}>
+                Cancel
+              </button>
+            </div>
+          </form>
+        ) : null}
+      </div>
+
       {sorted.length === 0 ? (
-        <p style={{ fontSize: 13, color: "var(--ink-3)" }}>No accounts yet. Add them from Profile Settings.</p>
+        <p style={{ fontSize: 13, color: "var(--ink-3)" }}>No accounts yet. Use Add asset or Add debt above.</p>
       ) : (
         sorted.map((a) => {
           const current = accountBalanceWithTransactions(ledgerStore, a.id);

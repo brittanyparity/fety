@@ -1441,7 +1441,7 @@ function CalendarAccountsBreakdown({ store, dateISO, compact }: { store: FetySto
   if (accounts.length === 0) {
     return (
       <p style={{ fontSize: 10, color: "var(--ink-3)", margin: compact ? "8px 0 0" : "10px 0 0", lineHeight: 1.4 }}>
-        Add accounts in Profile Settings to see balances by account here.
+        Add accounts on Net Worth to see balances by account here.
       </p>
     );
   }
@@ -1686,7 +1686,7 @@ function CalendarSidePanel({
     onGoal: (v: string) => void,
   ) => {
     const isTransfer = isTransferTransactionType(ledgerStore, type);
-    const acctEmpty = accounts.length === 0 ? "Add accounts in Settings" : "Select account";
+    const acctEmpty = accounts.length === 0 ? "Add accounts on Net Worth" : "Select account";
     const validGoalId = goals.some((g) => g.id === goalIdVal) ? goalIdVal : "";
     return (
       <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
@@ -2226,7 +2226,7 @@ const PAGE_META: Record<Page, { title: string; sub: string }> = {
   spending:  { title: "Transactions", sub: "Every dollar in and out of your accounts." },
   budget:    { title: "Budget", sub: "Tracks are ink; coral marks the category that's over." },
   goals:     { title: "Goals", sub: "Money you're holding for later." },
-  profile:   { title: "Profile Settings", sub: "Personal info, add accounts, and data preferences." },
+  profile:   { title: "Profile Settings", sub: "Personal info and data preferences." },
   networth:  { title: "Net Worth", sub: "Account balances, debt, and recent activity per account." },
   calendar:  { title: "Calendar", sub: "Cash flow and spending power, day by day." },
 };
@@ -2446,9 +2446,7 @@ export default function App() {
         return (
           <ProfileSettingsView
             profile={store.profile}
-            accounts={store.accounts}
             onUpdateProfile={updateProfile}
-            onAddAccount={addAccount}
             onReset={resetAll}
             onRestartSetup={() => {
               if (confirm("Clear all data and run setup again? This cannot be undone.")) startFreshSetup();
@@ -2461,6 +2459,7 @@ export default function App() {
             accounts={store.accounts}
             ledgerStore={store}
             onUpdateAccount={updateAccount}
+            onAddAccount={addAccount}
             onDeleteAccount={deleteAccount}
             onOpenTransactionsForAccount={(accountId) => {
               setTransactionsAccountFilter(accountId);
