@@ -1,7 +1,7 @@
 import { useState, useRef, useEffect, useCallback, useMemo } from "react";
 import { FetyLogo } from "./FetyLogo";
 import { useFetyData } from "./hooks/useFetyData";
-import { buildCalendarMap, endingBalanceOnDate, formatNavDate, last6MonthsSpending, last7DayEndingBalances, categorySpendShares, todayISO } from "./lib/fetyCalculations";
+import { buildCalendarMap, endingBalanceOnDate, endingBalancesForRange, formatNavDate, monthsSpending, categorySpendSharesForPeriod, todayISO, type BalanceChartRange, type CategorySpendPeriod, type SpendTrendMonths } from "./lib/fetyCalculations";
 import { formatTransactionDetailLine, goalSavedTotal, accountBalanceWithTransactions, accountBalanceAsOfISO, formatAccountBalanceDisplay, isDebtAccount, netWorthTotalsOnDate } from "./lib/ledger";
 import { flowForTransactionType, getTransactionTypes, isTransferTransactionType } from "./lib/transactionTypes";
 import { calendarEndingBalanceBg, calendarEndingBalanceBgStrong, calBalanceColor, calNetWorthColor, calSignedColor } from "./lib/calendarUi";
@@ -10,6 +10,9 @@ import EmojiIconPicker from "./components/EmojiIconPicker";
 import CurrencyInput, { amountToEditString } from "./components/CurrencyInput";
 import { flattenRowsAfterMoveRespectingLocks, isWidgetInFirstRow, isWidgetPositionLocked, packWidgetsIntoRows, pruneWidgetLocksToFirstRow, reorderWidgetRespectingLocks, toggleWidgetOnDashboard, unpinWidget } from "./lib/widgetLayout";
 import { ChatPanel, ChatExpandIcon } from "./components/ChatPanel";
+import { useIsNarrow, FETY_NARROW_MQ } from "./hooks/useIsNarrow";
+import WidgetPeriodFilter from "./components/WidgetPeriodFilter";
+import WidgetPinIcon from "./components/WidgetPinIcon";
 import { confirmAssistantAction, handleAssistantMessageWithDeps } from "./assistant/router";
 import type { ToolAction } from "./assistant/types";
 import type { BudgetCategory, CalDay, CalendarMap, ChatMessage, FetyStore, FetyTransactionType, FinanceSummary, Transaction, TransactionType } from "./types/fety";
@@ -28,7 +31,6 @@ import {
   PieChart, Pie, Cell,
 } from "recharts";
 import { nextBillOccurrenceOnOrAfter } from "./lib/billScheduling";
-import WidgetPinIcon from "./components/WidgetPinIcon";
 
 // ─── Types ─────────────────────────────────────────────────────────────────────
 type Page = "dashboard" | "budget" | "spending" | "goals" | "profile" | "networth" | "calendar";
@@ -154,118 +156,122 @@ function TopNav({
   const profileMenuActive = page === "profile" || page === "networth";
 
   return (
-    <header className="fety-nav">
-      <FetyLogo />
-      <div className="fety-nav-links">
-        {NAV_ITEMS.map((item) => (
-          <button
-            key={item.id}
-            type="button"
-            onClick={() => go(item.id)}
-            className={`fety-nav-link${page === item.id ? " fety-nav-link-active" : ""}`}
-          >
-            {item.label}
-          </button>
-        ))}
-      </div>
-      <div className="fety-nav-actions">
-        <span className="fety-nav-date">{navDate}</span>
-        <div className="fety-nav-profile-wrap" ref={profileWrapRef}>
-          <button
-            type="button"
-            title="Profile menu"
-            aria-label="Profile menu"
-            aria-expanded={profileOpen}
-            aria-haspopup="menu"
-            onClick={() => setProfileOpen((o) => !o)}
-            className={`fety-nav-profile${profileMenuActive ? " fety-nav-profile-active" : ""}`}
-          >
-            {profileInitial}
-          </button>
-          {profileOpen ? (
-            <div className="fety-nav-profile-menu" role="menu">
+    <>
+      <header className="fety-nav">
+        <FetyLogo />
+        <div className="fety-nav-links">
+          {NAV_ITEMS.map((item) => (
+            <button
+              key={item.id}
+              type="button"
+              onClick={() => go(item.id)}
+              className={`fety-nav-link${page === item.id ? " fety-nav-link-active" : ""}`}
+            >
+              {item.label}
+            </button>
+          ))}
+        </div>
+        <div className="fety-nav-actions">
+          <span className="fety-nav-date">{navDate}</span>
+          <div className="fety-nav-profile-wrap" ref={profileWrapRef}>
+            <button
+              type="button"
+              title="Profile menu"
+              aria-label="Profile menu"
+              aria-expanded={profileOpen}
+              aria-haspopup="menu"
+              onClick={() => setProfileOpen((o) => !o)}
+              className={`fety-nav-profile${profileMenuActive ? " fety-nav-profile-active" : ""}`}
+            >
+              {profileInitial}
+            </button>
+            {profileOpen ? (
+              <div className="fety-nav-profile-menu" role="menu">
+                <button
+                  type="button"
+                  role="menuitem"
+                  className={`fety-nav-profile-menu-item${page === "profile" ? " fety-nav-profile-menu-item-active" : ""}`}
+                  onClick={() => {
+                    onOpenProfile();
+                    setProfileOpen(false);
+                  }}
+                >
+                  Profile Settings
+                </button>
+                <button
+                  type="button"
+                  role="menuitem"
+                  className={`fety-nav-profile-menu-item${page === "networth" ? " fety-nav-profile-menu-item-active" : ""}`}
+                  onClick={() => {
+                    onOpenNetWorth();
+                    setProfileOpen(false);
+                  }}
+                >
+                  Net Worth
+                </button>
+              </div>
+            ) : null}
+          </div>
+        </div>
+        <button
+          type="button"
+          className="fety-nav-hamburger"
+          aria-label={menuOpen ? "Close menu" : "Open menu"}
+          aria-expanded={menuOpen}
+          onClick={() => setMenuOpen((o) => !o)}
+        >
+          {menuOpen ? (
+            <svg width="18" height="18" viewBox="0 0 18 18" fill="none" aria-hidden>
+              <path d="M4 4l10 10M14 4L4 14" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" />
+            </svg>
+          ) : (
+            <svg width="18" height="18" viewBox="0 0 18 18" fill="none" aria-hidden>
+              <path d="M2.5 5h13M2.5 9h13M2.5 13h13" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" />
+            </svg>
+          )}
+        </button>
+        {menuOpen && (
+          <>
+            <button type="button" className="fety-nav-backdrop" aria-label="Close menu" onClick={() => setMenuOpen(false)} />
+            <nav className="fety-nav-drawer" aria-label="More">
+              <p className="fety-nav-drawer-date">{navDate}</p>
               <button
                 type="button"
-                role="menuitem"
-                className={`fety-nav-profile-menu-item${page === "profile" ? " fety-nav-profile-menu-item-active" : ""}`}
+                className={`fety-nav-drawer-link${page === "profile" ? " fety-nav-drawer-link-active" : ""}`}
                 onClick={() => {
                   onOpenProfile();
-                  setProfileOpen(false);
+                  setMenuOpen(false);
                 }}
               >
                 Profile Settings
               </button>
               <button
                 type="button"
-                role="menuitem"
-                className={`fety-nav-profile-menu-item${page === "networth" ? " fety-nav-profile-menu-item-active" : ""}`}
+                className={`fety-nav-drawer-link${page === "networth" ? " fety-nav-drawer-link-active" : ""}`}
                 onClick={() => {
                   onOpenNetWorth();
-                  setProfileOpen(false);
+                  setMenuOpen(false);
                 }}
               >
                 Net Worth
               </button>
-            </div>
-          ) : null}
-        </div>
-      </div>
-      <button
-        type="button"
-        className="fety-nav-hamburger"
-        aria-label={menuOpen ? "Close menu" : "Open menu"}
-        aria-expanded={menuOpen}
-        onClick={() => setMenuOpen((o) => !o)}
-      >
-        {menuOpen ? (
-          <svg width="18" height="18" viewBox="0 0 18 18" fill="none" aria-hidden>
-            <path d="M4 4l10 10M14 4L4 14" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" />
-          </svg>
-        ) : (
-          <svg width="18" height="18" viewBox="0 0 18 18" fill="none" aria-hidden>
-            <path d="M2.5 5h13M2.5 9h13M2.5 13h13" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" />
-          </svg>
+            </nav>
+          </>
         )}
-      </button>
-      {menuOpen && (
-        <>
-          <button type="button" className="fety-nav-backdrop" aria-label="Close menu" onClick={() => setMenuOpen(false)} />
-          <nav className="fety-nav-drawer" aria-label="Main">
-            <p className="fety-nav-drawer-date">{navDate}</p>
-            {NAV_ITEMS.map((item) => (
-              <button
-                key={item.id}
-                type="button"
-                onClick={() => go(item.id)}
-                className={`fety-nav-drawer-link${page === item.id ? " fety-nav-drawer-link-active" : ""}`}
-              >
-                {item.label}
-              </button>
-            ))}
-            <button
-              type="button"
-              className={`fety-nav-drawer-link${page === "profile" ? " fety-nav-drawer-link-active" : ""}`}
-              onClick={() => {
-                onOpenProfile();
-                setMenuOpen(false);
-              }}
-            >
-              Profile Settings
-            </button>
-            <button
-              type="button"
-              className={`fety-nav-drawer-link${page === "networth" ? " fety-nav-drawer-link-active" : ""}`}
-              onClick={() => {
-                onOpenNetWorth();
-                setMenuOpen(false);
-              }}
-            >
-              Net Worth
-            </button>
-          </nav>
-        </>
-      )}
-    </header>
+      </header>
+      <nav className="fety-mobile-tabs" aria-label="Primary">
+        {NAV_ITEMS.map((item) => (
+          <button
+            key={item.id}
+            type="button"
+            onClick={() => go(item.id)}
+            className={`fety-mobile-tab${page === item.id ? " fety-mobile-tab-active" : ""}`}
+          >
+            {item.label}
+          </button>
+        ))}
+      </nav>
+    </>
   );
 }
 
@@ -291,48 +297,211 @@ const statPreview = (dot: string, label: string, value: string, sub?: string): R
   </div>
 );
 
-const ALL_WIDGETS: WidgetDef[] = [
-  {
-    id: "spending-power-hero",
-    label: "Spending power · this week",
-    color: "var(--amber)",
-    size: "full",
-    preview: () => statPreview("var(--amber-dk)", "Spending power", "$140", "Full-width banner"),
-    render: () => {
-      const { summary: s } = widgetLive();
-      const barPct = s.weeklyUsedPct;
-      return (
-        <div
-          style={{
-            display: "flex",
-            flexWrap: "wrap",
-            alignItems: "flex-end",
-            justifyContent: "space-between",
-            gap: 20,
-          }}
-        >
-          <div>
-            <p className="fety-label" style={{ color: "var(--ink)", marginBottom: 10 }}>
-              Spending power · this week
-            </p>
-            <p className="fety-figure" style={{ fontSize: 56, letterSpacing: "-0.03em" }}>
-              {usd(s.weeklySpendingPower)}
-            </p>
-            <p style={{ fontSize: 14, color: "var(--ink-2)", marginTop: 8 }}>Safe to spend through Sunday</p>
-          </div>
-          <div style={{ minWidth: 200, flex: "1 1 200px", maxWidth: 320 }}>
-            <div style={{ height: 8, background: "rgba(17,17,17,0.2)", borderRadius: "var(--radius-track)", overflow: "hidden" }}>
-              <div style={{ width: `${barPct}%`, height: "100%", background: "var(--ink)", borderRadius: "var(--radius-track)" }} />
-            </div>
-            <div style={{ display: "flex", justifyContent: "space-between", marginTop: 8, fontSize: 11, fontFamily: "var(--font-mono)", color: "var(--ink)" }}>
-              <span>{usd(s.weeklySpent)} of {usd(s.weeklyBudget)}</span>
-              <span>{barPct}%</span>
-            </div>
-          </div>
+const BALANCE_RANGE_OPTIONS = [
+  { id: "7d" as const, label: "7D" },
+  { id: "14d" as const, label: "14D" },
+  { id: "30d" as const, label: "30D" },
+  { id: "month" as const, label: "MTD" },
+];
+
+const SPEND_TREND_OPTIONS = [
+  { id: "3" as const, label: "3M" },
+  { id: "6" as const, label: "6M" },
+  { id: "12" as const, label: "12M" },
+];
+
+const CATEGORY_PERIOD_OPTIONS = [
+  { id: "week" as const, label: "Week" },
+  { id: "month" as const, label: "Month" },
+  { id: "30d" as const, label: "30D" },
+  { id: "90d" as const, label: "90D" },
+];
+
+function ScrollableChart({
+  pointCount,
+  height,
+  minPointWidth = 36,
+  children,
+}: {
+  pointCount: number;
+  height: number;
+  minPointWidth?: number;
+  children: (width: number) => React.ReactNode;
+}) {
+  const narrow = useIsNarrow();
+  const minWidth = Math.max(pointCount * (narrow ? Math.max(minPointWidth, 40) : minPointWidth), narrow ? 280 : 240);
+  return (
+    <div className="fety-chart-scroll">
+      <div className="fety-chart-scroll-inner" style={{ minWidth, height }}>
+        {children(minWidth)}
+      </div>
+    </div>
+  );
+}
+
+function BalanceChartWidget() {
+  const { store, summary: s } = widgetLive();
+  const [range, setRange] = useState<BalanceChartRange>("7d");
+  const [accountId, setAccountId] = useState<string>("all");
+  const selectedAccount = accountId === "all" ? null : accountId;
+  const weekData = endingBalancesForRange(store, range, new Date(), selectedAccount);
+  const endBal = weekData[weekData.length - 1]?.bal ?? (selectedAccount ? 0 : s.balance);
+  const dataMax = weekData.length ? Math.max(...weekData.map((d) => d.bal)) : 0;
+  const dataMin = weekData.length ? Math.min(...weekData.map((d) => d.bal)) : 0;
+  const zeroOffset =
+    dataMax <= 0 ? 0 : dataMin >= 0 ? 1 : dataMax / (dataMax - dataMin);
+  const endColor = endBal < 0 ? "var(--trouble-dk)" : "var(--ink)";
+  const subtitle =
+    range === "7d"
+      ? "Last 7 days"
+      : range === "14d"
+        ? "Last 14 days"
+        : range === "30d"
+          ? "Last 30 days"
+          : "Month to date";
+  const accountLabel =
+    accountId === "all"
+      ? "All cash"
+      : store.accounts.find((a) => a.id === accountId)?.name ?? "Account";
+
+  return (
+    <div>
+      <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: 12, marginBottom: 10, flexWrap: "wrap" }}>
+        <div>
+          <p style={{ fontSize: 12, fontWeight: 600, color: "var(--ink)" }}>Balance</p>
+          <p style={{ fontSize: 11, color: "var(--ink-3)", marginTop: 2 }}>
+            {accountLabel} · {subtitle}
+          </p>
         </div>
-      );
-    },
-  },
+        <p style={{ fontSize: 22, fontWeight: 400, color: endColor, letterSpacing: "-0.8px", fontFamily: "var(--font-sans)", margin: 0 }}>{usd(endBal)}</p>
+      </div>
+      <div className="fety-widget-filters">
+        <WidgetPeriodFilter options={BALANCE_RANGE_OPTIONS} value={range} onChange={setRange} ariaLabel="Balance period" />
+        <label className="fety-widget-account-filter">
+          <span className="fety-label">Account</span>
+          <select value={accountId} onChange={(e) => setAccountId(e.target.value)} aria-label="Balance account">
+            <option value="all">All cash</option>
+            {store.accounts.map((a) => (
+              <option key={a.id} value={a.id}>
+                {a.icon} {a.name}
+              </option>
+            ))}
+          </select>
+        </label>
+      </div>
+      <ScrollableChart pointCount={weekData.length} height={160} minPointWidth={range === "7d" ? 44 : 32}>
+        {(width) => (
+          <ResponsiveContainer width={width} height={160}>
+            <AreaChart data={weekData}>
+              <defs>
+                <linearGradient id="balanceStrokeSplit" x1="0" y1="0" x2="0" y2="1">
+                  <stop offset={zeroOffset} stopColor="var(--clear-dk)" stopOpacity={1} />
+                  <stop offset={zeroOffset} stopColor="var(--trouble-dk)" stopOpacity={1} />
+                </linearGradient>
+                <linearGradient id="balanceFillSplit" x1="0" y1="0" x2="0" y2="1">
+                  <stop offset={zeroOffset} stopColor="var(--clear)" stopOpacity={0.45} />
+                  <stop offset={zeroOffset} stopColor="var(--trouble)" stopOpacity={0.4} />
+                  <stop offset="1" stopColor="var(--trouble)" stopOpacity={0.05} />
+                </linearGradient>
+              </defs>
+              <CartesianGrid strokeDasharray="3 3" stroke="var(--border-soft)" vertical={false} />
+              <XAxis dataKey="d" tick={{ fontSize: 10, fill: "var(--ink-3)", fontFamily: "var(--font-sans)" }} axisLine={false} tickLine={false} interval={0} />
+              <YAxis tick={{ fontSize: 10, fill: "var(--ink-3)", fontFamily: "var(--font-sans)" }} axisLine={false} tickLine={false} tickFormatter={(v) => `$${Number(v) / 1000}k`} width={36} />
+              <Tooltip formatter={(v: unknown) => [usdF(Number(v)), "Balance"]} contentStyle={{ fontSize: 11, borderRadius: 8, border: "1px solid var(--border)", fontFamily: "var(--font-sans)" }} />
+              <Area type="monotone" dataKey="bal" stroke="url(#balanceStrokeSplit)" strokeWidth={2.5} fill="url(#balanceFillSplit)" baseValue={0} dot={false} />
+            </AreaChart>
+          </ResponsiveContainer>
+        )}
+      </ScrollableChart>
+    </div>
+  );
+}
+
+function MonthlySpendChartWidget() {
+  const { store } = widgetLive();
+  const [monthsKey, setMonthsKey] = useState<"3" | "6" | "12">("6");
+  const months = Number(monthsKey) as SpendTrendMonths;
+  const monthlySpendLive = monthsSpending(store, months);
+  return (
+    <div>
+      <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: 10, marginBottom: 12, flexWrap: "wrap" }}>
+        <div>
+          <p style={{ fontSize: 12, fontWeight: 600, color: "var(--ink)", marginBottom: 2 }}>Spending trend</p>
+          <p style={{ fontSize: 11, color: "var(--ink-3)" }}>Last {months} months</p>
+        </div>
+        <WidgetPeriodFilter
+          options={SPEND_TREND_OPTIONS}
+          value={monthsKey}
+          onChange={setMonthsKey}
+          ariaLabel="Spending trend range"
+        />
+      </div>
+      <ScrollableChart pointCount={monthlySpendLive.length} height={150} minPointWidth={48}>
+        {(width) => (
+          <ResponsiveContainer width={width} height={150}>
+            <BarChart data={monthlySpendLive} barSize={Math.min(28, Math.max(14, width / monthlySpendLive.length - 12))}>
+              <CartesianGrid strokeDasharray="3 3" stroke="var(--border-soft)" vertical={false} />
+              <XAxis dataKey="m" tick={{ fontSize: 10, fill: "var(--ink-3)", fontFamily: "var(--font-sans)" }} axisLine={false} tickLine={false} interval={0} />
+              <YAxis tick={{ fontSize: 10, fill: "var(--ink-3)", fontFamily: "var(--font-sans)" }} axisLine={false} tickLine={false} tickFormatter={(v) => `$${Number(v) / 1000}k`} width={36} />
+              <Tooltip formatter={(v: unknown) => [usd(Number(v)), "Spent"]} contentStyle={{ fontSize: 11, borderRadius: 9, border: "1px solid var(--border)", fontFamily: "var(--font-sans)" }} />
+              <Bar dataKey="v" fill="var(--ink)" radius={[4, 4, 0, 0]} />
+            </BarChart>
+          </ResponsiveContainer>
+        )}
+      </ScrollableChart>
+    </div>
+  );
+}
+
+function SpendingBreakdownWidget() {
+  const { store } = widgetLive();
+  const narrow = useIsNarrow();
+  const [period, setPeriod] = useState<CategorySpendPeriod>("month");
+  const donutLive = categorySpendSharesForPeriod(store, period);
+  const periodLabel =
+    period === "week" ? "This week" : period === "month" ? "This month" : period === "30d" ? "Last 30 days" : "Last 90 days";
+  return (
+    <div>
+      <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: 10, marginBottom: 14, flexWrap: "wrap" }}>
+        <div>
+          <p style={{ fontSize: 12, fontWeight: 600, color: "var(--ink)" }}>Where money goes</p>
+          <p style={{ fontSize: 11, color: "var(--ink-3)", marginTop: 2 }}>{periodLabel}</p>
+        </div>
+        <WidgetPeriodFilter options={CATEGORY_PERIOD_OPTIONS} value={period} onChange={setPeriod} ariaLabel="Spending breakdown period" />
+      </div>
+      <div className={`fety-breakdown-body${narrow ? " fety-breakdown-body-narrow" : ""}`}>
+        <ResponsiveContainer width={narrow ? "100%" : 110} height={110}>
+          <PieChart>
+            <Pie
+              data={donutLive.length ? donutLive : [{ name: "None", value: 100 }]}
+              dataKey="value"
+              innerRadius={32}
+              outerRadius={52}
+              paddingAngle={2}
+              startAngle={90}
+              endAngle={-270}
+            >
+              {(donutLive.length ? donutLive : [{ name: "None", value: 100 }]).map((_, i) => (
+                <Cell key={i} fill={DONUT_COLORS[i % DONUT_COLORS.length]} />
+              ))}
+            </Pie>
+          </PieChart>
+        </ResponsiveContainer>
+        <div className="fety-breakdown-legend">
+          {(donutLive.length ? donutLive : [{ name: "No spend yet", value: 0 }]).map((d, i) => (
+            <div key={d.name} style={{ display: "flex", alignItems: "center", gap: 7 }}>
+              <div style={{ width: 7, height: 7, borderRadius: 2, background: DONUT_COLORS[i % DONUT_COLORS.length], flexShrink: 0 }} />
+              <span style={{ fontSize: 11, color: "var(--ink-2)", flex: 1 }}>{d.name}</span>
+              <span style={{ fontSize: 11, fontWeight: 600, color: "var(--ink)", fontFamily: "var(--font-sans)" }}>{d.value}%</span>
+            </div>
+          ))}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+const ALL_WIDGETS: WidgetDef[] = [
   // ── Small stat cards ──────────────────────────────────────────────────────────
   {
     id: "stat-balance", label: "Balance", color: "var(--surface)", size: "small",
@@ -480,162 +649,19 @@ const ALL_WIDGETS: WidgetDef[] = [
     ),
   },
   {
-    id: "balance-chart", label: "Balance This Week", color: "var(--surface)", size: "full",
-    preview: () => statPreview("var(--clear-dk)", "Balance This Week", "$2,612", "Daily ending balance · area chart"),
-    render: () => {
-      const { store, summary: s } = widgetLive();
-      const weekData = last7DayEndingBalances(store);
-      const endBal = weekData[weekData.length - 1]?.bal ?? s.balance;
-      return (
-      <div>
-        <div style={{ display: "flex", alignItems: "baseline", justifyContent: "space-between", marginBottom: 16 }}>
-          <div>
-            <p style={{ fontSize: 12, fontWeight: 600, color: "var(--ink)" }}>Balance This Week</p>
-            <p style={{ fontSize: 11, color: "var(--ink-3)", marginTop: 2 }}>Daily ending balance</p>
-          </div>
-          <p style={{ fontSize: 22, fontWeight: 400, color: "var(--ink)", letterSpacing: "-0.8px", fontFamily: "var(--font-sans)" }}>{usd(endBal)}</p>
-        </div>
-        <ResponsiveContainer width="100%" height={160}>
-          <AreaChart data={weekData}>
-            <defs><linearGradient id="wg1" x1="0" y1="0" x2="0" y2="1"><stop offset="5%" stopColor="var(--clear)" stopOpacity={0.45}/><stop offset="95%" stopColor="var(--clear)" stopOpacity={0}/></linearGradient></defs>
-            <CartesianGrid strokeDasharray="3 3" stroke="var(--border-soft)" vertical={false}/>
-            <XAxis dataKey="d" tick={{ fontSize: 10, fill: "var(--ink-3)", fontFamily: "var(--font-sans)" }} axisLine={false} tickLine={false}/>
-            <YAxis tick={{ fontSize: 10, fill: "var(--ink-3)", fontFamily: "var(--font-sans)" }} axisLine={false} tickLine={false} tickFormatter={v => `$${Number(v)/1000}k`} width={36}/>
-            <Tooltip formatter={(v: unknown) => [usdF(Number(v)), "Balance"]} contentStyle={{ fontSize: 11, borderRadius: 8, border: "1px solid var(--border)", fontFamily: "var(--font-sans)" }}/>
-            <Area type="monotone" dataKey="bal" stroke="var(--clear-dk)" strokeWidth={2.5} fill="url(#wg1)" dot={false}/>
-          </AreaChart>
-        </ResponsiveContainer>
-      </div>
-      );
-    },
+    id: "balance-chart", label: "Balance", color: "var(--surface)", size: "full",
+    preview: () => statPreview("var(--clear-dk)", "Balance", "$2,612", "Daily ending balance · filterable"),
+    render: () => <BalanceChartWidget />,
   },
   {
-    id: "monthly-spend-chart", label: "Monthly Spending Trend", color: "var(--surface)", size: "half",
-    preview: () => statPreview("var(--ink)", "Monthly Spending Trend", "$3,650", "Bar chart · last 6 months"),
-    render: () => {
-      const { store } = widgetLive();
-      const monthlySpendLive = last6MonthsSpending(store);
-      return (
-      <div>
-        <p style={{ fontSize: 12, fontWeight: 600, color: "var(--ink)", marginBottom: 2 }}>Monthly Spending</p>
-        <p style={{ fontSize: 11, color: "var(--ink-3)", marginBottom: 16 }}>Last 6 months</p>
-        <ResponsiveContainer width="100%" height={150}>
-          <BarChart data={monthlySpendLive} barSize={20}>
-            <CartesianGrid strokeDasharray="3 3" stroke="var(--border-soft)" vertical={false}/>
-            <XAxis dataKey="m" tick={{ fontSize: 10, fill: "var(--ink-3)", fontFamily: "var(--font-sans)" }} axisLine={false} tickLine={false}/>
-            <YAxis tick={{ fontSize: 10, fill: "var(--ink-3)", fontFamily: "var(--font-sans)" }} axisLine={false} tickLine={false} tickFormatter={v => `$${Number(v)/1000}k`} width={36}/>
-            <Tooltip formatter={(v: unknown) => [usd(Number(v)), "Spent"]} contentStyle={{ fontSize: 11, borderRadius: 9, border: "1px solid var(--border)", fontFamily: "var(--font-sans)" }}/>
-            <Bar dataKey="v" fill="var(--ink)" radius={[4,4,0,0]}/>
-          </BarChart>
-        </ResponsiveContainer>
-      </div>
-      );
-    },
+    id: "monthly-spend-chart", label: "Spending Trend", color: "var(--surface)", size: "half",
+    preview: () => statPreview("var(--ink)", "Spending Trend", "$3,650", "Bar chart · 3 / 6 / 12 months"),
+    render: () => <MonthlySpendChartWidget />,
   },
   {
     id: "spending-breakdown", label: "Spending Breakdown", color: "var(--surface)", size: "half",
-    preview: () => statPreview("var(--ink-3)", "Spending Breakdown", "5 categories", "Donut chart · where money goes"),
-    render: () => {
-      const { store } = widgetLive();
-      const donutLive = categorySpendShares(store);
-      return (
-      <div>
-        <p style={{ fontSize: 12, fontWeight: 600, color: "var(--ink)", marginBottom: 16 }}>Where Your Money Is Going</p>
-        <div style={{ display: "flex", gap: 20, alignItems: "center" }}>
-          <ResponsiveContainer width={110} height={110}>
-            <PieChart><Pie data={donutLive.length ? donutLive : [{ name: "None", value: 100 }]} dataKey="value" innerRadius={32} outerRadius={52} paddingAngle={2} startAngle={90} endAngle={-270}>{(donutLive.length ? donutLive : [{ name: "None", value: 100 }]).map((_, i) => <Cell key={i} fill={DONUT_COLORS[i % DONUT_COLORS.length]}/>)}</Pie></PieChart>
-          </ResponsiveContainer>
-          <div style={{ flex: 1, display: "flex", flexDirection: "column", gap: 5 }}>
-            {(donutLive.length ? donutLive : [{ name: "No spend yet", value: 0 }]).map((d, i) => (
-              <div key={d.name} style={{ display: "flex", alignItems: "center", gap: 7 }}>
-                <div style={{ width: 7, height: 7, borderRadius: 2, background: DONUT_COLORS[i % DONUT_COLORS.length], flexShrink: 0 }}/>
-                <span style={{ fontSize: 11, color: "var(--ink-2)", flex: 1 }}>{d.name}</span>
-                <span style={{ fontSize: 11, fontWeight: 600, color: "var(--ink)", fontFamily: "var(--font-sans)" }}>{d.value}%</span>
-              </div>
-            ))}
-          </div>
-        </div>
-      </div>
-      );
-    },
-  },
-  {
-    id: "today-balance", label: "Today's Balance (Card)", color: "var(--sky)", size: "half",
-    preview: () => statPreview("var(--sky-dk)", "Today's Balance", "$2,612", "Checking $1,812 · Savings $800"),
-    render: () => (
-      <div style={{ display: "flex", flexDirection: "column", height: "100%" }}>
-        <p style={{ fontSize: 11, fontWeight: 600, color: "rgba(0,0,0,0.5)", marginBottom: 6, textTransform: "uppercase", letterSpacing: "0.16em" }}>Today's Balance</p>
-        <p style={{ fontSize: 42, fontWeight: 400, color: "var(--ink)", letterSpacing: "-2px", lineHeight: 1 }}>$2,612</p>
-        <p style={{ fontSize: 12, color: "rgba(0,0,0,0.5)", marginTop: 6 }}>All accounts combined</p>
-        <div style={{ marginTop: "auto", paddingTop: 16, display: "flex", gap: 10 }}>
-          <div style={{ flex: 1, background: "rgba(255,255,255,0.5)", borderRadius: 10, padding: "10px 12px" }}>
-            <p style={{ fontSize: 10, color: "rgba(0,0,0,0.5)", marginBottom: 3 }}>Checking</p>
-            <p style={{ fontSize: 15, fontWeight: 600, color: "var(--ink)", fontFamily: "var(--font-sans)" }}>$1,812</p>
-          </div>
-          <div style={{ flex: 1, background: "rgba(255,255,255,0.5)", borderRadius: 10, padding: "10px 12px" }}>
-            <p style={{ fontSize: 10, color: "rgba(0,0,0,0.5)", marginBottom: 3 }}>Savings</p>
-            <p style={{ fontSize: 15, fontWeight: 600, color: "var(--ink)", fontFamily: "var(--font-sans)" }}>$800</p>
-          </div>
-        </div>
-      </div>
-    ),
-  },
-  {
-    id: "money-in", label: "Money In Today (Card)", color: "var(--clear)", size: "half",
-    preview: () => statPreview("var(--mint-dk)", "Money In Today", "+$350", "Freelance Invoice"),
-    render: () => (
-      <div style={{ display: "flex", flexDirection: "column", height: "100%" }}>
-        <p style={{ fontSize: 11, fontWeight: 600, color: "rgba(0,0,0,0.5)", marginBottom: 6, textTransform: "uppercase", letterSpacing: "0.16em" }}>Money In Today</p>
-        <p style={{ fontSize: 42, fontWeight: 400, color: "var(--mint-dk)", letterSpacing: "-2px", lineHeight: 1 }}>+$350</p>
-        <p style={{ fontSize: 12, color: "rgba(0,0,0,0.5)", marginTop: 6 }}>Income received today</p>
-        <div style={{ marginTop: "auto", paddingTop: 16 }}>
-          <div style={{ display: "flex", alignItems: "center", gap: 10, padding: "9px 0", borderTop: "1px solid rgba(0,0,0,0.08)" }}>
-            <span style={{ fontSize: 16 }}>💼</span>
-            <div style={{ flex: 1 }}><p style={{ fontSize: 12, fontWeight: 500, color: "var(--ink)" }}>Freelance Invoice</p><p style={{ fontSize: 10, color: "rgba(0,0,0,0.4)" }}>Today · Income</p></div>
-            <span style={{ fontSize: 13, fontWeight: 600, color: "var(--mint-dk)", fontFamily: "var(--font-sans)" }}>+$350</span>
-          </div>
-        </div>
-      </div>
-    ),
-  },
-  {
-    id: "money-out", label: "Money Out Today (Card)", color: "var(--surface)", size: "half",
-    preview: () => statPreview("var(--peach-dk)", "Money Out Today", "-$52", "Whole Foods Market"),
-    render: () => (
-      <div style={{ display: "flex", flexDirection: "column", height: "100%" }}>
-        <p style={{ fontSize: 11, fontWeight: 600, color: "rgba(0,0,0,0.5)", marginBottom: 6, textTransform: "uppercase", letterSpacing: "0.16em" }}>Money Out Today</p>
-        <p style={{ fontSize: 42, fontWeight: 400, color: "var(--peach-dk)", letterSpacing: "-2px", lineHeight: 1 }}>-$52</p>
-        <p style={{ fontSize: 12, color: "rgba(0,0,0,0.5)", marginTop: 6 }}>Expenses paid today</p>
-        <div style={{ marginTop: "auto", paddingTop: 16 }}>
-          <div style={{ display: "flex", alignItems: "center", gap: 10, padding: "9px 0", borderTop: "1px solid rgba(0,0,0,0.08)" }}>
-            <span style={{ fontSize: 16 }}>🛒</span>
-            <div style={{ flex: 1 }}><p style={{ fontSize: 12, fontWeight: 500, color: "var(--ink)" }}>Whole Foods Market</p><p style={{ fontSize: 10, color: "rgba(0,0,0,0.4)" }}>Today · Groceries</p></div>
-            <span style={{ fontSize: 13, fontWeight: 600, color: "var(--peach-dk)", fontFamily: "var(--font-sans)" }}>-$52</span>
-          </div>
-        </div>
-      </div>
-    ),
-  },
-  {
-    id: "monthly-net", label: "Monthly Net Cash Flow", color: "var(--clear)", size: "half",
-    preview: () => statPreview("var(--lime-dk)", "Monthly Net Cash Flow", "+$2,450", "In $3,150 · Out $700"),
-    render: () => (
-      <div style={{ display: "flex", flexDirection: "column", height: "100%" }}>
-        <p style={{ fontSize: 11, fontWeight: 600, color: "rgba(0,0,0,0.5)", marginBottom: 6, textTransform: "uppercase", letterSpacing: "0.16em" }}>Monthly Net Cash Flow</p>
-        <p style={{ fontSize: 42, fontWeight: 400, color: "var(--lime-dk)", letterSpacing: "-2px", lineHeight: 1 }}>+$2,450</p>
-        <p style={{ fontSize: 12, color: "rgba(0,0,0,0.5)", marginTop: 6 }}>September net so far</p>
-        <div style={{ marginTop: "auto", paddingTop: 16, display: "flex", gap: 12 }}>
-          <div style={{ flex: 1 }}>
-            <p style={{ fontSize: 10, color: "rgba(0,0,0,0.45)", marginBottom: 3 }}>Income</p>
-            <p style={{ fontSize: 16, fontWeight: 400, color: "var(--lime-dk)", fontFamily: "var(--font-sans)" }}>+$3,150</p>
-          </div>
-          <div style={{ flex: 1 }}>
-            <p style={{ fontSize: 10, color: "rgba(0,0,0,0.45)", marginBottom: 3 }}>Expenses</p>
-            <p style={{ fontSize: 16, fontWeight: 400, color: "var(--peach-dk)", fontFamily: "var(--font-sans)" }}>-$700</p>
-          </div>
-        </div>
-      </div>
-    ),
+    preview: () => statPreview("var(--ink-3)", "Spending Breakdown", "5 categories", "Donut · week / month / 30D / 90D"),
+    render: () => <SpendingBreakdownWidget />,
   },
   {
     id: "budget-remaining", label: "Budget Health", color: "var(--surface)", size: "half",
@@ -782,34 +808,62 @@ const SIZE_GROUPS: { label: string; sizes: WidgetDef["size"][] }[] = [
 ];
 
 function WidgetPicker({
-  pinned, onDashboardToggle, onClose,
+  pinned, onDashboardToggle, onClose, variant = "sidebar",
 }: {
-  pinned: string[]; onDashboardToggle: (id: string) => void; onClose: () => void;
+  pinned: string[];
+  onDashboardToggle: (id: string) => void;
+  onClose: () => void;
+  variant?: "sidebar" | "inline";
 }) {
+  const inline = variant === "inline";
   return (
-    <div style={{
-      width: 300, flexShrink: 0, borderLeft: "1px solid var(--border)",
-      background: "var(--surface)", display: "flex", flexDirection: "column",
-      height: "100%", overflow: "hidden",
-    }}>
-      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "16px 18px", borderBottom: "1px solid var(--border)", flexShrink: 0 }}>
+    <div
+      className={inline ? "fety-widget-picker fety-widget-picker-inline" : "fety-widget-picker fety-widget-picker-sidebar"}
+      style={inline ? undefined : {
+        width: 300, flexShrink: 0, borderLeft: "1px solid var(--border)",
+        background: "var(--surface)", display: "flex", flexDirection: "column",
+        height: "100%", overflow: "hidden",
+      }}
+    >
+      <div className="fety-widget-picker-header" style={inline ? undefined : { display: "flex", alignItems: "center", justifyContent: "space-between", padding: "16px 18px", borderBottom: "1px solid var(--border)", flexShrink: 0 }}>
         <div>
           <p style={{ fontSize: 13, fontWeight: 600, color: "var(--ink)" }}>Customize Dashboard</p>
-          <p style={{ fontSize: 10, color: "var(--ink-3)", marginTop: 2 }}>{pinned.length} widget{pinned.length !== 1 ? "s" : ""} active</p>
+          <p style={{ fontSize: 10, color: "var(--ink-3)", marginTop: 2 }}>
+            {inline
+              ? "Toggle widgets below, then drag them into place on this screen."
+              : `${pinned.length} widget${pinned.length !== 1 ? "s" : ""} active`}
+          </p>
         </div>
-        <button onClick={onClose} style={{ width: 28, height: 28, borderRadius: 8, border: "1px solid var(--border)", background: "var(--bg)", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center" }}>
-          <svg width="11" height="11" viewBox="0 0 11 11" fill="none"><path d="M2 2l7 7M9 2l-7 7" stroke="var(--ink-3)" strokeWidth="1.5" strokeLinecap="round"/></svg>
+        <button type="button" onClick={onClose} className="fety-widget-picker-done" style={inline ? undefined : { width: 28, height: 28, borderRadius: 8, border: "1px solid var(--border)", background: "var(--bg)", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center" }}>
+          {inline ? "Done" : (
+            <svg width="11" height="11" viewBox="0 0 11 11" fill="none"><path d="M2 2l7 7M9 2l-7 7" stroke="var(--ink-3)" strokeWidth="1.5" strokeLinecap="round"/></svg>
+          )}
         </button>
       </div>
-      <div style={{ flex: 1, overflowY: "auto", padding: "10px 14px" }}>
+      <div className="fety-widget-picker-body" style={inline ? undefined : { flex: 1, overflowY: "auto", padding: "10px 14px" }}>
         {SIZE_GROUPS.map(group => {
           const groupWidgets = ALL_WIDGETS.filter(w => group.sizes.includes(w.size));
+          if (groupWidgets.length === 0) return null;
           return (
-            <div key={group.label} style={{ marginBottom: 18 }}>
-              <p style={{ fontSize: 10, fontWeight: 400, color: "var(--ink-3)", fontFamily: "var(--font-mono)", textTransform: "uppercase", letterSpacing: "0.08em", marginBottom: 8 }}>{group.label}</p>
-              <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+            <div key={group.label} className="fety-widget-picker-group" style={inline ? undefined : { marginBottom: 18 }}>
+              <p className="fety-widget-picker-group-label" style={inline ? undefined : { fontSize: 10, fontWeight: 400, color: "var(--ink-3)", fontFamily: "var(--font-mono)", textTransform: "uppercase", letterSpacing: "0.08em", marginBottom: 8 }}>{group.label}</p>
+              <div className={inline ? "fety-widget-picker-chips" : undefined} style={inline ? undefined : { display: "flex", flexDirection: "column", gap: 6 }}>
                 {groupWidgets.map(w => {
                   const active = pinned.includes(w.id);
+                  if (inline) {
+                    return (
+                      <button
+                        key={w.id}
+                        type="button"
+                        className={`fety-widget-chip${active ? " fety-widget-chip-active" : ""}`}
+                        aria-pressed={active}
+                        onClick={() => onDashboardToggle(w.id)}
+                      >
+                        <span>{w.label}</span>
+                        <span className="fety-widget-chip-mark">{active ? "On" : "Off"}</span>
+                      </button>
+                    );
+                  }
                   return (
                     <div
                       key={w.id}
@@ -1055,7 +1109,7 @@ function CalendarView({
             {calView === "monthly" && <MonthlyCalGrid month={focusDate} calendarMap={calendarMap} selected={selected} onSelect={setSelected} />}
             {calView === "weekly" && <WeeklyCalGrid anchor={focusDate} days={7} calendarMap={calendarMap} selected={selected} onSelect={setSelected} />}
             {calView === "biweekly" && <WeeklyCalGrid anchor={focusDate} days={14} calendarMap={calendarMap} selected={selected} onSelect={setSelected} />}
-            {calView === "daily" && <DailyCalView date={focusDate} calendarMap={calendarMap} store={store} />}
+            {calView === "daily" && <DailyCalView date={focusDate} calendarMap={calendarMap} />}
             {calView === "yearly" && (
               <YearlyCalGrid
                 year={year}
@@ -1160,7 +1214,7 @@ function YearlyCalGrid({
                 </span>
               </div>
               {data && (
-                <div style={{ display: "flex", flexDirection: "column", gap: 1, marginTop: "auto" }}>
+                <div className="fety-cal-year-bal" style={{ display: "flex", flexDirection: "column", gap: 1, marginTop: "auto" }}>
                   <div style={{ fontSize: 7.5, lineHeight: 1.2, color: isSelected ? "rgba(255,255,255,0.55)" : "var(--ink-3)" }}>
                     S{" "}
                     <span style={{ fontFamily: "var(--font-sans)", fontWeight: 600, color: calSignedColor(data.startBal) }}>
@@ -1223,6 +1277,8 @@ function YearlyCalLegend() {
 
 // ─── Monthly Calendar Grid ─────────────────────────────────────────────────────
 function MonthlyCalGrid({ month, calendarMap, selected, onSelect }: { month: Date; calendarMap: CalendarMap; selected: string | null; onSelect: (k: string) => void }) {
+  const narrow = useIsNarrow();
+  const money = narrow ? compactUsd : usd;
   const y = month.getFullYear(), m = month.getMonth();
   const firstDay = new Date(y, m, 1).getDay(); // 0=Sun
   const daysInMonth = new Date(y, m + 1, 0).getDate();
@@ -1258,6 +1314,8 @@ function MonthlyCalGrid({ month, calendarMap, selected, onSelect }: { month: Dat
           return (
             <button
               key={key}
+              type="button"
+              className="fety-cal-day-cell"
               onClick={() => onSelect(key)}
               style={{
                 borderRadius: 10, padding: "7px 6px",
@@ -1268,29 +1326,27 @@ function MonthlyCalGrid({ month, calendarMap, selected, onSelect }: { month: Dat
                 transition: "all 0.12s",
               }}
             >
-              {/* Date number */}
-              <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
-                <span style={{ fontSize: 12, fontWeight: 600, color: isSelected ? calSignedColor(net, true) : isToday ? "var(--lime-dk)" : "var(--ink)", lineHeight: 1 }}>
+              <div className="fety-cal-day-top" style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+                <span className="fety-cal-day-num" style={{ fontSize: 12, fontWeight: 600, color: isSelected ? calSignedColor(net, true) : isToday ? "var(--lime-dk)" : "var(--ink)", lineHeight: 1 }}>
                   {date.getDate()}
                 </span>
-                <div style={{ display: "flex", gap: 2 }}>
+                <div className="fety-cal-day-badges" style={{ display: "flex", gap: 2 }}>
                   {hasPayday && <span style={{ fontSize: 9, background: isSelected ? "rgba(255,255,255,0.2)" : "#E8F5EE", color: isSelected ? "#fff" : "var(--clear-dk)", borderRadius: 4, padding: "1px 4px", fontWeight: 600 }}>💵</span>}
                   {hasBill   && <span style={{ fontSize: 9, background: isSelected ? "rgba(255,255,255,0.2)" : "#FFECE8", color: isSelected ? "#fff" : "var(--trouble-dk)", borderRadius: 4, padding: "1px 4px", fontWeight: 600 }}>📋</span>}
                 </div>
               </div>
 
-              {/* Balance mini sheet */}
               {data && (
-                <div style={{ flex: 1, display: "flex", flexDirection: "column", justifyContent: "flex-end", gap: 1 }}>
-                  <div style={{ fontSize: 9, color: isSelected ? "rgba(255,255,255,0.6)" : "var(--ink-3)" }}>
-                    Start <span style={{ fontFamily: "var(--font-sans)", fontWeight: 600, color: calSignedColor(data.startBal, isSelected) }}>{usd(data.startBal)}</span>
+                <div className="fety-cal-day-sheet" style={{ flex: 1, display: "flex", flexDirection: "column", justifyContent: "flex-end", gap: 1 }}>
+                  <div className="fety-cal-day-start" style={{ fontSize: 9, color: isSelected ? "rgba(255,255,255,0.6)" : "var(--ink-3)" }}>
+                    Start <span style={{ fontFamily: "var(--font-sans)", fontWeight: 600, color: calSignedColor(data.startBal, isSelected) }}>{money(data.startBal)}</span>
                   </div>
-                  <div style={{ fontSize: 9, color: isSelected ? "rgba(255,255,255,0.6)" : "var(--ink-3)" }}>
-                    End <span style={{ fontFamily: "var(--font-sans)", fontWeight: 600, color: calBalanceColor(data.endBal, isSelected) }}>{usd(data.endBal)}</span>
+                  <div className="fety-cal-day-end" style={{ fontSize: 9, color: isSelected ? "rgba(255,255,255,0.6)" : "var(--ink-3)" }}>
+                    <span className="fety-cal-day-end-label">End </span>
+                    <span style={{ fontFamily: "var(--font-sans)", fontWeight: 600, color: calBalanceColor(data.endBal, isSelected) }}>{money(data.endBal)}</span>
                   </div>
-                  {/* Mini dots for transactions */}
                   {hasItems && (
-                    <div style={{ display: "flex", gap: 2, flexWrap: "wrap", marginTop: 2 }}>
+                    <div className="fety-cal-day-dots" style={{ display: "flex", gap: 2, flexWrap: "wrap", marginTop: 2 }}>
                       {data.items.slice(0, 4).map((item, ii) => (
                         <div key={ii} title={`${item.desc}: ${item.amount >= 0 ? "+" : ""}${usd(item.amount)}`}
                           style={{ width: 6, height: 6, borderRadius: "var(--radius-marker)", background: item.amount >= 0 ? "var(--clear-dk)" : item.type === "bill" ? "var(--trouble-dk)" : "#D97706", opacity: isSelected ? 0.8 : 1 }} />
@@ -1368,7 +1424,7 @@ function WeeklyCalGrid({ anchor, days, calendarMap, selected, onSelect }: { anch
     const isToday     = date.toDateString() === today.toDateString();
     const net = data ? data.endBal - data.startBal : 0;
     return (
-      <button key={key} onClick={() => onSelect(key)} style={{ background: data ? calendarEndingBalanceBg(data.endBal, isSelected) : "var(--surface)", border: isSelected ? "2px solid var(--ink)" : "1px solid var(--border)", borderRadius: 12, padding: "12px 10px", cursor: "pointer", textAlign: "left", display: "flex", flexDirection: "column", gap: 8 }}>
+      <button key={key} type="button" className="fety-cal-week-cell" onClick={() => onSelect(key)} style={{ background: data ? calendarEndingBalanceBg(data.endBal, isSelected) : "var(--surface)", border: isSelected ? "2px solid var(--ink)" : "1px solid var(--border)", borderRadius: 12, padding: "12px 10px", cursor: "pointer", textAlign: "left", display: "flex", flexDirection: "column", gap: 8 }}>
         <div>
           <p style={{ fontSize: 10, fontWeight: 600, color: isSelected ? "rgba(255,255,255,0.6)" : "var(--ink-3)", textTransform: "uppercase", letterSpacing: "0.16em" }}>{DAYS_SHORT[date.getDay()]}</p>
           <p style={{ fontSize: 18, fontWeight: 400, color: isSelected ? calSignedColor(net, true) : isToday ? "var(--lime-dk)" : "var(--ink)", letterSpacing: "-0.5px", lineHeight: 1.1 }}>{date.getDate()}</p>
@@ -1508,7 +1564,7 @@ function CalendarAccountsBreakdown({ store, dateISO, compact }: { store: FetySto
   );
 }
 
-function DailyCalView({ date, calendarMap, store }: { date: Date; calendarMap: CalendarMap; store: FetyStore }) {
+function DailyCalView({ date, calendarMap }: { date: Date; calendarMap: CalendarMap }) {
   const key = CAL_KEY(date);
   const data = calendarMap.get(key);
 
@@ -1522,7 +1578,6 @@ function DailyCalView({ date, calendarMap, store }: { date: Date; calendarMap: C
         <div style={{ background: data ? calendarEndingBalanceBgStrong(data.endBal) : "var(--surface)", borderRadius: 16, padding: "18px 20px", border: "1px solid var(--border)" }}>
           <p style={{ fontSize: 10, fontWeight: 600, color: "var(--ink-3)", marginBottom: 6, textTransform: "uppercase", letterSpacing: "0.16em" }}>Ending Balance</p>
           <p style={{ fontSize: 24, fontWeight: 400, color: calBalanceColor(data?.endBal ?? 0), letterSpacing: "-0.8px", fontFamily: "var(--font-sans)" }}>{data ? usd(data.endBal) : "—"}</p>
-          <CalendarAccountsBreakdown store={store} dateISO={key} compact />
         </div>
       </div>
 
@@ -1672,6 +1727,7 @@ function CalendarSidePanel({
   const [editFromAccountId, setEditFromAccountId] = useState("");
   const [editToAccountId, setEditToAccountId] = useState("");
   const [editGoalId, setEditGoalId] = useState("");
+  const narrow = useIsNarrow();
 
   const panelInput: React.CSSProperties = {
     width: "100%",
@@ -1789,34 +1845,63 @@ function CalendarSidePanel({
   return (
     <div className="fety-calendar-side-panel" style={{ width: 280, flexShrink: 0, borderLeft: "1px solid var(--border)", background: "var(--surface)", display: "flex", flexDirection: "column", overflow: "hidden", minHeight: 0 }}>
       {calView === "yearly" && (
-        <div style={{ padding: "12px 14px", borderBottom: "1px solid var(--border)", background: "var(--bg)" }}>
-          <p className="fety-label" style={{ marginBottom: 8 }}>Jump to date</p>
-          <input type="date" value={jumpISO} onChange={(e) => setJumpISO(e.target.value)} style={panelInput} />
-          <div style={{ display: "flex", gap: 6, marginTop: 8 }}>
-            <button
-              type="button"
-              onClick={() => onJumpToDate(todayISO())}
-              style={{ flex: 1, padding: "7px 0", borderRadius: 8, border: "1px solid var(--border)", background: "var(--surface)", fontSize: 11, fontWeight: 600, cursor: "pointer" }}
-            >
-              Today
-            </button>
-            <button
-              type="button"
-              onClick={() => onJumpToDate(jumpISO)}
-              style={{ flex: 1, padding: "7px 0", borderRadius: 8, border: "none", background: "var(--ink)", color: "#fff", fontSize: 11, fontWeight: 600, cursor: "pointer" }}
-            >
-              Go
-            </button>
+        narrow ? (
+          <details className="fety-cal-jump" style={{ borderBottom: "1px solid var(--border)", background: "var(--bg)" }}>
+            <summary className="fety-cal-jump-summary">
+              <span className="fety-label">Jump to date</span>
+              <span className="fety-cal-jump-hint">Optional</span>
+            </summary>
+            <div className="fety-cal-jump-body" style={{ padding: "0 14px 12px" }}>
+              <input type="date" value={jumpISO} onChange={(e) => setJumpISO(e.target.value)} style={panelInput} />
+              <div style={{ display: "flex", gap: 6, marginTop: 8 }}>
+                <button
+                  type="button"
+                  onClick={() => onJumpToDate(todayISO())}
+                  style={{ flex: 1, padding: "7px 0", borderRadius: 8, border: "1px solid var(--border)", background: "var(--surface)", fontSize: 11, fontWeight: 600, cursor: "pointer" }}
+                >
+                  Today
+                </button>
+                <button
+                  type="button"
+                  onClick={() => onJumpToDate(jumpISO)}
+                  style={{ flex: 1, padding: "7px 0", borderRadius: 8, border: "none", background: "var(--ink)", color: "#fff", fontSize: 11, fontWeight: 600, cursor: "pointer" }}
+                >
+                  Go
+                </button>
+              </div>
+              <p style={{ fontSize: 9, color: "var(--ink-3)", marginTop: 6 }}>Scrolls the {year} grid to the day you pick.</p>
+            </div>
+          </details>
+        ) : (
+          <div style={{ padding: "12px 14px", borderBottom: "1px solid var(--border)", background: "var(--bg)" }}>
+            <p className="fety-label" style={{ marginBottom: 8 }}>Jump to date</p>
+            <input type="date" value={jumpISO} onChange={(e) => setJumpISO(e.target.value)} style={panelInput} />
+            <div style={{ display: "flex", gap: 6, marginTop: 8 }}>
+              <button
+                type="button"
+                onClick={() => onJumpToDate(todayISO())}
+                style={{ flex: 1, padding: "7px 0", borderRadius: 8, border: "1px solid var(--border)", background: "var(--surface)", fontSize: 11, fontWeight: 600, cursor: "pointer" }}
+              >
+                Today
+              </button>
+              <button
+                type="button"
+                onClick={() => onJumpToDate(jumpISO)}
+                style={{ flex: 1, padding: "7px 0", borderRadius: 8, border: "none", background: "var(--ink)", color: "#fff", fontSize: 11, fontWeight: 600, cursor: "pointer" }}
+              >
+                Go
+              </button>
+            </div>
+            <p style={{ fontSize: 9, color: "var(--ink-3)", marginTop: 6 }}>Scrolls the {year} grid to the day you pick.</p>
           </div>
-          <p style={{ fontSize: 9, color: "var(--ink-3)", marginTop: 6 }}>Scrolls the {year} grid to the day you pick.</p>
-        </div>
+        )
       )}
 
       {!day ? (
         <div style={{ padding: 20, textAlign: "center", color: "var(--ink-3)", fontSize: 12 }}>Select a day to see balances and transactions.</div>
       ) : (
         <>
-          <div style={{ padding: "14px 16px", borderBottom: "1px solid var(--border)", display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+          <div className="fety-cal-yearly-day-header" style={{ padding: "14px 16px", borderBottom: "1px solid var(--border)", display: "flex", alignItems: "center", justifyContent: "space-between" }}>
             <p style={{ fontSize: 12, fontWeight: 600, color: "var(--ink)" }}>
               {day.date.toLocaleDateString("en-US", { weekday: "short", month: "short", day: "numeric", year: "numeric" })}
             </p>
@@ -1828,23 +1913,54 @@ function CalendarSidePanel({
           </div>
 
           <div style={{ flex: 1, overflowY: "auto", padding: "14px", minHeight: 0 }}>
-            <div style={{ background: "var(--bg)", border: "1px solid var(--border)", borderRadius: 12, padding: "12px 14px", marginBottom: 12 }}>
-              <p className="fety-label" style={{ marginBottom: 10 }}>Balance sheet</p>
-              {[
-                { label: "Starting", value: usd(day.startBal), color: calBalanceColor(day.startBal) },
-                { label: "Income", value: day.income > 0 ? `+${usd(day.income)}` : "—", color: calSignedColor(day.income) },
-                { label: "Expenses", value: day.expenses < 0 ? usd(day.expenses) : "—", color: calSignedColor(day.expenses) },
-                { label: "Ending", value: usd(day.endBal), color: calBalanceColor(day.endBal) },
-              ].map((r, i) => (
-                <div key={r.label} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", paddingTop: i > 0 ? 7 : 0, paddingBottom: 7, borderTop: i > 0 ? "1px solid var(--border)" : undefined }}>
-                  <span style={{ fontSize: 11, color: "var(--ink-3)" }}>{r.label}</span>
-                  <span style={{ fontSize: 12, fontWeight: 600, fontFamily: "var(--font-sans)", color: r.color }}>{r.value}</span>
+            {/* Mobile daily: skip balance sheet (main daily view already shows it). Desktop keeps original. */}
+            {!(narrow && calView === "daily") && (
+              narrow && calView === "yearly" ? (
+                <details className="fety-cal-balance-sheet">
+                  <summary className="fety-cal-balance-sheet-summary">
+                    <span className="fety-label">Balance sheet</span>
+                    <span
+                      className="fety-cal-balance-sheet-meta"
+                      style={{ color: calBalanceColor(day.endBal) }}
+                    >
+                      {usd(day.endBal)}
+                    </span>
+                  </summary>
+                  <div className="fety-cal-balance-sheet-body">
+                    {[
+                      { label: "Starting", value: usd(day.startBal), color: calBalanceColor(day.startBal) },
+                      { label: "Income", value: day.income > 0 ? `+${usd(day.income)}` : "—", color: calSignedColor(day.income) },
+                      { label: "Expenses", value: day.expenses < 0 ? usd(day.expenses) : "—", color: calSignedColor(day.expenses) },
+                      { label: "Ending", value: usd(day.endBal), color: calBalanceColor(day.endBal) },
+                    ].map((r, i) => (
+                      <div key={r.label} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", paddingTop: i > 0 ? 7 : 0, paddingBottom: 7, borderTop: i > 0 ? "1px solid var(--border)" : undefined }}>
+                        <span style={{ fontSize: 11, color: "var(--ink-3)" }}>{r.label}</span>
+                        <span style={{ fontSize: 12, fontWeight: 600, fontFamily: "var(--font-sans)", color: r.color }}>{r.value}</span>
+                      </div>
+                    ))}
+                    <CalendarAccountsBreakdown store={ledgerStore} dateISO={CAL_KEY(day.date)} compact />
+                  </div>
+                </details>
+              ) : (
+                <div style={{ background: "var(--bg)", border: "1px solid var(--border)", borderRadius: 12, padding: "12px 14px", marginBottom: 12 }}>
+                  <p className="fety-label" style={{ marginBottom: 10 }}>Balance sheet</p>
+                  {[
+                    { label: "Starting", value: usd(day.startBal), color: calBalanceColor(day.startBal) },
+                    { label: "Income", value: day.income > 0 ? `+${usd(day.income)}` : "—", color: calSignedColor(day.income) },
+                    { label: "Expenses", value: day.expenses < 0 ? usd(day.expenses) : "—", color: calSignedColor(day.expenses) },
+                    { label: "Ending", value: usd(day.endBal), color: calBalanceColor(day.endBal) },
+                  ].map((r, i) => (
+                    <div key={r.label} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", paddingTop: i > 0 ? 7 : 0, paddingBottom: 7, borderTop: i > 0 ? "1px solid var(--border)" : undefined }}>
+                      <span style={{ fontSize: 11, color: "var(--ink-3)" }}>{r.label}</span>
+                      <span style={{ fontSize: 12, fontWeight: 600, fontFamily: "var(--font-sans)", color: r.color }}>{r.value}</span>
+                    </div>
+                  ))}
+                  {calView !== "daily" ? (
+                    <CalendarAccountsBreakdown store={ledgerStore} dateISO={CAL_KEY(day.date)} compact />
+                  ) : null}
                 </div>
-              ))}
-              {calView !== "daily" ? (
-                <CalendarAccountsBreakdown store={ledgerStore} dateISO={CAL_KEY(day.date)} compact />
-              ) : null}
-            </div>
+              )
+            )}
 
             <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 8 }}>
               <p className="fety-label">Transactions</p>
@@ -2045,7 +2161,7 @@ function DashboardView({
             return (
               <div
                 key={`${rowIds.join("-")}-${rowIndex}`}
-                className="fety-widget-row"
+                className={`fety-widget-row${customizing ? " fety-widget-row--customizing" : ""}`}
                 onDragOver={(e) => {
                   if (!customizing || dragRowIndex === null) return;
                   e.preventDefault();
@@ -2084,13 +2200,13 @@ function DashboardView({
                       setOverRowIndex(null);
                     }}
                   >
-                    <svg width="10" height="14" viewBox="0 0 10 14" fill="none" aria-hidden>
-                      <circle cx="3" cy="2.5" r="1" fill="currentColor" />
-                      <circle cx="7" cy="2.5" r="1" fill="currentColor" />
-                      <circle cx="3" cy="7" r="1" fill="currentColor" />
+                    <svg className="fety-row-drag-handle-icon" width="14" height="10" viewBox="0 0 14 10" fill="none" aria-hidden>
+                      <circle cx="2.5" cy="3" r="1" fill="currentColor" />
+                      <circle cx="7" cy="3" r="1" fill="currentColor" />
+                      <circle cx="11.5" cy="3" r="1" fill="currentColor" />
+                      <circle cx="2.5" cy="7" r="1" fill="currentColor" />
                       <circle cx="7" cy="7" r="1" fill="currentColor" />
-                      <circle cx="3" cy="11.5" r="1" fill="currentColor" />
-                      <circle cx="7" cy="11.5" r="1" fill="currentColor" />
+                      <circle cx="11.5" cy="7" r="1" fill="currentColor" />
                     </svg>
                   </div>
                 )}
@@ -2160,7 +2276,7 @@ function DashboardView({
                       }}
                     >
                       {customizing && canDragWidget && (
-                        <div style={{ position: "absolute", top: 8, left: 10, opacity: 0.25, pointerEvents: "none" }}>
+                        <div className="fety-widget-drag-hint" style={{ position: "absolute", top: 8, left: 10, opacity: 0.25, pointerEvents: "none" }}>
                           <svg width="10" height="10" viewBox="0 0 10 10" fill="none"><circle cx="3" cy="2.5" r="1" fill="currentColor"/><circle cx="7" cy="2.5" r="1" fill="currentColor"/><circle cx="3" cy="5" r="1" fill="currentColor"/><circle cx="7" cy="5" r="1" fill="currentColor"/><circle cx="3" cy="7.5" r="1" fill="currentColor"/><circle cx="7" cy="7.5" r="1" fill="currentColor"/></svg>
                         </div>
                       )}
@@ -2292,11 +2408,14 @@ export default function App() {
   const [page, setPage] = useState<Page>("dashboard");
   const [viewMode, setViewMode] = useState<ViewMode>("cards");
   const [transactionsAccountFilter, setTransactionsAccountFilter] = useState<string | null>(null);
-  const [chatCollapsed, setChatCollapsed] = useState(false);
+  const [chatCollapsed, setChatCollapsed] = useState(() =>
+    typeof window !== "undefined" ? window.matchMedia(FETY_NARROW_MQ).matches : false,
+  );
   const [pickerOpen, setPickerOpen] = useState(false);
   const [chatProcessing, setChatProcessing] = useState(false);
   /** Shown before onboarding for first-time users. */
   const [showSplash, setShowSplash] = useState(true);
+  const isNarrow = useIsNarrow();
   const pendingConfirmations = useRef<Map<string, ToolAction>>(new Map());
 
   const pinned = store.pinnedWidgets;
@@ -2541,11 +2660,19 @@ export default function App() {
             />
           ) : (
             <>
-              <main className="fety-main-scroll" style={{ flex: 1, overflowY: "auto", padding: "24px 24px 48px", minWidth: 0 }}>
+              <main className={`fety-main-scroll${pickerOpen && page === "dashboard" ? " fety-main-customizing" : ""}`} style={{ flex: 1, overflowY: "auto", padding: "24px 24px 48px", minWidth: 0 }}>
                 <div className="fety-page-header" style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", marginBottom: 20 }}>
                   <div className="fety-page-header-text">
-                    <h1 style={{ fontSize: 26, fontWeight: 600, color: "var(--ink)", letterSpacing: "-0.02em", lineHeight: 1.2 }}>{pageTitle}</h1>
-                    <p style={{ fontSize: 15, color: "var(--ink-2)", marginTop: 4, lineHeight: 1.45 }}>{PAGE_META[page].sub}</p>
+                    <h1 style={{ fontSize: 26, fontWeight: 600, color: "var(--ink)", letterSpacing: "-0.02em", lineHeight: 1.2 }}>
+                      {pickerOpen && page === "dashboard" ? "Customise dashboard" : pageTitle}
+                    </h1>
+                    <p style={{ fontSize: 15, color: "var(--ink-2)", marginTop: 4, lineHeight: 1.45 }}>
+                      {pickerOpen && page === "dashboard"
+                        ? (isNarrow
+                          ? "Turn widgets on or off, then drag them into place here."
+                          : PAGE_META[page].sub)
+                        : PAGE_META[page].sub}
+                    </p>
                   </div>
                   {page === "dashboard" && !pickerOpen && (
                     <button
@@ -2556,11 +2683,30 @@ export default function App() {
                       Customise
                     </button>
                   )}
+                  {page === "dashboard" && pickerOpen && (
+                    <button
+                      type="button"
+                      className="fety-customise-done-desktop"
+                      onClick={() => setPickerOpen(false)}
+                      style={{ display: "flex", alignItems: "center", gap: 7, padding: "7px 14px", borderRadius: 99, border: "1px solid var(--ink)", background: "var(--ink)", color: "#fff", cursor: "pointer", fontSize: 12, fontWeight: 600, flexShrink: 0, marginTop: 2 }}
+                    >
+                      Done
+                    </button>
+                  )}
                 </div>
+                {page === "dashboard" && pickerOpen && (
+                  <WidgetPicker
+                    variant="inline"
+                    pinned={pinned}
+                    onDashboardToggle={(id) => setPinnedWidgets((prev) => toggleWidgetOnDashboard(prev, id))}
+                    onClose={() => setPickerOpen(false)}
+                  />
+                )}
                 {renderView()}
               </main>
               {page === "dashboard" && pickerOpen && (
                 <WidgetPicker
+                  variant="sidebar"
                   pinned={pinned}
                   onDashboardToggle={(id) => setPinnedWidgets((prev) => toggleWidgetOnDashboard(prev, id))}
                   onClose={() => setPickerOpen(false)}

@@ -18,10 +18,11 @@ Prioritized backlog for product work. Ordered **easiest → hardest** so early i
 
 ## Current sprint focus
 
-**#1 Splash page** — entry screen before onboarding with brand hero, feature summary, and Sign up / Log in CTAs. Log in is UI-ready; cloud accounts land with security + database work.
+**#3 Curate and fix widgets** — remove redundant cards, period + account filters, scrollable chart ranges, hybrid mobile customise, yearly calendar mobile polish.
 
 ## Done (recent)
 
+- Splash page with features + sign up / login entry before onboarding
 - Onboarding wizard, empty store, custom CSV import with column mapping + review
 - Yearly calendar, calendar side panel, transaction CRUD from day panel
 - Phase 1 assistant: deterministic parser, financial tools, confirmations, chat UI (`src/assistant/`)
