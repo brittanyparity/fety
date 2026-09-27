@@ -8,7 +8,7 @@ import type {
   Transaction,
 } from "../types/fety";
 import { flowForTransactionType } from "./transactionTypes";
-import { globalBalanceContribution, goalSavedTotal } from "./ledger";
+import { globalBalanceContribution, goalSavedTotal, accountBalanceWithTransactions } from "./ledger";
 
 export function todayISO(): string {
   return new Date().toISOString().slice(0, 10);
@@ -325,6 +325,7 @@ export function endingBalancesForRange(
   store: FetyStore,
   range: BalanceChartRange,
   ref = new Date(),
+  accountId?: string | null,
 ): { d: string; bal: number }[] {
   const count = daysInBalanceRange(range, ref);
   const out: { d: string; bal: number }[] = [];
@@ -333,7 +334,10 @@ export function endingBalancesForRange(
     d.setHours(12, 0, 0, 0);
     d.setDate(ref.getDate() - i);
     const key = calKey(d);
-    out.push({ d: labelForBalancePoint(d, range), bal: endingBalanceOnDate(store, key) });
+    const bal = accountId
+      ? accountBalanceWithTransactions(store, accountId, key)
+      : endingBalanceOnDate(store, key);
+    out.push({ d: labelForBalancePoint(d, range), bal });
   }
   return out;
 }

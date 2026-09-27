@@ -624,6 +624,142 @@ html, body, #root {
   box-shadow: 0 0 0 1px var(--border);
 }
 
+.fety-widget-filters {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 12px;
+}
+
+.fety-widget-account-filter {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-height: 32px;
+  padding: 2px 8px 2px 10px;
+  border-radius: 8px;
+  border: 1px solid var(--border-soft);
+  background: var(--bg);
+}
+
+.fety-widget-account-filter select {
+  border: none;
+  background: transparent;
+  font-family: var(--font-sans);
+  font-size: 12px;
+  color: var(--ink);
+  min-height: 28px;
+  max-width: 160px;
+}
+
+.fety-chart-scroll {
+  width: 100%;
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+  padding-bottom: 4px;
+}
+
+.fety-chart-scroll-inner {
+  width: 100%;
+}
+
+.fety-breakdown-body {
+  display: flex;
+  gap: 20px;
+  align-items: center;
+}
+
+.fety-breakdown-legend {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  min-width: 0;
+}
+
+.fety-breakdown-body-narrow {
+  flex-direction: column;
+  align-items: stretch;
+}
+
+.fety-widget-picker-inline {
+  margin-bottom: 16px;
+  padding: 12px;
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  background: var(--surface);
+}
+
+.fety-widget-picker-inline .fety-widget-picker-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 12px;
+}
+
+.fety-widget-picker-inline .fety-widget-picker-done {
+  border: none;
+  background: var(--ink);
+  color: #fff;
+  font-size: 12px;
+  font-weight: 600;
+  padding: 8px 14px;
+  border-radius: 99px;
+  cursor: pointer;
+  min-height: 36px;
+}
+
+.fety-widget-picker-inline .fety-widget-picker-group {
+  margin-bottom: 12px;
+}
+
+.fety-widget-picker-inline .fety-widget-picker-group-label {
+  font-size: 10px;
+  font-weight: 400;
+  color: var(--ink-3);
+  font-family: var(--font-mono);
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  margin-bottom: 8px;
+}
+
+.fety-widget-picker-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.fety-widget-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  border: 1px solid var(--border);
+  background: var(--bg);
+  color: var(--ink-2);
+  border-radius: 99px;
+  padding: 8px 12px;
+  font-size: 12px;
+  font-weight: 500;
+  cursor: pointer;
+  min-height: 36px;
+}
+
+.fety-widget-chip-active {
+  background: var(--ink);
+  border-color: var(--ink);
+  color: #fff;
+}
+
+.fety-widget-chip-mark {
+  font-family: var(--font-mono);
+  font-size: 9px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  opacity: 0.75;
+}
+
 .fety-widget-row-grid {
   min-width: 0;
 }
@@ -839,7 +975,7 @@ html, body, #root {
   }
 }
 
-@media (max-width: 768px) {
+@media (max-width: 768px), ((max-width: 900px) and (pointer: coarse)) {
   .fety-logo {
     margin-right: 0;
   }
@@ -1192,16 +1328,39 @@ html, body, #root {
     letter-spacing: -0.03em;
   }
 
+  .fety-cal-year-scroll-wrap {
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+    margin: 0 -4px;
+    padding: 0 4px 8px;
+  }
+
   .fety-cal-year-scroll-wrap .fety-cal-year-grid {
-    min-width: 520px;
+    min-width: 720px;
+    gap: 3px !important;
+  }
+
+  .fety-cal-year-grid button {
+    min-height: 40px !important;
+    padding: 4px !important;
+  }
+
+  .fety-cal-year-bal {
+    display: none !important;
   }
 
   .fety-cal-daily-totals {
     flex-direction: column !important;
   }
 
+  .fety-yearly-dow {
+    min-width: 720px;
+  }
+
   .fety-yearly-dow-wrap {
     padding: 0 10px;
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
   }
 
   .fety-yearly-legend {

@@ -10,6 +10,7 @@ import EmojiIconPicker from "./components/EmojiIconPicker";
 import CurrencyInput, { amountToEditString } from "./components/CurrencyInput";
 import { flattenRowsAfterMoveRespectingLocks, isWidgetInFirstRow, isWidgetPositionLocked, packWidgetsIntoRows, pruneWidgetLocksToFirstRow, reorderWidgetRespectingLocks, toggleWidgetOnDashboard, unpinWidget } from "./lib/widgetLayout";
 import { ChatPanel, ChatExpandIcon } from "./components/ChatPanel";
+import { useIsNarrow } from "./hooks/useIsNarrow";
 import WidgetPeriodFilter from "./components/WidgetPeriodFilter";
 import WidgetPinIcon from "./components/WidgetPinIcon";
 import { confirmAssistantAction, handleAssistantMessageWithDeps } from "./assistant/router";
@@ -316,11 +317,35 @@ const CATEGORY_PERIOD_OPTIONS = [
   { id: "90d" as const, label: "90D" },
 ];
 
+function ScrollableChart({
+  pointCount,
+  height,
+  minPointWidth = 36,
+  children,
+}: {
+  pointCount: number;
+  height: number;
+  minPointWidth?: number;
+  children: (width: number) => React.ReactNode;
+}) {
+  const narrow = useIsNarrow();
+  const minWidth = Math.max(pointCount * (narrow ? Math.max(minPointWidth, 40) : minPointWidth), narrow ? 280 : 240);
+  return (
+    <div className="fety-chart-scroll">
+      <div className="fety-chart-scroll-inner" style={{ minWidth, height }}>
+        {children(minWidth)}
+      </div>
+    </div>
+  );
+}
+
 function BalanceChartWidget() {
   const { store, summary: s } = widgetLive();
   const [range, setRange] = useState<BalanceChartRange>("7d");
-  const weekData = endingBalancesForRange(store, range);
-  const endBal = weekData[weekData.length - 1]?.bal ?? s.balance;
+  const [accountId, setAccountId] = useState<string>("all");
+  const selectedAccount = accountId === "all" ? null : accountId;
+  const weekData = endingBalancesForRange(store, range, new Date(), selectedAccount);
+  const endBal = weekData[weekData.length - 1]?.bal ?? (selectedAccount ? 0 : s.balance);
   const dataMax = weekData.length ? Math.max(...weekData.map((d) => d.bal)) : 0;
   const dataMin = weekData.length ? Math.min(...weekData.map((d) => d.bal)) : 0;
   const zeroOffset =
@@ -334,45 +359,60 @@ function BalanceChartWidget() {
         : range === "30d"
           ? "Last 30 days"
           : "Month to date";
+  const accountLabel =
+    accountId === "all"
+      ? "All cash"
+      : store.accounts.find((a) => a.id === accountId)?.name ?? "Account";
 
   return (
     <div>
-      <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: 12, marginBottom: 12, flexWrap: "wrap" }}>
+      <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: 12, marginBottom: 10, flexWrap: "wrap" }}>
         <div>
           <p style={{ fontSize: 12, fontWeight: 600, color: "var(--ink)" }}>Balance</p>
-          <p style={{ fontSize: 11, color: "var(--ink-3)", marginTop: 2 }}>Daily ending balance · {subtitle}</p>
+          <p style={{ fontSize: 11, color: "var(--ink-3)", marginTop: 2 }}>
+            {accountLabel} · {subtitle}
+          </p>
         </div>
-        <div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
-          <WidgetPeriodFilter options={BALANCE_RANGE_OPTIONS} value={range} onChange={setRange} ariaLabel="Balance period" />
-          <p style={{ fontSize: 22, fontWeight: 400, color: endColor, letterSpacing: "-0.8px", fontFamily: "var(--font-sans)", margin: 0 }}>{usd(endBal)}</p>
-        </div>
+        <p style={{ fontSize: 22, fontWeight: 400, color: endColor, letterSpacing: "-0.8px", fontFamily: "var(--font-sans)", margin: 0 }}>{usd(endBal)}</p>
       </div>
-      <ResponsiveContainer width="100%" height={160}>
-        <AreaChart data={weekData}>
-          <defs>
-            <linearGradient id="balanceStrokeSplit" x1="0" y1="0" x2="0" y2="1">
-              <stop offset={zeroOffset} stopColor="var(--clear-dk)" stopOpacity={1} />
-              <stop offset={zeroOffset} stopColor="var(--trouble-dk)" stopOpacity={1} />
-            </linearGradient>
-            <linearGradient id="balanceFillSplit" x1="0" y1="0" x2="0" y2="1">
-              <stop offset={zeroOffset} stopColor="var(--clear)" stopOpacity={0.45} />
-              <stop offset={zeroOffset} stopColor="var(--trouble)" stopOpacity={0.4} />
-              <stop offset="1" stopColor="var(--trouble)" stopOpacity={0.05} />
-            </linearGradient>
-          </defs>
-          <CartesianGrid strokeDasharray="3 3" stroke="var(--border-soft)" vertical={false} />
-          <XAxis
-            dataKey="d"
-            tick={{ fontSize: 10, fill: "var(--ink-3)", fontFamily: "var(--font-sans)" }}
-            axisLine={false}
-            tickLine={false}
-            interval={range === "30d" ? 4 : range === "14d" ? 1 : 0}
-          />
-          <YAxis tick={{ fontSize: 10, fill: "var(--ink-3)", fontFamily: "var(--font-sans)" }} axisLine={false} tickLine={false} tickFormatter={(v) => `$${Number(v) / 1000}k`} width={36} />
-          <Tooltip formatter={(v: unknown) => [usdF(Number(v)), "Balance"]} contentStyle={{ fontSize: 11, borderRadius: 8, border: "1px solid var(--border)", fontFamily: "var(--font-sans)" }} />
-          <Area type="monotone" dataKey="bal" stroke="url(#balanceStrokeSplit)" strokeWidth={2.5} fill="url(#balanceFillSplit)" baseValue={0} dot={false} />
-        </AreaChart>
-      </ResponsiveContainer>
+      <div className="fety-widget-filters">
+        <WidgetPeriodFilter options={BALANCE_RANGE_OPTIONS} value={range} onChange={setRange} ariaLabel="Balance period" />
+        <label className="fety-widget-account-filter">
+          <span className="fety-label">Account</span>
+          <select value={accountId} onChange={(e) => setAccountId(e.target.value)} aria-label="Balance account">
+            <option value="all">All cash</option>
+            {store.accounts.map((a) => (
+              <option key={a.id} value={a.id}>
+                {a.icon} {a.name}
+              </option>
+            ))}
+          </select>
+        </label>
+      </div>
+      <ScrollableChart pointCount={weekData.length} height={160} minPointWidth={range === "7d" ? 44 : 32}>
+        {(width) => (
+          <ResponsiveContainer width={width} height={160}>
+            <AreaChart data={weekData}>
+              <defs>
+                <linearGradient id="balanceStrokeSplit" x1="0" y1="0" x2="0" y2="1">
+                  <stop offset={zeroOffset} stopColor="var(--clear-dk)" stopOpacity={1} />
+                  <stop offset={zeroOffset} stopColor="var(--trouble-dk)" stopOpacity={1} />
+                </linearGradient>
+                <linearGradient id="balanceFillSplit" x1="0" y1="0" x2="0" y2="1">
+                  <stop offset={zeroOffset} stopColor="var(--clear)" stopOpacity={0.45} />
+                  <stop offset={zeroOffset} stopColor="var(--trouble)" stopOpacity={0.4} />
+                  <stop offset="1" stopColor="var(--trouble)" stopOpacity={0.05} />
+                </linearGradient>
+              </defs>
+              <CartesianGrid strokeDasharray="3 3" stroke="var(--border-soft)" vertical={false} />
+              <XAxis dataKey="d" tick={{ fontSize: 10, fill: "var(--ink-3)", fontFamily: "var(--font-sans)" }} axisLine={false} tickLine={false} interval={0} />
+              <YAxis tick={{ fontSize: 10, fill: "var(--ink-3)", fontFamily: "var(--font-sans)" }} axisLine={false} tickLine={false} tickFormatter={(v) => `$${Number(v) / 1000}k`} width={36} />
+              <Tooltip formatter={(v: unknown) => [usdF(Number(v)), "Balance"]} contentStyle={{ fontSize: 11, borderRadius: 8, border: "1px solid var(--border)", fontFamily: "var(--font-sans)" }} />
+              <Area type="monotone" dataKey="bal" stroke="url(#balanceStrokeSplit)" strokeWidth={2.5} fill="url(#balanceFillSplit)" baseValue={0} dot={false} />
+            </AreaChart>
+          </ResponsiveContainer>
+        )}
+      </ScrollableChart>
     </div>
   );
 }
@@ -396,21 +436,26 @@ function MonthlySpendChartWidget() {
           ariaLabel="Spending trend range"
         />
       </div>
-      <ResponsiveContainer width="100%" height={150}>
-        <BarChart data={monthlySpendLive} barSize={months === 12 ? 12 : 20}>
-          <CartesianGrid strokeDasharray="3 3" stroke="var(--border-soft)" vertical={false} />
-          <XAxis dataKey="m" tick={{ fontSize: 10, fill: "var(--ink-3)", fontFamily: "var(--font-sans)" }} axisLine={false} tickLine={false} />
-          <YAxis tick={{ fontSize: 10, fill: "var(--ink-3)", fontFamily: "var(--font-sans)" }} axisLine={false} tickLine={false} tickFormatter={(v) => `$${Number(v) / 1000}k`} width={36} />
-          <Tooltip formatter={(v: unknown) => [usd(Number(v)), "Spent"]} contentStyle={{ fontSize: 11, borderRadius: 9, border: "1px solid var(--border)", fontFamily: "var(--font-sans)" }} />
-          <Bar dataKey="v" fill="var(--ink)" radius={[4, 4, 0, 0]} />
-        </BarChart>
-      </ResponsiveContainer>
+      <ScrollableChart pointCount={monthlySpendLive.length} height={150} minPointWidth={48}>
+        {(width) => (
+          <ResponsiveContainer width={width} height={150}>
+            <BarChart data={monthlySpendLive} barSize={Math.min(28, Math.max(14, width / monthlySpendLive.length - 12))}>
+              <CartesianGrid strokeDasharray="3 3" stroke="var(--border-soft)" vertical={false} />
+              <XAxis dataKey="m" tick={{ fontSize: 10, fill: "var(--ink-3)", fontFamily: "var(--font-sans)" }} axisLine={false} tickLine={false} interval={0} />
+              <YAxis tick={{ fontSize: 10, fill: "var(--ink-3)", fontFamily: "var(--font-sans)" }} axisLine={false} tickLine={false} tickFormatter={(v) => `$${Number(v) / 1000}k`} width={36} />
+              <Tooltip formatter={(v: unknown) => [usd(Number(v)), "Spent"]} contentStyle={{ fontSize: 11, borderRadius: 9, border: "1px solid var(--border)", fontFamily: "var(--font-sans)" }} />
+              <Bar dataKey="v" fill="var(--ink)" radius={[4, 4, 0, 0]} />
+            </BarChart>
+          </ResponsiveContainer>
+        )}
+      </ScrollableChart>
     </div>
   );
 }
 
 function SpendingBreakdownWidget() {
   const { store } = widgetLive();
+  const narrow = useIsNarrow();
   const [period, setPeriod] = useState<CategorySpendPeriod>("month");
   const donutLive = categorySpendSharesForPeriod(store, period);
   const periodLabel =
@@ -424,8 +469,8 @@ function SpendingBreakdownWidget() {
         </div>
         <WidgetPeriodFilter options={CATEGORY_PERIOD_OPTIONS} value={period} onChange={setPeriod} ariaLabel="Spending breakdown period" />
       </div>
-      <div style={{ display: "flex", gap: 20, alignItems: "center" }}>
-        <ResponsiveContainer width={110} height={110}>
+      <div className={`fety-breakdown-body${narrow ? " fety-breakdown-body-narrow" : ""}`}>
+        <ResponsiveContainer width={narrow ? "100%" : 110} height={110}>
           <PieChart>
             <Pie
               data={donutLive.length ? donutLive : [{ name: "None", value: 100 }]}
@@ -442,7 +487,7 @@ function SpendingBreakdownWidget() {
             </Pie>
           </PieChart>
         </ResponsiveContainer>
-        <div style={{ flex: 1, display: "flex", flexDirection: "column", gap: 5 }}>
+        <div className="fety-breakdown-legend">
           {(donutLive.length ? donutLive : [{ name: "No spend yet", value: 0 }]).map((d, i) => (
             <div key={d.name} style={{ display: "flex", alignItems: "center", gap: 7 }}>
               <div style={{ width: 7, height: 7, borderRadius: 2, background: DONUT_COLORS[i % DONUT_COLORS.length], flexShrink: 0 }} />
@@ -457,47 +502,6 @@ function SpendingBreakdownWidget() {
 }
 
 const ALL_WIDGETS: WidgetDef[] = [
-  {
-    id: "spending-power-hero",
-    label: "Spending power · this week",
-    color: "var(--amber)",
-    size: "full",
-    preview: () => statPreview("var(--amber-dk)", "Spending power", "$140", "Full-width banner"),
-    render: () => {
-      const { summary: s } = widgetLive();
-      const barPct = s.weeklyUsedPct;
-      return (
-        <div
-          style={{
-            display: "flex",
-            flexWrap: "wrap",
-            alignItems: "flex-end",
-            justifyContent: "space-between",
-            gap: 20,
-          }}
-        >
-          <div>
-            <p className="fety-label" style={{ color: "var(--ink)", marginBottom: 10 }}>
-              Spending power · this week
-            </p>
-            <p className="fety-figure" style={{ fontSize: 56, letterSpacing: "-0.03em" }}>
-              {usd(s.weeklySpendingPower)}
-            </p>
-            <p style={{ fontSize: 14, color: "var(--ink-2)", marginTop: 8 }}>Safe to spend through Sunday</p>
-          </div>
-          <div style={{ minWidth: 200, flex: "1 1 200px", maxWidth: 320 }}>
-            <div style={{ height: 8, background: "rgba(17,17,17,0.2)", borderRadius: "var(--radius-track)", overflow: "hidden" }}>
-              <div style={{ width: `${barPct}%`, height: "100%", background: "var(--ink)", borderRadius: "var(--radius-track)" }} />
-            </div>
-            <div style={{ display: "flex", justifyContent: "space-between", marginTop: 8, fontSize: 11, fontFamily: "var(--font-mono)", color: "var(--ink)" }}>
-              <span>{usd(s.weeklySpent)} of {usd(s.weeklyBudget)}</span>
-              <span>{barPct}%</span>
-            </div>
-          </div>
-        </div>
-      );
-    },
-  },
   // ── Small stat cards ──────────────────────────────────────────────────────────
   {
     id: "stat-balance", label: "Balance", color: "var(--surface)", size: "small",
@@ -660,84 +664,6 @@ const ALL_WIDGETS: WidgetDef[] = [
     render: () => <SpendingBreakdownWidget />,
   },
   {
-    id: "today-balance", label: "Today's Balance (Card)", color: "var(--sky)", size: "half",
-    preview: () => statPreview("var(--sky-dk)", "Today's Balance", "$2,612", "Checking $1,812 · Savings $800"),
-    render: () => (
-      <div style={{ display: "flex", flexDirection: "column", height: "100%" }}>
-        <p style={{ fontSize: 11, fontWeight: 600, color: "rgba(0,0,0,0.5)", marginBottom: 6, textTransform: "uppercase", letterSpacing: "0.16em" }}>Today's Balance</p>
-        <p style={{ fontSize: 42, fontWeight: 400, color: "var(--ink)", letterSpacing: "-2px", lineHeight: 1 }}>$2,612</p>
-        <p style={{ fontSize: 12, color: "rgba(0,0,0,0.5)", marginTop: 6 }}>All accounts combined</p>
-        <div style={{ marginTop: "auto", paddingTop: 16, display: "flex", gap: 10 }}>
-          <div style={{ flex: 1, background: "rgba(255,255,255,0.5)", borderRadius: 10, padding: "10px 12px" }}>
-            <p style={{ fontSize: 10, color: "rgba(0,0,0,0.5)", marginBottom: 3 }}>Checking</p>
-            <p style={{ fontSize: 15, fontWeight: 600, color: "var(--ink)", fontFamily: "var(--font-sans)" }}>$1,812</p>
-          </div>
-          <div style={{ flex: 1, background: "rgba(255,255,255,0.5)", borderRadius: 10, padding: "10px 12px" }}>
-            <p style={{ fontSize: 10, color: "rgba(0,0,0,0.5)", marginBottom: 3 }}>Savings</p>
-            <p style={{ fontSize: 15, fontWeight: 600, color: "var(--ink)", fontFamily: "var(--font-sans)" }}>$800</p>
-          </div>
-        </div>
-      </div>
-    ),
-  },
-  {
-    id: "money-in", label: "Money In Today (Card)", color: "var(--clear)", size: "half",
-    preview: () => statPreview("var(--mint-dk)", "Money In Today", "+$350", "Freelance Invoice"),
-    render: () => (
-      <div style={{ display: "flex", flexDirection: "column", height: "100%" }}>
-        <p style={{ fontSize: 11, fontWeight: 600, color: "rgba(0,0,0,0.5)", marginBottom: 6, textTransform: "uppercase", letterSpacing: "0.16em" }}>Money In Today</p>
-        <p style={{ fontSize: 42, fontWeight: 400, color: "var(--mint-dk)", letterSpacing: "-2px", lineHeight: 1 }}>+$350</p>
-        <p style={{ fontSize: 12, color: "rgba(0,0,0,0.5)", marginTop: 6 }}>Income received today</p>
-        <div style={{ marginTop: "auto", paddingTop: 16 }}>
-          <div style={{ display: "flex", alignItems: "center", gap: 10, padding: "9px 0", borderTop: "1px solid rgba(0,0,0,0.08)" }}>
-            <span style={{ fontSize: 16 }}>💼</span>
-            <div style={{ flex: 1 }}><p style={{ fontSize: 12, fontWeight: 500, color: "var(--ink)" }}>Freelance Invoice</p><p style={{ fontSize: 10, color: "rgba(0,0,0,0.4)" }}>Today · Income</p></div>
-            <span style={{ fontSize: 13, fontWeight: 600, color: "var(--mint-dk)", fontFamily: "var(--font-sans)" }}>+$350</span>
-          </div>
-        </div>
-      </div>
-    ),
-  },
-  {
-    id: "money-out", label: "Money Out Today (Card)", color: "var(--surface)", size: "half",
-    preview: () => statPreview("var(--peach-dk)", "Money Out Today", "-$52", "Whole Foods Market"),
-    render: () => (
-      <div style={{ display: "flex", flexDirection: "column", height: "100%" }}>
-        <p style={{ fontSize: 11, fontWeight: 600, color: "rgba(0,0,0,0.5)", marginBottom: 6, textTransform: "uppercase", letterSpacing: "0.16em" }}>Money Out Today</p>
-        <p style={{ fontSize: 42, fontWeight: 400, color: "var(--peach-dk)", letterSpacing: "-2px", lineHeight: 1 }}>-$52</p>
-        <p style={{ fontSize: 12, color: "rgba(0,0,0,0.5)", marginTop: 6 }}>Expenses paid today</p>
-        <div style={{ marginTop: "auto", paddingTop: 16 }}>
-          <div style={{ display: "flex", alignItems: "center", gap: 10, padding: "9px 0", borderTop: "1px solid rgba(0,0,0,0.08)" }}>
-            <span style={{ fontSize: 16 }}>🛒</span>
-            <div style={{ flex: 1 }}><p style={{ fontSize: 12, fontWeight: 500, color: "var(--ink)" }}>Whole Foods Market</p><p style={{ fontSize: 10, color: "rgba(0,0,0,0.4)" }}>Today · Groceries</p></div>
-            <span style={{ fontSize: 13, fontWeight: 600, color: "var(--peach-dk)", fontFamily: "var(--font-sans)" }}>-$52</span>
-          </div>
-        </div>
-      </div>
-    ),
-  },
-  {
-    id: "monthly-net", label: "Monthly Net Cash Flow", color: "var(--clear)", size: "half",
-    preview: () => statPreview("var(--lime-dk)", "Monthly Net Cash Flow", "+$2,450", "In $3,150 · Out $700"),
-    render: () => (
-      <div style={{ display: "flex", flexDirection: "column", height: "100%" }}>
-        <p style={{ fontSize: 11, fontWeight: 600, color: "rgba(0,0,0,0.5)", marginBottom: 6, textTransform: "uppercase", letterSpacing: "0.16em" }}>Monthly Net Cash Flow</p>
-        <p style={{ fontSize: 42, fontWeight: 400, color: "var(--lime-dk)", letterSpacing: "-2px", lineHeight: 1 }}>+$2,450</p>
-        <p style={{ fontSize: 12, color: "rgba(0,0,0,0.5)", marginTop: 6 }}>September net so far</p>
-        <div style={{ marginTop: "auto", paddingTop: 16, display: "flex", gap: 12 }}>
-          <div style={{ flex: 1 }}>
-            <p style={{ fontSize: 10, color: "rgba(0,0,0,0.45)", marginBottom: 3 }}>Income</p>
-            <p style={{ fontSize: 16, fontWeight: 400, color: "var(--lime-dk)", fontFamily: "var(--font-sans)" }}>+$3,150</p>
-          </div>
-          <div style={{ flex: 1 }}>
-            <p style={{ fontSize: 10, color: "rgba(0,0,0,0.45)", marginBottom: 3 }}>Expenses</p>
-            <p style={{ fontSize: 16, fontWeight: 400, color: "var(--peach-dk)", fontFamily: "var(--font-sans)" }}>-$700</p>
-          </div>
-        </div>
-      </div>
-    ),
-  },
-  {
     id: "budget-remaining", label: "Budget Health", color: "var(--surface)", size: "half",
     preview: () => statPreview("var(--ink)", "Budget Health", "$477 left", "Progress bars · top 4 categories"),
     render: () => {
@@ -882,34 +808,62 @@ const SIZE_GROUPS: { label: string; sizes: WidgetDef["size"][] }[] = [
 ];
 
 function WidgetPicker({
-  pinned, onDashboardToggle, onClose,
+  pinned, onDashboardToggle, onClose, variant = "sidebar",
 }: {
-  pinned: string[]; onDashboardToggle: (id: string) => void; onClose: () => void;
+  pinned: string[];
+  onDashboardToggle: (id: string) => void;
+  onClose: () => void;
+  variant?: "sidebar" | "inline";
 }) {
+  const inline = variant === "inline";
   return (
-    <div style={{
-      width: 300, flexShrink: 0, borderLeft: "1px solid var(--border)",
-      background: "var(--surface)", display: "flex", flexDirection: "column",
-      height: "100%", overflow: "hidden",
-    }}>
-      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "16px 18px", borderBottom: "1px solid var(--border)", flexShrink: 0 }}>
+    <div
+      className={inline ? "fety-widget-picker fety-widget-picker-inline" : "fety-widget-picker fety-widget-picker-sidebar"}
+      style={inline ? undefined : {
+        width: 300, flexShrink: 0, borderLeft: "1px solid var(--border)",
+        background: "var(--surface)", display: "flex", flexDirection: "column",
+        height: "100%", overflow: "hidden",
+      }}
+    >
+      <div className="fety-widget-picker-header" style={inline ? undefined : { display: "flex", alignItems: "center", justifyContent: "space-between", padding: "16px 18px", borderBottom: "1px solid var(--border)", flexShrink: 0 }}>
         <div>
           <p style={{ fontSize: 13, fontWeight: 600, color: "var(--ink)" }}>Customize Dashboard</p>
-          <p style={{ fontSize: 10, color: "var(--ink-3)", marginTop: 2 }}>{pinned.length} widget{pinned.length !== 1 ? "s" : ""} active</p>
+          <p style={{ fontSize: 10, color: "var(--ink-3)", marginTop: 2 }}>
+            {inline
+              ? "Toggle widgets below, then drag them into place on this screen."
+              : `${pinned.length} widget${pinned.length !== 1 ? "s" : ""} active`}
+          </p>
         </div>
-        <button onClick={onClose} style={{ width: 28, height: 28, borderRadius: 8, border: "1px solid var(--border)", background: "var(--bg)", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center" }}>
-          <svg width="11" height="11" viewBox="0 0 11 11" fill="none"><path d="M2 2l7 7M9 2l-7 7" stroke="var(--ink-3)" strokeWidth="1.5" strokeLinecap="round"/></svg>
+        <button type="button" onClick={onClose} className="fety-widget-picker-done" style={inline ? undefined : { width: 28, height: 28, borderRadius: 8, border: "1px solid var(--border)", background: "var(--bg)", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center" }}>
+          {inline ? "Done" : (
+            <svg width="11" height="11" viewBox="0 0 11 11" fill="none"><path d="M2 2l7 7M9 2l-7 7" stroke="var(--ink-3)" strokeWidth="1.5" strokeLinecap="round"/></svg>
+          )}
         </button>
       </div>
-      <div style={{ flex: 1, overflowY: "auto", padding: "10px 14px" }}>
+      <div className="fety-widget-picker-body" style={inline ? undefined : { flex: 1, overflowY: "auto", padding: "10px 14px" }}>
         {SIZE_GROUPS.map(group => {
           const groupWidgets = ALL_WIDGETS.filter(w => group.sizes.includes(w.size));
+          if (groupWidgets.length === 0) return null;
           return (
-            <div key={group.label} style={{ marginBottom: 18 }}>
-              <p style={{ fontSize: 10, fontWeight: 400, color: "var(--ink-3)", fontFamily: "var(--font-mono)", textTransform: "uppercase", letterSpacing: "0.08em", marginBottom: 8 }}>{group.label}</p>
-              <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+            <div key={group.label} className="fety-widget-picker-group" style={inline ? undefined : { marginBottom: 18 }}>
+              <p className="fety-widget-picker-group-label" style={inline ? undefined : { fontSize: 10, fontWeight: 400, color: "var(--ink-3)", fontFamily: "var(--font-mono)", textTransform: "uppercase", letterSpacing: "0.08em", marginBottom: 8 }}>{group.label}</p>
+              <div className={inline ? "fety-widget-picker-chips" : undefined} style={inline ? undefined : { display: "flex", flexDirection: "column", gap: 6 }}>
                 {groupWidgets.map(w => {
                   const active = pinned.includes(w.id);
+                  if (inline) {
+                    return (
+                      <button
+                        key={w.id}
+                        type="button"
+                        className={`fety-widget-chip${active ? " fety-widget-chip-active" : ""}`}
+                        aria-pressed={active}
+                        onClick={() => onDashboardToggle(w.id)}
+                      >
+                        <span>{w.label}</span>
+                        <span className="fety-widget-chip-mark">{active ? "On" : "Off"}</span>
+                      </button>
+                    );
+                  }
                   return (
                     <div
                       key={w.id}
@@ -1155,7 +1109,7 @@ function CalendarView({
             {calView === "monthly" && <MonthlyCalGrid month={focusDate} calendarMap={calendarMap} selected={selected} onSelect={setSelected} />}
             {calView === "weekly" && <WeeklyCalGrid anchor={focusDate} days={7} calendarMap={calendarMap} selected={selected} onSelect={setSelected} />}
             {calView === "biweekly" && <WeeklyCalGrid anchor={focusDate} days={14} calendarMap={calendarMap} selected={selected} onSelect={setSelected} />}
-            {calView === "daily" && <DailyCalView date={focusDate} calendarMap={calendarMap} store={store} />}
+            {calView === "daily" && <DailyCalView date={focusDate} calendarMap={calendarMap} />}
             {calView === "yearly" && (
               <YearlyCalGrid
                 year={year}
@@ -1260,7 +1214,7 @@ function YearlyCalGrid({
                 </span>
               </div>
               {data && (
-                <div style={{ display: "flex", flexDirection: "column", gap: 1, marginTop: "auto" }}>
+                <div className="fety-cal-year-bal" style={{ display: "flex", flexDirection: "column", gap: 1, marginTop: "auto" }}>
                   <div style={{ fontSize: 7.5, lineHeight: 1.2, color: isSelected ? "rgba(255,255,255,0.55)" : "var(--ink-3)" }}>
                     S{" "}
                     <span style={{ fontFamily: "var(--font-sans)", fontWeight: 600, color: calSignedColor(data.startBal) }}>
@@ -1608,7 +1562,7 @@ function CalendarAccountsBreakdown({ store, dateISO, compact }: { store: FetySto
   );
 }
 
-function DailyCalView({ date, calendarMap, store }: { date: Date; calendarMap: CalendarMap; store: FetyStore }) {
+function DailyCalView({ date, calendarMap }: { date: Date; calendarMap: CalendarMap }) {
   const key = CAL_KEY(date);
   const data = calendarMap.get(key);
 
@@ -1622,7 +1576,6 @@ function DailyCalView({ date, calendarMap, store }: { date: Date; calendarMap: C
         <div style={{ background: data ? calendarEndingBalanceBgStrong(data.endBal) : "var(--surface)", borderRadius: 16, padding: "18px 20px", border: "1px solid var(--border)" }}>
           <p style={{ fontSize: 10, fontWeight: 600, color: "var(--ink-3)", marginBottom: 6, textTransform: "uppercase", letterSpacing: "0.16em" }}>Ending Balance</p>
           <p style={{ fontSize: 24, fontWeight: 400, color: calBalanceColor(data?.endBal ?? 0), letterSpacing: "-0.8px", fontFamily: "var(--font-sans)" }}>{data ? usd(data.endBal) : "—"}</p>
-          <CalendarAccountsBreakdown store={store} dateISO={key} compact />
         </div>
       </div>
 
@@ -2399,6 +2352,7 @@ export default function App() {
   const [chatProcessing, setChatProcessing] = useState(false);
   /** Shown before onboarding for first-time users. */
   const [showSplash, setShowSplash] = useState(true);
+  const isNarrow = useIsNarrow();
   const pendingConfirmations = useRef<Map<string, ToolAction>>(new Map());
 
   const pinned = store.pinnedWidgets;
@@ -2643,11 +2597,19 @@ export default function App() {
             />
           ) : (
             <>
-              <main className="fety-main-scroll" style={{ flex: 1, overflowY: "auto", padding: "24px 24px 48px", minWidth: 0 }}>
+              <main className={`fety-main-scroll${pickerOpen && page === "dashboard" ? " fety-main-customizing" : ""}`} style={{ flex: 1, overflowY: "auto", padding: "24px 24px 48px", minWidth: 0 }}>
                 <div className="fety-page-header" style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", marginBottom: 20 }}>
                   <div className="fety-page-header-text">
-                    <h1 style={{ fontSize: 26, fontWeight: 600, color: "var(--ink)", letterSpacing: "-0.02em", lineHeight: 1.2 }}>{pageTitle}</h1>
-                    <p style={{ fontSize: 15, color: "var(--ink-2)", marginTop: 4, lineHeight: 1.45 }}>{PAGE_META[page].sub}</p>
+                    <h1 style={{ fontSize: 26, fontWeight: 600, color: "var(--ink)", letterSpacing: "-0.02em", lineHeight: 1.2 }}>
+                      {pickerOpen && page === "dashboard" ? "Customise dashboard" : pageTitle}
+                    </h1>
+                    <p style={{ fontSize: 15, color: "var(--ink-2)", marginTop: 4, lineHeight: 1.45 }}>
+                      {pickerOpen && page === "dashboard"
+                        ? (isNarrow
+                          ? "Turn widgets on or off, then drag them into place here."
+                          : PAGE_META[page].sub)
+                        : PAGE_META[page].sub}
+                    </p>
                   </div>
                   {page === "dashboard" && !pickerOpen && (
                     <button
@@ -2658,11 +2620,29 @@ export default function App() {
                       Customise
                     </button>
                   )}
+                  {page === "dashboard" && pickerOpen && !isNarrow && (
+                    <button
+                      type="button"
+                      onClick={() => setPickerOpen(false)}
+                      style={{ display: "flex", alignItems: "center", gap: 7, padding: "7px 14px", borderRadius: 99, border: "1px solid var(--ink)", background: "var(--ink)", color: "#fff", cursor: "pointer", fontSize: 12, fontWeight: 600, flexShrink: 0, marginTop: 2 }}
+                    >
+                      Done
+                    </button>
+                  )}
                 </div>
+                {page === "dashboard" && pickerOpen && isNarrow && (
+                  <WidgetPicker
+                    variant="inline"
+                    pinned={pinned}
+                    onDashboardToggle={(id) => setPinnedWidgets((prev) => toggleWidgetOnDashboard(prev, id))}
+                    onClose={() => setPickerOpen(false)}
+                  />
+                )}
                 {renderView()}
               </main>
-              {page === "dashboard" && pickerOpen && (
+              {page === "dashboard" && pickerOpen && !isNarrow && (
                 <WidgetPicker
+                  variant="sidebar"
                   pinned={pinned}
                   onDashboardToggle={(id) => setPinnedWidgets((prev) => toggleWidgetOnDashboard(prev, id))}
                   onClose={() => setPickerOpen(false)}

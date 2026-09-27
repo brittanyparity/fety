@@ -148,6 +148,8 @@ export interface FetyStore {
   lockedDashboardWidgets?: string[];
   /** One-time: apply curated default dashboard widgets (cash-flow focused). */
   widgetsCuratedV2?: boolean;
+  /** Strip removed widgets + apply latest curated defaults when still on a prior starter set. */
+  widgetsCuratedV3?: boolean;
 }
 
 export interface CategoryWithSpent extends BudgetCategory {
