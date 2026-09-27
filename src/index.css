@@ -1575,8 +1575,7 @@ html, body, #root {
   }
 
   .fety-splash-hero-visual {
-    min-height: 280px;
-    order: -1;
+    min-height: 240px;
   }
 
   .fety-splash-brand {
