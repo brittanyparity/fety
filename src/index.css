@@ -691,6 +691,13 @@ html, body, #root {
   background: var(--surface);
 }
 
+.fety-widget-picker-inline .fety-widget-picker-body {
+  max-height: min(34vh, 260px);
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+  padding-right: 2px;
+}
+
 .fety-widget-picker-inline .fety-widget-picker-header {
   display: flex;
   align-items: center;
