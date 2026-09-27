@@ -2296,7 +2296,9 @@ export default function App() {
   const [page, setPage] = useState<Page>("dashboard");
   const [viewMode, setViewMode] = useState<ViewMode>("cards");
   const [transactionsAccountFilter, setTransactionsAccountFilter] = useState<string | null>(null);
-  const [chatCollapsed, setChatCollapsed] = useState(false);
+  const [chatCollapsed, setChatCollapsed] = useState(() =>
+    typeof window !== "undefined" ? window.matchMedia("(max-width: 768px)").matches : false,
+  );
   const [pickerOpen, setPickerOpen] = useState(false);
   const [chatProcessing, setChatProcessing] = useState(false);
   /** Shown before onboarding for first-time users. */
