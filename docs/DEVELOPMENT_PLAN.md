@@ -18,7 +18,11 @@ Prioritized backlog for product work. Ordered **easiest → hardest** so early i
 
 ## Current sprint focus
 
+<<<<<<< HEAD
 **#3 Curate and fix widgets** — cash-flow-first default dashboard; period filters on balance, spending breakdown, and spending trend widgets.
+=======
+**#2 Improve mobile view** — restore usable calendar grids, add always-visible primary tabs, and tighten spacing/tap targets around chat and manage views.
+>>>>>>> origin/cursor/improve-mobile-view-bd80
 
 ## Done (recent)
 

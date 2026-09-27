@@ -155,118 +155,122 @@ function TopNav({
   const profileMenuActive = page === "profile" || page === "networth";
 
   return (
-    <header className="fety-nav">
-      <FetyLogo />
-      <div className="fety-nav-links">
-        {NAV_ITEMS.map((item) => (
-          <button
-            key={item.id}
-            type="button"
-            onClick={() => go(item.id)}
-            className={`fety-nav-link${page === item.id ? " fety-nav-link-active" : ""}`}
-          >
-            {item.label}
-          </button>
-        ))}
-      </div>
-      <div className="fety-nav-actions">
-        <span className="fety-nav-date">{navDate}</span>
-        <div className="fety-nav-profile-wrap" ref={profileWrapRef}>
-          <button
-            type="button"
-            title="Profile menu"
-            aria-label="Profile menu"
-            aria-expanded={profileOpen}
-            aria-haspopup="menu"
-            onClick={() => setProfileOpen((o) => !o)}
-            className={`fety-nav-profile${profileMenuActive ? " fety-nav-profile-active" : ""}`}
-          >
-            {profileInitial}
-          </button>
-          {profileOpen ? (
-            <div className="fety-nav-profile-menu" role="menu">
+    <>
+      <header className="fety-nav">
+        <FetyLogo />
+        <div className="fety-nav-links">
+          {NAV_ITEMS.map((item) => (
+            <button
+              key={item.id}
+              type="button"
+              onClick={() => go(item.id)}
+              className={`fety-nav-link${page === item.id ? " fety-nav-link-active" : ""}`}
+            >
+              {item.label}
+            </button>
+          ))}
+        </div>
+        <div className="fety-nav-actions">
+          <span className="fety-nav-date">{navDate}</span>
+          <div className="fety-nav-profile-wrap" ref={profileWrapRef}>
+            <button
+              type="button"
+              title="Profile menu"
+              aria-label="Profile menu"
+              aria-expanded={profileOpen}
+              aria-haspopup="menu"
+              onClick={() => setProfileOpen((o) => !o)}
+              className={`fety-nav-profile${profileMenuActive ? " fety-nav-profile-active" : ""}`}
+            >
+              {profileInitial}
+            </button>
+            {profileOpen ? (
+              <div className="fety-nav-profile-menu" role="menu">
+                <button
+                  type="button"
+                  role="menuitem"
+                  className={`fety-nav-profile-menu-item${page === "profile" ? " fety-nav-profile-menu-item-active" : ""}`}
+                  onClick={() => {
+                    onOpenProfile();
+                    setProfileOpen(false);
+                  }}
+                >
+                  Profile Settings
+                </button>
+                <button
+                  type="button"
+                  role="menuitem"
+                  className={`fety-nav-profile-menu-item${page === "networth" ? " fety-nav-profile-menu-item-active" : ""}`}
+                  onClick={() => {
+                    onOpenNetWorth();
+                    setProfileOpen(false);
+                  }}
+                >
+                  Net Worth
+                </button>
+              </div>
+            ) : null}
+          </div>
+        </div>
+        <button
+          type="button"
+          className="fety-nav-hamburger"
+          aria-label={menuOpen ? "Close menu" : "Open menu"}
+          aria-expanded={menuOpen}
+          onClick={() => setMenuOpen((o) => !o)}
+        >
+          {menuOpen ? (
+            <svg width="18" height="18" viewBox="0 0 18 18" fill="none" aria-hidden>
+              <path d="M4 4l10 10M14 4L4 14" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" />
+            </svg>
+          ) : (
+            <svg width="18" height="18" viewBox="0 0 18 18" fill="none" aria-hidden>
+              <path d="M2.5 5h13M2.5 9h13M2.5 13h13" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" />
+            </svg>
+          )}
+        </button>
+        {menuOpen && (
+          <>
+            <button type="button" className="fety-nav-backdrop" aria-label="Close menu" onClick={() => setMenuOpen(false)} />
+            <nav className="fety-nav-drawer" aria-label="More">
+              <p className="fety-nav-drawer-date">{navDate}</p>
               <button
                 type="button"
-                role="menuitem"
-                className={`fety-nav-profile-menu-item${page === "profile" ? " fety-nav-profile-menu-item-active" : ""}`}
+                className={`fety-nav-drawer-link${page === "profile" ? " fety-nav-drawer-link-active" : ""}`}
                 onClick={() => {
                   onOpenProfile();
-                  setProfileOpen(false);
+                  setMenuOpen(false);
                 }}
               >
                 Profile Settings
               </button>
               <button
                 type="button"
-                role="menuitem"
-                className={`fety-nav-profile-menu-item${page === "networth" ? " fety-nav-profile-menu-item-active" : ""}`}
+                className={`fety-nav-drawer-link${page === "networth" ? " fety-nav-drawer-link-active" : ""}`}
                 onClick={() => {
                   onOpenNetWorth();
-                  setProfileOpen(false);
+                  setMenuOpen(false);
                 }}
               >
                 Net Worth
               </button>
-            </div>
-          ) : null}
-        </div>
-      </div>
-      <button
-        type="button"
-        className="fety-nav-hamburger"
-        aria-label={menuOpen ? "Close menu" : "Open menu"}
-        aria-expanded={menuOpen}
-        onClick={() => setMenuOpen((o) => !o)}
-      >
-        {menuOpen ? (
-          <svg width="18" height="18" viewBox="0 0 18 18" fill="none" aria-hidden>
-            <path d="M4 4l10 10M14 4L4 14" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" />
-          </svg>
-        ) : (
-          <svg width="18" height="18" viewBox="0 0 18 18" fill="none" aria-hidden>
-            <path d="M2.5 5h13M2.5 9h13M2.5 13h13" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" />
-          </svg>
+            </nav>
+          </>
         )}
-      </button>
-      {menuOpen && (
-        <>
-          <button type="button" className="fety-nav-backdrop" aria-label="Close menu" onClick={() => setMenuOpen(false)} />
-          <nav className="fety-nav-drawer" aria-label="Main">
-            <p className="fety-nav-drawer-date">{navDate}</p>
-            {NAV_ITEMS.map((item) => (
-              <button
-                key={item.id}
-                type="button"
-                onClick={() => go(item.id)}
-                className={`fety-nav-drawer-link${page === item.id ? " fety-nav-drawer-link-active" : ""}`}
-              >
-                {item.label}
-              </button>
-            ))}
-            <button
-              type="button"
-              className={`fety-nav-drawer-link${page === "profile" ? " fety-nav-drawer-link-active" : ""}`}
-              onClick={() => {
-                onOpenProfile();
-                setMenuOpen(false);
-              }}
-            >
-              Profile Settings
-            </button>
-            <button
-              type="button"
-              className={`fety-nav-drawer-link${page === "networth" ? " fety-nav-drawer-link-active" : ""}`}
-              onClick={() => {
-                onOpenNetWorth();
-                setMenuOpen(false);
-              }}
-            >
-              Net Worth
-            </button>
-          </nav>
-        </>
-      )}
-    </header>
+      </header>
+      <nav className="fety-mobile-tabs" aria-label="Primary">
+        {NAV_ITEMS.map((item) => (
+          <button
+            key={item.id}
+            type="button"
+            onClick={() => go(item.id)}
+            className={`fety-mobile-tab${page === item.id ? " fety-mobile-tab-active" : ""}`}
+          >
+            {item.label}
+          </button>
+        ))}
+      </nav>
+    </>
   );
 }
 
@@ -1354,6 +1358,8 @@ function MonthlyCalGrid({ month, calendarMap, selected, onSelect }: { month: Dat
           return (
             <button
               key={key}
+              type="button"
+              className="fety-cal-day-cell"
               onClick={() => onSelect(key)}
               style={{
                 borderRadius: 10, padding: "7px 6px",
@@ -1364,29 +1370,27 @@ function MonthlyCalGrid({ month, calendarMap, selected, onSelect }: { month: Dat
                 transition: "all 0.12s",
               }}
             >
-              {/* Date number */}
-              <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
-                <span style={{ fontSize: 12, fontWeight: 600, color: isSelected ? calSignedColor(net, true) : isToday ? "var(--lime-dk)" : "var(--ink)", lineHeight: 1 }}>
+              <div className="fety-cal-day-top" style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+                <span className="fety-cal-day-num" style={{ fontSize: 12, fontWeight: 600, color: isSelected ? calSignedColor(net, true) : isToday ? "var(--lime-dk)" : "var(--ink)", lineHeight: 1 }}>
                   {date.getDate()}
                 </span>
-                <div style={{ display: "flex", gap: 2 }}>
+                <div className="fety-cal-day-badges" style={{ display: "flex", gap: 2 }}>
                   {hasPayday && <span style={{ fontSize: 9, background: isSelected ? "rgba(255,255,255,0.2)" : "#E8F5EE", color: isSelected ? "#fff" : "var(--clear-dk)", borderRadius: 4, padding: "1px 4px", fontWeight: 600 }}>💵</span>}
                   {hasBill   && <span style={{ fontSize: 9, background: isSelected ? "rgba(255,255,255,0.2)" : "#FFECE8", color: isSelected ? "#fff" : "var(--trouble-dk)", borderRadius: 4, padding: "1px 4px", fontWeight: 600 }}>📋</span>}
                 </div>
               </div>
 
-              {/* Balance mini sheet */}
               {data && (
-                <div style={{ flex: 1, display: "flex", flexDirection: "column", justifyContent: "flex-end", gap: 1 }}>
-                  <div style={{ fontSize: 9, color: isSelected ? "rgba(255,255,255,0.6)" : "var(--ink-3)" }}>
-                    Start <span style={{ fontFamily: "var(--font-sans)", fontWeight: 600, color: calSignedColor(data.startBal, isSelected) }}>{usd(data.startBal)}</span>
+                <div className="fety-cal-day-sheet" style={{ flex: 1, display: "flex", flexDirection: "column", justifyContent: "flex-end", gap: 1 }}>
+                  <div className="fety-cal-day-start" style={{ fontSize: 9, color: isSelected ? "rgba(255,255,255,0.6)" : "var(--ink-3)" }}>
+                    Start <span style={{ fontFamily: "var(--font-sans)", fontWeight: 600, color: calSignedColor(data.startBal, isSelected) }}>{compactUsd(data.startBal)}</span>
                   </div>
-                  <div style={{ fontSize: 9, color: isSelected ? "rgba(255,255,255,0.6)" : "var(--ink-3)" }}>
-                    End <span style={{ fontFamily: "var(--font-sans)", fontWeight: 600, color: calBalanceColor(data.endBal, isSelected) }}>{usd(data.endBal)}</span>
+                  <div className="fety-cal-day-end" style={{ fontSize: 9, color: isSelected ? "rgba(255,255,255,0.6)" : "var(--ink-3)" }}>
+                    <span className="fety-cal-day-end-label">End </span>
+                    <span style={{ fontFamily: "var(--font-sans)", fontWeight: 600, color: calBalanceColor(data.endBal, isSelected) }}>{compactUsd(data.endBal)}</span>
                   </div>
-                  {/* Mini dots for transactions */}
                   {hasItems && (
-                    <div style={{ display: "flex", gap: 2, flexWrap: "wrap", marginTop: 2 }}>
+                    <div className="fety-cal-day-dots" style={{ display: "flex", gap: 2, flexWrap: "wrap", marginTop: 2 }}>
                       {data.items.slice(0, 4).map((item, ii) => (
                         <div key={ii} title={`${item.desc}: ${item.amount >= 0 ? "+" : ""}${usd(item.amount)}`}
                           style={{ width: 6, height: 6, borderRadius: "var(--radius-marker)", background: item.amount >= 0 ? "var(--clear-dk)" : item.type === "bill" ? "var(--trouble-dk)" : "#D97706", opacity: isSelected ? 0.8 : 1 }} />
@@ -1464,7 +1468,7 @@ function WeeklyCalGrid({ anchor, days, calendarMap, selected, onSelect }: { anch
     const isToday     = date.toDateString() === today.toDateString();
     const net = data ? data.endBal - data.startBal : 0;
     return (
-      <button key={key} onClick={() => onSelect(key)} style={{ background: data ? calendarEndingBalanceBg(data.endBal, isSelected) : "var(--surface)", border: isSelected ? "2px solid var(--ink)" : "1px solid var(--border)", borderRadius: 12, padding: "12px 10px", cursor: "pointer", textAlign: "left", display: "flex", flexDirection: "column", gap: 8 }}>
+      <button key={key} type="button" className="fety-cal-week-cell" onClick={() => onSelect(key)} style={{ background: data ? calendarEndingBalanceBg(data.endBal, isSelected) : "var(--surface)", border: isSelected ? "2px solid var(--ink)" : "1px solid var(--border)", borderRadius: 12, padding: "12px 10px", cursor: "pointer", textAlign: "left", display: "flex", flexDirection: "column", gap: 8 }}>
         <div>
           <p style={{ fontSize: 10, fontWeight: 600, color: isSelected ? "rgba(255,255,255,0.6)" : "var(--ink-3)", textTransform: "uppercase", letterSpacing: "0.16em" }}>{DAYS_SHORT[date.getDay()]}</p>
           <p style={{ fontSize: 18, fontWeight: 400, color: isSelected ? calSignedColor(net, true) : isToday ? "var(--lime-dk)" : "var(--ink)", letterSpacing: "-0.5px", lineHeight: 1.1 }}>{date.getDate()}</p>
@@ -2388,7 +2392,9 @@ export default function App() {
   const [page, setPage] = useState<Page>("dashboard");
   const [viewMode, setViewMode] = useState<ViewMode>("cards");
   const [transactionsAccountFilter, setTransactionsAccountFilter] = useState<string | null>(null);
-  const [chatCollapsed, setChatCollapsed] = useState(false);
+  const [chatCollapsed, setChatCollapsed] = useState(() =>
+    typeof window !== "undefined" ? window.matchMedia("(max-width: 768px)").matches : false,
+  );
   const [pickerOpen, setPickerOpen] = useState(false);
   const [chatProcessing, setChatProcessing] = useState(false);
   /** Shown before onboarding for first-time users. */

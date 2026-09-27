@@ -657,7 +657,7 @@ export function BudgetManageView({
 
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
-      <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 10 }}>
+      <div className="fety-budget-summary-grid" style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 10 }}>
         {[
           { label: "Monthly budget", value: usd(totalBudget) },
           { label: "Spent so far", value: usd(totalSpent) },
