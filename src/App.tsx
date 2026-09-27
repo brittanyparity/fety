@@ -1277,6 +1277,8 @@ function YearlyCalLegend() {
 
 // ─── Monthly Calendar Grid ─────────────────────────────────────────────────────
 function MonthlyCalGrid({ month, calendarMap, selected, onSelect }: { month: Date; calendarMap: CalendarMap; selected: string | null; onSelect: (k: string) => void }) {
+  const narrow = useIsNarrow();
+  const money = narrow ? compactUsd : usd;
   const y = month.getFullYear(), m = month.getMonth();
   const firstDay = new Date(y, m, 1).getDay(); // 0=Sun
   const daysInMonth = new Date(y, m + 1, 0).getDate();
@@ -1337,11 +1339,11 @@ function MonthlyCalGrid({ month, calendarMap, selected, onSelect }: { month: Dat
               {data && (
                 <div className="fety-cal-day-sheet" style={{ flex: 1, display: "flex", flexDirection: "column", justifyContent: "flex-end", gap: 1 }}>
                   <div className="fety-cal-day-start" style={{ fontSize: 9, color: isSelected ? "rgba(255,255,255,0.6)" : "var(--ink-3)" }}>
-                    Start <span style={{ fontFamily: "var(--font-sans)", fontWeight: 600, color: calSignedColor(data.startBal, isSelected) }}>{compactUsd(data.startBal)}</span>
+                    Start <span style={{ fontFamily: "var(--font-sans)", fontWeight: 600, color: calSignedColor(data.startBal, isSelected) }}>{money(data.startBal)}</span>
                   </div>
                   <div className="fety-cal-day-end" style={{ fontSize: 9, color: isSelected ? "rgba(255,255,255,0.6)" : "var(--ink-3)" }}>
                     <span className="fety-cal-day-end-label">End </span>
-                    <span style={{ fontFamily: "var(--font-sans)", fontWeight: 600, color: calBalanceColor(data.endBal, isSelected) }}>{compactUsd(data.endBal)}</span>
+                    <span style={{ fontFamily: "var(--font-sans)", fontWeight: 600, color: calBalanceColor(data.endBal, isSelected) }}>{money(data.endBal)}</span>
                   </div>
                   {hasItems && (
                     <div className="fety-cal-day-dots" style={{ display: "flex", gap: 2, flexWrap: "wrap", marginTop: 2 }}>

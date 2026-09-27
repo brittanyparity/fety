@@ -1428,6 +1428,15 @@ html, body, #root {
     margin-bottom: 8px;
   }
 
+  .fety-calendar-body[data-cal-view="yearly"] .fety-calendar-scroll {
+    padding-left: 10px !important;
+    padding-right: 10px !important;
+  }
+
+  .fety-calendar-body[data-cal-view="yearly"] .fety-yearly-dow-wrap {
+    padding: 0 10px;
+  }
+
   .fety-calendar-body[data-cal-view="yearly"] .fety-yearly-legend {
     padding: 6px 12px 8px !important;
   }
@@ -1504,20 +1513,28 @@ html, body, #root {
   }
 
   .fety-cal-year-scroll-wrap {
-    overflow-x: auto;
+    overflow-x: hidden;
     -webkit-overflow-scrolling: touch;
-    margin: 0 -4px;
-    padding: 0 4px 8px;
+    margin: 0;
+    padding: 0 0 8px;
+    width: 100%;
   }
 
   .fety-cal-year-scroll-wrap .fety-cal-year-grid {
-    min-width: 720px;
-    gap: 3px !important;
+    min-width: 0 !important;
+    width: 100%;
+    gap: 2px !important;
+    grid-template-columns: repeat(7, minmax(0, 1fr)) !important;
   }
 
+  .fety-cal-year-grid > div,
   .fety-cal-year-grid button {
-    min-height: 40px !important;
-    padding: 4px !important;
+    min-width: 0 !important;
+    width: 100%;
+    box-sizing: border-box;
+    min-height: 34px !important;
+    padding: 2px 1px !important;
+    border-radius: 5px !important;
   }
 
   .fety-cal-year-bal {
@@ -1529,13 +1546,23 @@ html, body, #root {
   }
 
   .fety-yearly-dow {
-    min-width: 720px;
+    min-width: 0 !important;
+    width: 100%;
+    grid-template-columns: repeat(7, minmax(0, 1fr));
+    gap: 2px;
+    min-height: 32px;
+  }
+
+  .fety-yearly-dow > div {
+    min-width: 0;
+    font-size: 9px !important;
+    letter-spacing: 0.04em !important;
+    padding: 0 1px;
   }
 
   .fety-yearly-dow-wrap {
     padding: 0 10px;
-    overflow-x: auto;
-    -webkit-overflow-scrolling: touch;
+    overflow-x: hidden;
   }
 
   .fety-yearly-legend {
