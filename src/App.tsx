@@ -10,7 +10,7 @@ import EmojiIconPicker from "./components/EmojiIconPicker";
 import CurrencyInput, { amountToEditString } from "./components/CurrencyInput";
 import { flattenRowsAfterMoveRespectingLocks, isWidgetInFirstRow, isWidgetPositionLocked, packWidgetsIntoRows, pruneWidgetLocksToFirstRow, reorderWidgetRespectingLocks, toggleWidgetOnDashboard, unpinWidget } from "./lib/widgetLayout";
 import { ChatPanel, ChatExpandIcon } from "./components/ChatPanel";
-import { useIsNarrow } from "./hooks/useIsNarrow";
+import { useIsNarrow, FETY_NARROW_MQ } from "./hooks/useIsNarrow";
 import WidgetPeriodFilter from "./components/WidgetPeriodFilter";
 import WidgetPinIcon from "./components/WidgetPinIcon";
 import { confirmAssistantAction, handleAssistantMessageWithDeps } from "./assistant/router";
@@ -1842,27 +1842,32 @@ function CalendarSidePanel({
   return (
     <div className="fety-calendar-side-panel" style={{ width: 280, flexShrink: 0, borderLeft: "1px solid var(--border)", background: "var(--surface)", display: "flex", flexDirection: "column", overflow: "hidden", minHeight: 0 }}>
       {calView === "yearly" && (
-        <div style={{ padding: "12px 14px", borderBottom: "1px solid var(--border)", background: "var(--bg)" }}>
-          <p className="fety-label" style={{ marginBottom: 8 }}>Jump to date</p>
-          <input type="date" value={jumpISO} onChange={(e) => setJumpISO(e.target.value)} style={panelInput} />
-          <div style={{ display: "flex", gap: 6, marginTop: 8 }}>
-            <button
-              type="button"
-              onClick={() => onJumpToDate(todayISO())}
-              style={{ flex: 1, padding: "7px 0", borderRadius: 8, border: "1px solid var(--border)", background: "var(--surface)", fontSize: 11, fontWeight: 600, cursor: "pointer" }}
-            >
-              Today
-            </button>
-            <button
-              type="button"
-              onClick={() => onJumpToDate(jumpISO)}
-              style={{ flex: 1, padding: "7px 0", borderRadius: 8, border: "none", background: "var(--ink)", color: "#fff", fontSize: 11, fontWeight: 600, cursor: "pointer" }}
-            >
-              Go
-            </button>
+        <details className="fety-cal-jump" style={{ borderBottom: "1px solid var(--border)", background: "var(--bg)" }}>
+          <summary className="fety-cal-jump-summary">
+            <span className="fety-label">Jump to date</span>
+            <span className="fety-cal-jump-hint">Optional</span>
+          </summary>
+          <div style={{ padding: "0 14px 12px" }}>
+            <input type="date" value={jumpISO} onChange={(e) => setJumpISO(e.target.value)} style={panelInput} />
+            <div style={{ display: "flex", gap: 6, marginTop: 8 }}>
+              <button
+                type="button"
+                onClick={() => onJumpToDate(todayISO())}
+                style={{ flex: 1, padding: "7px 0", borderRadius: 8, border: "1px solid var(--border)", background: "var(--surface)", fontSize: 11, fontWeight: 600, cursor: "pointer" }}
+              >
+                Today
+              </button>
+              <button
+                type="button"
+                onClick={() => onJumpToDate(jumpISO)}
+                style={{ flex: 1, padding: "7px 0", borderRadius: 8, border: "none", background: "var(--ink)", color: "#fff", fontSize: 11, fontWeight: 600, cursor: "pointer" }}
+              >
+                Go
+              </button>
+            </div>
+            <p style={{ fontSize: 9, color: "var(--ink-3)", marginTop: 6 }}>Scrolls the {year} grid to the day you pick.</p>
           </div>
-          <p style={{ fontSize: 9, color: "var(--ink-3)", marginTop: 6 }}>Scrolls the {year} grid to the day you pick.</p>
-        </div>
+        </details>
       )}
 
       {!day ? (
@@ -1882,21 +1887,39 @@ function CalendarSidePanel({
 
           <div style={{ flex: 1, overflowY: "auto", padding: "14px", minHeight: 0 }}>
             <div style={{ background: "var(--bg)", border: "1px solid var(--border)", borderRadius: 12, padding: "12px 14px", marginBottom: 12 }}>
-              <p className="fety-label" style={{ marginBottom: 10 }}>Balance sheet</p>
-              {[
-                { label: "Starting", value: usd(day.startBal), color: calBalanceColor(day.startBal) },
-                { label: "Income", value: day.income > 0 ? `+${usd(day.income)}` : "—", color: calSignedColor(day.income) },
-                { label: "Expenses", value: day.expenses < 0 ? usd(day.expenses) : "—", color: calSignedColor(day.expenses) },
-                { label: "Ending", value: usd(day.endBal), color: calBalanceColor(day.endBal) },
-              ].map((r, i) => (
-                <div key={r.label} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", paddingTop: i > 0 ? 7 : 0, paddingBottom: 7, borderTop: i > 0 ? "1px solid var(--border)" : undefined }}>
-                  <span style={{ fontSize: 11, color: "var(--ink-3)" }}>{r.label}</span>
-                  <span style={{ fontSize: 12, fontWeight: 600, fontFamily: "var(--font-sans)", color: r.color }}>{r.value}</span>
-                </div>
-              ))}
               {calView !== "daily" ? (
-                <CalendarAccountsBreakdown store={ledgerStore} dateISO={CAL_KEY(day.date)} compact />
-              ) : null}
+                <>
+                  <p className="fety-label" style={{ marginBottom: 10 }}>Balance sheet</p>
+                  {[
+                    { label: "Starting", value: usd(day.startBal), color: calBalanceColor(day.startBal) },
+                    { label: "Income", value: day.income > 0 ? `+${usd(day.income)}` : "—", color: calSignedColor(day.income) },
+                    { label: "Expenses", value: day.expenses < 0 ? usd(day.expenses) : "—", color: calSignedColor(day.expenses) },
+                    { label: "Ending", value: usd(day.endBal), color: calBalanceColor(day.endBal) },
+                  ].map((r, i) => (
+                    <div key={r.label} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", paddingTop: i > 0 ? 7 : 0, paddingBottom: 7, borderTop: i > 0 ? "1px solid var(--border)" : undefined }}>
+                      <span style={{ fontSize: 11, color: "var(--ink-3)" }}>{r.label}</span>
+                      <span style={{ fontSize: 12, fontWeight: 600, fontFamily: "var(--font-sans)", color: r.color }}>{r.value}</span>
+                    </div>
+                  ))}
+                  <CalendarAccountsBreakdown store={ledgerStore} dateISO={CAL_KEY(day.date)} compact />
+                </>
+              ) : (
+                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", gap: 12 }}>
+                  <div>
+                    <p className="fety-label" style={{ marginBottom: 4 }}>Ending</p>
+                    <p style={{ fontSize: 18, fontWeight: 600, fontFamily: "var(--font-sans)", color: calBalanceColor(day.endBal), margin: 0 }}>
+                      {usd(day.endBal)}
+                    </p>
+                  </div>
+                  <div style={{ textAlign: "right" }}>
+                    <p className="fety-label" style={{ marginBottom: 4 }}>Net today</p>
+                    <p style={{ fontSize: 14, fontWeight: 600, fontFamily: "var(--font-sans)", color: calSignedColor(day.endBal - day.startBal), margin: 0 }}>
+                      {day.endBal - day.startBal >= 0 ? "+" : ""}
+                      {usd(day.endBal - day.startBal)}
+                    </p>
+                  </div>
+                </div>
+              )}
             </div>
 
             <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 8 }}>
@@ -2098,7 +2121,7 @@ function DashboardView({
             return (
               <div
                 key={`${rowIds.join("-")}-${rowIndex}`}
-                className="fety-widget-row"
+                className={`fety-widget-row${customizing ? " fety-widget-row--customizing" : ""}`}
                 onDragOver={(e) => {
                   if (!customizing || dragRowIndex === null) return;
                   e.preventDefault();
@@ -2346,7 +2369,7 @@ export default function App() {
   const [viewMode, setViewMode] = useState<ViewMode>("cards");
   const [transactionsAccountFilter, setTransactionsAccountFilter] = useState<string | null>(null);
   const [chatCollapsed, setChatCollapsed] = useState(() =>
-    typeof window !== "undefined" ? window.matchMedia("(max-width: 768px)").matches : false,
+    typeof window !== "undefined" ? window.matchMedia(FETY_NARROW_MQ).matches : false,
   );
   const [pickerOpen, setPickerOpen] = useState(false);
   const [chatProcessing, setChatProcessing] = useState(false);
@@ -2620,9 +2643,10 @@ export default function App() {
                       Customise
                     </button>
                   )}
-                  {page === "dashboard" && pickerOpen && !isNarrow && (
+                  {page === "dashboard" && pickerOpen && (
                     <button
                       type="button"
+                      className="fety-customise-done-desktop"
                       onClick={() => setPickerOpen(false)}
                       style={{ display: "flex", alignItems: "center", gap: 7, padding: "7px 14px", borderRadius: 99, border: "1px solid var(--ink)", background: "var(--ink)", color: "#fff", cursor: "pointer", fontSize: 12, fontWeight: 600, flexShrink: 0, marginTop: 2 }}
                     >
@@ -2630,7 +2654,7 @@ export default function App() {
                     </button>
                   )}
                 </div>
-                {page === "dashboard" && pickerOpen && isNarrow && (
+                {page === "dashboard" && pickerOpen && (
                   <WidgetPicker
                     variant="inline"
                     pinned={pinned}
@@ -2640,7 +2664,7 @@ export default function App() {
                 )}
                 {renderView()}
               </main>
-              {page === "dashboard" && pickerOpen && !isNarrow && (
+              {page === "dashboard" && pickerOpen && (
                 <WidgetPicker
                   variant="sidebar"
                   pinned={pinned}

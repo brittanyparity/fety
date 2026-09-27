@@ -684,6 +684,7 @@ html, body, #root {
 }
 
 .fety-widget-picker-inline {
+  display: none;
   margin-bottom: 16px;
   padding: 12px;
   border: 1px solid var(--border);
@@ -792,6 +793,55 @@ html, body, #root {
 
 .fety-widget-cell {
   min-width: 0;
+}
+
+.fety-customise-done-desktop {
+  /* shown on wide layouts; hidden in mobile MQ below */
+}
+
+.fety-cal-jump {
+  flex-shrink: 0;
+}
+
+.fety-cal-jump-summary {
+  list-style: none;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 12px 14px;
+  cursor: pointer;
+  user-select: none;
+}
+
+.fety-cal-jump-summary::-webkit-details-marker {
+  display: none;
+}
+
+.fety-cal-jump-summary::after {
+  content: "";
+  width: 7px;
+  height: 7px;
+  border-right: 1.5px solid var(--ink-3);
+  border-bottom: 1.5px solid var(--ink-3);
+  transform: rotate(45deg);
+  transition: transform 0.15s ease;
+  flex-shrink: 0;
+}
+
+.fety-cal-jump[open] > .fety-cal-jump-summary::after {
+  transform: rotate(-135deg);
+  margin-top: 4px;
+}
+
+.fety-cal-jump-hint {
+  margin-left: auto;
+  margin-right: 8px;
+  font-size: 10px;
+  color: var(--ink-3);
+  font-family: var(--font-mono);
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
 }
 
 /* ─── Setup / onboarding ─────────────────────────────────────────────────── */
@@ -1489,10 +1539,45 @@ html, body, #root {
     overflow: hidden;
   }
 
-  .fety-row-drag-handle {
+  /* Hybrid customise: chips on top, widgets stacked full-width below */
+  .fety-widget-picker-inline {
+    display: block;
+  }
+
+  .fety-widget-picker-sidebar {
+    display: none !important;
+  }
+
+  .fety-customise-done-desktop {
+    display: none !important;
+  }
+
+  .fety-main-customizing .fety-widget-row--customizing,
+  .fety-widget-row--customizing {
+    flex-direction: column !important;
+    align-items: stretch !important;
+    gap: 8px !important;
+  }
+
+  .fety-main-customizing .fety-row-drag-handle,
+  .fety-widget-row--customizing .fety-row-drag-handle {
     width: 100%;
-    height: 28px;
-    padding: 4px;
+    height: 32px;
+    padding: 6px;
+    align-self: stretch;
+  }
+
+  .fety-widget-row--customizing .fety-widget-row-grid {
+    width: 100%;
+  }
+
+  .fety-widget-cell {
+    overflow: hidden;
+  }
+
+  .fety-cal-jump-summary {
+    min-height: 44px;
+    padding: 12px 14px;
   }
 
   input,
