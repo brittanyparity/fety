@@ -1725,6 +1725,7 @@ function CalendarSidePanel({
   const [editFromAccountId, setEditFromAccountId] = useState("");
   const [editToAccountId, setEditToAccountId] = useState("");
   const [editGoalId, setEditGoalId] = useState("");
+  const narrow = useIsNarrow();
 
   const panelInput: React.CSSProperties = {
     width: "100%",
@@ -1842,12 +1843,36 @@ function CalendarSidePanel({
   return (
     <div className="fety-calendar-side-panel" style={{ width: 280, flexShrink: 0, borderLeft: "1px solid var(--border)", background: "var(--surface)", display: "flex", flexDirection: "column", overflow: "hidden", minHeight: 0 }}>
       {calView === "yearly" && (
-        <details className="fety-cal-jump" style={{ borderBottom: "1px solid var(--border)", background: "var(--bg)" }}>
-          <summary className="fety-cal-jump-summary">
-            <span className="fety-label">Jump to date</span>
-            <span className="fety-cal-jump-hint">Optional</span>
-          </summary>
-          <div style={{ padding: "0 14px 12px" }}>
+        narrow ? (
+          <details className="fety-cal-jump" style={{ borderBottom: "1px solid var(--border)", background: "var(--bg)" }}>
+            <summary className="fety-cal-jump-summary">
+              <span className="fety-label">Jump to date</span>
+              <span className="fety-cal-jump-hint">Optional</span>
+            </summary>
+            <div className="fety-cal-jump-body" style={{ padding: "0 14px 12px" }}>
+              <input type="date" value={jumpISO} onChange={(e) => setJumpISO(e.target.value)} style={panelInput} />
+              <div style={{ display: "flex", gap: 6, marginTop: 8 }}>
+                <button
+                  type="button"
+                  onClick={() => onJumpToDate(todayISO())}
+                  style={{ flex: 1, padding: "7px 0", borderRadius: 8, border: "1px solid var(--border)", background: "var(--surface)", fontSize: 11, fontWeight: 600, cursor: "pointer" }}
+                >
+                  Today
+                </button>
+                <button
+                  type="button"
+                  onClick={() => onJumpToDate(jumpISO)}
+                  style={{ flex: 1, padding: "7px 0", borderRadius: 8, border: "none", background: "var(--ink)", color: "#fff", fontSize: 11, fontWeight: 600, cursor: "pointer" }}
+                >
+                  Go
+                </button>
+              </div>
+              <p style={{ fontSize: 9, color: "var(--ink-3)", marginTop: 6 }}>Scrolls the {year} grid to the day you pick.</p>
+            </div>
+          </details>
+        ) : (
+          <div style={{ padding: "12px 14px", borderBottom: "1px solid var(--border)", background: "var(--bg)" }}>
+            <p className="fety-label" style={{ marginBottom: 8 }}>Jump to date</p>
             <input type="date" value={jumpISO} onChange={(e) => setJumpISO(e.target.value)} style={panelInput} />
             <div style={{ display: "flex", gap: 6, marginTop: 8 }}>
               <button
@@ -1867,14 +1892,14 @@ function CalendarSidePanel({
             </div>
             <p style={{ fontSize: 9, color: "var(--ink-3)", marginTop: 6 }}>Scrolls the {year} grid to the day you pick.</p>
           </div>
-        </details>
+        )
       )}
 
       {!day ? (
         <div style={{ padding: 20, textAlign: "center", color: "var(--ink-3)", fontSize: 12 }}>Select a day to see balances and transactions.</div>
       ) : (
         <>
-          <div style={{ padding: "14px 16px", borderBottom: "1px solid var(--border)", display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+          <div className="fety-cal-yearly-day-header" style={{ padding: "14px 16px", borderBottom: "1px solid var(--border)", display: "flex", alignItems: "center", justifyContent: "space-between" }}>
             <p style={{ fontSize: 12, fontWeight: 600, color: "var(--ink)" }}>
               {day.date.toLocaleDateString("en-US", { weekday: "short", month: "short", day: "numeric", year: "numeric" })}
             </p>
@@ -1886,18 +1911,37 @@ function CalendarSidePanel({
           </div>
 
           <div style={{ flex: 1, overflowY: "auto", padding: "14px", minHeight: 0 }}>
-            {calView !== "daily" && (
-              <details className="fety-cal-balance-sheet">
-                <summary className="fety-cal-balance-sheet-summary">
-                  <span className="fety-label">Balance sheet</span>
-                  <span
-                    className="fety-cal-balance-sheet-meta"
-                    style={{ color: calBalanceColor(day.endBal) }}
-                  >
-                    {usd(day.endBal)}
-                  </span>
-                </summary>
-                <div className="fety-cal-balance-sheet-body">
+            {/* Mobile daily: skip balance sheet (main daily view already shows it). Desktop keeps original. */}
+            {!(narrow && calView === "daily") && (
+              narrow && calView === "yearly" ? (
+                <details className="fety-cal-balance-sheet">
+                  <summary className="fety-cal-balance-sheet-summary">
+                    <span className="fety-label">Balance sheet</span>
+                    <span
+                      className="fety-cal-balance-sheet-meta"
+                      style={{ color: calBalanceColor(day.endBal) }}
+                    >
+                      {usd(day.endBal)}
+                    </span>
+                  </summary>
+                  <div className="fety-cal-balance-sheet-body">
+                    {[
+                      { label: "Starting", value: usd(day.startBal), color: calBalanceColor(day.startBal) },
+                      { label: "Income", value: day.income > 0 ? `+${usd(day.income)}` : "—", color: calSignedColor(day.income) },
+                      { label: "Expenses", value: day.expenses < 0 ? usd(day.expenses) : "—", color: calSignedColor(day.expenses) },
+                      { label: "Ending", value: usd(day.endBal), color: calBalanceColor(day.endBal) },
+                    ].map((r, i) => (
+                      <div key={r.label} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", paddingTop: i > 0 ? 7 : 0, paddingBottom: 7, borderTop: i > 0 ? "1px solid var(--border)" : undefined }}>
+                        <span style={{ fontSize: 11, color: "var(--ink-3)" }}>{r.label}</span>
+                        <span style={{ fontSize: 12, fontWeight: 600, fontFamily: "var(--font-sans)", color: r.color }}>{r.value}</span>
+                      </div>
+                    ))}
+                    <CalendarAccountsBreakdown store={ledgerStore} dateISO={CAL_KEY(day.date)} compact />
+                  </div>
+                </details>
+              ) : (
+                <div style={{ background: "var(--bg)", border: "1px solid var(--border)", borderRadius: 12, padding: "12px 14px", marginBottom: 12 }}>
+                  <p className="fety-label" style={{ marginBottom: 10 }}>Balance sheet</p>
                   {[
                     { label: "Starting", value: usd(day.startBal), color: calBalanceColor(day.startBal) },
                     { label: "Income", value: day.income > 0 ? `+${usd(day.income)}` : "—", color: calSignedColor(day.income) },
@@ -1909,9 +1953,11 @@ function CalendarSidePanel({
                       <span style={{ fontSize: 12, fontWeight: 600, fontFamily: "var(--font-sans)", color: r.color }}>{r.value}</span>
                     </div>
                   ))}
-                  <CalendarAccountsBreakdown store={ledgerStore} dateISO={CAL_KEY(day.date)} compact />
+                  {calView !== "daily" ? (
+                    <CalendarAccountsBreakdown store={ledgerStore} dateISO={CAL_KEY(day.date)} compact />
+                  ) : null}
                 </div>
-              </details>
+              )
             )}
 
             <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 8 }}>

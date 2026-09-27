@@ -1372,6 +1372,70 @@ html, body, #root {
     border-top: 1px solid var(--border);
   }
 
+  /* Yearly: keep the date grid dominant; panel stays compact when jump/sheet collapsed */
+  .fety-calendar-body[data-cal-view="yearly"] {
+    display: grid !important;
+    grid-template-rows: minmax(0, 1fr) auto;
+    flex-direction: column !important;
+    min-height: 0;
+  }
+
+  .fety-calendar-body[data-cal-view="yearly"] .fety-calendar-main {
+    flex: 1 1 auto !important;
+    min-height: 0;
+    min-width: 0;
+    overflow: hidden;
+    display: flex !important;
+    flex-direction: column !important;
+  }
+
+  .fety-calendar-body[data-cal-view="yearly"] .fety-calendar-scroll {
+    flex: 1 1 auto !important;
+    min-height: 0;
+  }
+
+  .fety-calendar-body[data-cal-view="yearly"] .fety-calendar-side-panel {
+    max-height: min(24vh, 190px);
+    flex: 0 0 auto;
+    min-height: 0;
+  }
+
+  .fety-calendar-body[data-cal-view="yearly"] .fety-calendar-side-panel:has(.fety-cal-jump[open]),
+  .fety-calendar-body[data-cal-view="yearly"] .fety-calendar-side-panel:has(.fety-cal-balance-sheet[open]) {
+    max-height: min(42vh, 340px);
+  }
+
+  .fety-calendar-body[data-cal-view="yearly"] .fety-cal-jump-summary,
+  .fety-calendar-body[data-cal-view="yearly"] .fety-cal-balance-sheet-summary {
+    min-height: 30px;
+    padding: 5px 12px;
+  }
+
+  .fety-calendar-body[data-cal-view="yearly"] .fety-cal-jump-hint {
+    font-size: 9px;
+  }
+
+  .fety-calendar-body[data-cal-view="yearly"] .fety-cal-balance-sheet-meta {
+    font-size: 12px;
+  }
+
+  .fety-calendar-body[data-cal-view="yearly"] .fety-calendar-side-panel > div:first-of-type {
+    padding-top: 8px !important;
+    padding-bottom: 8px !important;
+  }
+
+  .fety-calendar-body[data-cal-view="yearly"] .fety-cal-balance-sheet {
+    margin-bottom: 8px;
+  }
+
+  .fety-calendar-body[data-cal-view="yearly"] .fety-yearly-legend {
+    padding: 6px 12px 8px !important;
+  }
+
+  .fety-calendar-body[data-cal-view="yearly"] .fety-calendar-side-panel .fety-cal-yearly-day-header {
+    padding: 8px 12px !important;
+  }
+
   /* Keep a real week grid; scroll horizontally when cells need room */
   .fety-cal-week-stack {
     overflow-x: auto;
@@ -1635,8 +1699,13 @@ html, body, #root {
   }
 
   .fety-cal-jump-summary {
-    min-height: 44px;
-    padding: 12px 14px;
+    min-height: 36px;
+    padding: 8px 12px;
+  }
+
+  .fety-cal-balance-sheet-summary {
+    min-height: 36px;
+    padding: 8px 12px;
   }
 
   input,
