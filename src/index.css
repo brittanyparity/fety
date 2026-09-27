@@ -1156,16 +1156,56 @@ html, body, #root {
     letter-spacing: -0.03em;
   }
 
+  .fety-cal-year-scroll-wrap {
+    overflow-x: hidden;
+    margin: 0;
+    padding: 0 0 8px;
+    width: 100%;
+  }
+
   .fety-cal-year-scroll-wrap .fety-cal-year-grid {
-    min-width: 520px;
+    min-width: 0 !important;
+    width: 100%;
+    gap: 2px !important;
+    grid-template-columns: repeat(7, minmax(0, 1fr)) !important;
+  }
+
+  .fety-cal-year-grid > div,
+  .fety-cal-year-grid button {
+    min-width: 0 !important;
+    width: 100%;
+    box-sizing: border-box;
+    min-height: 34px !important;
+    padding: 2px 1px !important;
+    border-radius: 5px !important;
+  }
+
+  .fety-cal-year-bal {
+    display: none !important;
   }
 
   .fety-cal-daily-totals {
     flex-direction: column !important;
   }
 
+  .fety-yearly-dow {
+    min-width: 0 !important;
+    width: 100%;
+    grid-template-columns: repeat(7, minmax(0, 1fr));
+    gap: 2px;
+    min-height: 32px;
+  }
+
+  .fety-yearly-dow > div {
+    min-width: 0;
+    font-size: 9px !important;
+    letter-spacing: 0.04em !important;
+    padding: 0 1px;
+  }
+
   .fety-yearly-dow-wrap {
     padding: 0 10px;
+    overflow-x: hidden;
   }
 
   .fety-yearly-legend {
