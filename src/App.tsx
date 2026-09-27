@@ -486,6 +486,12 @@ const ALL_WIDGETS: WidgetDef[] = [
       const { store, summary: s } = widgetLive();
       const weekData = last7DayEndingBalances(store);
       const endBal = weekData[weekData.length - 1]?.bal ?? s.balance;
+      const dataMax = weekData.length ? Math.max(...weekData.map((d) => d.bal)) : 0;
+      const dataMin = weekData.length ? Math.min(...weekData.map((d) => d.bal)) : 0;
+      // Vertical gradient offset where the line crosses zero (Recharts fill-by-value pattern).
+      const zeroOffset =
+        dataMax <= 0 ? 0 : dataMin >= 0 ? 1 : dataMax / (dataMax - dataMin);
+      const endColor = endBal < 0 ? "var(--trouble-dk)" : "var(--ink)";
       return (
       <div>
         <div style={{ display: "flex", alignItems: "baseline", justifyContent: "space-between", marginBottom: 16 }}>
@@ -493,16 +499,26 @@ const ALL_WIDGETS: WidgetDef[] = [
             <p style={{ fontSize: 12, fontWeight: 600, color: "var(--ink)" }}>Balance This Week</p>
             <p style={{ fontSize: 11, color: "var(--ink-3)", marginTop: 2 }}>Daily ending balance</p>
           </div>
-          <p style={{ fontSize: 22, fontWeight: 400, color: "var(--ink)", letterSpacing: "-0.8px", fontFamily: "var(--font-sans)" }}>{usd(endBal)}</p>
+          <p style={{ fontSize: 22, fontWeight: 400, color: endColor, letterSpacing: "-0.8px", fontFamily: "var(--font-sans)" }}>{usd(endBal)}</p>
         </div>
         <ResponsiveContainer width="100%" height={160}>
           <AreaChart data={weekData}>
-            <defs><linearGradient id="wg1" x1="0" y1="0" x2="0" y2="1"><stop offset="5%" stopColor="var(--clear)" stopOpacity={0.45}/><stop offset="95%" stopColor="var(--clear)" stopOpacity={0}/></linearGradient></defs>
+            <defs>
+              <linearGradient id="balanceStrokeSplit" x1="0" y1="0" x2="0" y2="1">
+                <stop offset={zeroOffset} stopColor="var(--clear-dk)" stopOpacity={1} />
+                <stop offset={zeroOffset} stopColor="var(--trouble-dk)" stopOpacity={1} />
+              </linearGradient>
+              <linearGradient id="balanceFillSplit" x1="0" y1="0" x2="0" y2="1">
+                <stop offset={zeroOffset} stopColor="var(--clear)" stopOpacity={0.45} />
+                <stop offset={zeroOffset} stopColor="var(--trouble)" stopOpacity={0.4} />
+                <stop offset="1" stopColor="var(--trouble)" stopOpacity={0.05} />
+              </linearGradient>
+            </defs>
             <CartesianGrid strokeDasharray="3 3" stroke="var(--border-soft)" vertical={false}/>
             <XAxis dataKey="d" tick={{ fontSize: 10, fill: "var(--ink-3)", fontFamily: "var(--font-sans)" }} axisLine={false} tickLine={false}/>
             <YAxis tick={{ fontSize: 10, fill: "var(--ink-3)", fontFamily: "var(--font-sans)" }} axisLine={false} tickLine={false} tickFormatter={v => `$${Number(v)/1000}k`} width={36}/>
             <Tooltip formatter={(v: unknown) => [usdF(Number(v)), "Balance"]} contentStyle={{ fontSize: 11, borderRadius: 8, border: "1px solid var(--border)", fontFamily: "var(--font-sans)" }}/>
-            <Area type="monotone" dataKey="bal" stroke="var(--clear-dk)" strokeWidth={2.5} fill="url(#wg1)" dot={false}/>
+            <Area type="monotone" dataKey="bal" stroke="url(#balanceStrokeSplit)" strokeWidth={2.5} fill="url(#balanceFillSplit)" baseValue={0} dot={false}/>
           </AreaChart>
         </ResponsiveContainer>
       </div>
