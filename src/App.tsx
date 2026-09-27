@@ -1887,21 +1887,31 @@ function CalendarSidePanel({
 
           <div style={{ flex: 1, overflowY: "auto", padding: "14px", minHeight: 0 }}>
             {calView !== "daily" && (
-              <div style={{ background: "var(--bg)", border: "1px solid var(--border)", borderRadius: 12, padding: "12px 14px", marginBottom: 12 }}>
-                <p className="fety-label" style={{ marginBottom: 10 }}>Balance sheet</p>
-                {[
-                  { label: "Starting", value: usd(day.startBal), color: calBalanceColor(day.startBal) },
-                  { label: "Income", value: day.income > 0 ? `+${usd(day.income)}` : "—", color: calSignedColor(day.income) },
-                  { label: "Expenses", value: day.expenses < 0 ? usd(day.expenses) : "—", color: calSignedColor(day.expenses) },
-                  { label: "Ending", value: usd(day.endBal), color: calBalanceColor(day.endBal) },
-                ].map((r, i) => (
-                  <div key={r.label} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", paddingTop: i > 0 ? 7 : 0, paddingBottom: 7, borderTop: i > 0 ? "1px solid var(--border)" : undefined }}>
-                    <span style={{ fontSize: 11, color: "var(--ink-3)" }}>{r.label}</span>
-                    <span style={{ fontSize: 12, fontWeight: 600, fontFamily: "var(--font-sans)", color: r.color }}>{r.value}</span>
-                  </div>
-                ))}
-                <CalendarAccountsBreakdown store={ledgerStore} dateISO={CAL_KEY(day.date)} compact />
-              </div>
+              <details className="fety-cal-balance-sheet">
+                <summary className="fety-cal-balance-sheet-summary">
+                  <span className="fety-label">Balance sheet</span>
+                  <span
+                    className="fety-cal-balance-sheet-meta"
+                    style={{ color: calBalanceColor(day.endBal) }}
+                  >
+                    {usd(day.endBal)}
+                  </span>
+                </summary>
+                <div className="fety-cal-balance-sheet-body">
+                  {[
+                    { label: "Starting", value: usd(day.startBal), color: calBalanceColor(day.startBal) },
+                    { label: "Income", value: day.income > 0 ? `+${usd(day.income)}` : "—", color: calSignedColor(day.income) },
+                    { label: "Expenses", value: day.expenses < 0 ? usd(day.expenses) : "—", color: calSignedColor(day.expenses) },
+                    { label: "Ending", value: usd(day.endBal), color: calBalanceColor(day.endBal) },
+                  ].map((r, i) => (
+                    <div key={r.label} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", paddingTop: i > 0 ? 7 : 0, paddingBottom: 7, borderTop: i > 0 ? "1px solid var(--border)" : undefined }}>
+                      <span style={{ fontSize: 11, color: "var(--ink-3)" }}>{r.label}</span>
+                      <span style={{ fontSize: 12, fontWeight: 600, fontFamily: "var(--font-sans)", color: r.color }}>{r.value}</span>
+                    </div>
+                  ))}
+                  <CalendarAccountsBreakdown store={ledgerStore} dateISO={CAL_KEY(day.date)} compact />
+                </div>
+              </details>
             )}
 
             <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 8 }}>

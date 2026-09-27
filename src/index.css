@@ -844,6 +844,60 @@ html, body, #root {
   text-transform: uppercase;
 }
 
+.fety-cal-balance-sheet {
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  margin-bottom: 12px;
+  overflow: hidden;
+}
+
+.fety-cal-balance-sheet-summary {
+  list-style: none;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 12px 14px;
+  cursor: pointer;
+  user-select: none;
+  min-height: 44px;
+}
+
+.fety-cal-balance-sheet-summary::-webkit-details-marker {
+  display: none;
+}
+
+.fety-cal-balance-sheet-summary::after {
+  content: "";
+  width: 7px;
+  height: 7px;
+  border-right: 1.5px solid var(--ink-3);
+  border-bottom: 1.5px solid var(--ink-3);
+  transform: rotate(45deg);
+  transition: transform 0.15s ease;
+  flex-shrink: 0;
+}
+
+.fety-cal-balance-sheet[open] > .fety-cal-balance-sheet-summary::after {
+  transform: rotate(-135deg);
+  margin-top: 4px;
+}
+
+.fety-cal-balance-sheet-meta {
+  margin-left: auto;
+  margin-right: 8px;
+  font-size: 13px;
+  font-weight: 600;
+  font-family: var(--font-sans);
+}
+
+.fety-cal-balance-sheet-body {
+  padding: 0 14px 12px;
+  border-top: 1px solid var(--border);
+  padding-top: 10px;
+}
+
 /* ─── Setup / onboarding ─────────────────────────────────────────────────── */
 
 .fety-onboarding {
