@@ -82,7 +82,8 @@ export const OPTIONAL_HERO_WIDGET_IDS = [
   "stat-savings",
 ];
 
-export const DEFAULT_PINNED = [
+/** Pre-curation defaults — used to detect stores still on the old starter set. */
+export const LEGACY_DEFAULT_PINNED = [
   "balance-chart",
   "monthly-spend-chart",
   "budget-remaining",
@@ -92,6 +93,26 @@ export const DEFAULT_PINNED = [
   "biggest-bill",
 ];
 
+/**
+ * Curated starter dashboard: cash-flow snapshot, trend charts with filters,
+ * budget health, and upcoming money. Other widgets stay available in Customise.
+ */
+export const DEFAULT_PINNED = [
+  "spending-power-hero",
+  "stat-balance",
+  "stat-money-in",
+  "stat-money-out",
+  "balance-chart",
+  "budget-remaining",
+  "spending-breakdown",
+  "monthly-spend-chart",
+  "next-paycheck",
+  "biggest-bill",
+];
+
+function pinnedEquals(a: string[], b: string[]): boolean {
+  return a.length === b.length && a.every((id, i) => id === b[i]);
+}
 export function createEmptyStore(): FetyStore {
   return {
     version: 1,
@@ -121,6 +142,7 @@ export function createEmptyStore(): FetyStore {
     typeIcons: { ...DEFAULT_TYPE_ICONS },
     transactionTypes: defaultTransactionTypes(),
     heroBlocksOptional: true,
+    widgetsCuratedV2: true,
   };
 }
 
@@ -144,6 +166,7 @@ export function createDefaultStore(): FetyStore {
     typeIcons: { ...DEFAULT_TYPE_ICONS },
     transactionTypes: defaultTransactionTypes(),
     heroBlocksOptional: true,
+    widgetsCuratedV2: true,
   };
 }
 
@@ -173,6 +196,14 @@ function migrateStore(store: FetyStore): FetyStore {
   }
   if (!next.lockedDashboardWidgets) {
     next = { ...next, lockedDashboardWidgets: [] };
+  }
+  if (!next.widgetsCuratedV2) {
+    const stillOnLegacyDefaults = pinnedEquals(next.pinnedWidgets, LEGACY_DEFAULT_PINNED);
+    next = {
+      ...next,
+      pinnedWidgets: stillOnLegacyDefaults || !next.onboardingCompleted ? DEFAULT_PINNED : next.pinnedWidgets,
+      widgetsCuratedV2: true,
+    };
   }
   if (!next.incomeStreams) next = { ...next, incomeStreams: [] };
   if (!next.recurringTransactions) next = { ...next, recurringTransactions: [] };

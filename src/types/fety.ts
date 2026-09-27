@@ -146,6 +146,8 @@ export interface FetyStore {
   skippedScheduledOccurrences?: string[];
   /** Widget ids locked in place (only valid while in the top dashboard row). */
   lockedDashboardWidgets?: string[];
+  /** One-time: apply curated default dashboard widgets (cash-flow focused). */
+  widgetsCuratedV2?: boolean;
 }
 
 export interface CategoryWithSpent extends BudgetCategory {

@@ -300,23 +300,57 @@ export function maxAbsDailyNet(map: CalendarMap, year: number): number {
 
 const DAY_LABELS = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
 
-export function last7DayEndingBalances(store: FetyStore, ref = new Date()): { d: string; bal: number }[] {
-  const year = ref.getFullYear();
-  const map = buildCalendarMap(store, year);
+export type BalanceChartRange = "7d" | "14d" | "30d" | "month";
+export type SpendTrendMonths = 3 | 6 | 12;
+export type CategorySpendPeriod = "week" | "month" | "30d" | "90d";
+
+function daysInBalanceRange(range: BalanceChartRange, ref: Date): number {
+  if (range === "7d") return 7;
+  if (range === "14d") return 14;
+  if (range === "30d") return 30;
+  const start = monthStart(ref);
+  const end = new Date(ref);
+  end.setHours(0, 0, 0, 0);
+  return Math.max(1, Math.floor((end.getTime() - start.getTime()) / 86400000) + 1);
+}
+
+function labelForBalancePoint(d: Date, range: BalanceChartRange): string {
+  if (range === "7d") return DAY_LABELS[d.getDay()];
+  if (range === "month") return String(d.getDate());
+  return d.toLocaleDateString("en-US", { month: "short", day: "numeric" });
+}
+
+/** Daily ending balances for a selectable lookback (or calendar month to date). */
+export function endingBalancesForRange(
+  store: FetyStore,
+  range: BalanceChartRange,
+  ref = new Date(),
+): { d: string; bal: number }[] {
+  const count = daysInBalanceRange(range, ref);
   const out: { d: string; bal: number }[] = [];
-  for (let i = 6; i >= 0; i--) {
+  for (let i = count - 1; i >= 0; i--) {
     const d = new Date(ref);
+    d.setHours(12, 0, 0, 0);
     d.setDate(ref.getDate() - i);
     const key = calKey(d);
-    const day = map.get(key);
-    out.push({ d: DAY_LABELS[d.getDay()], bal: day?.endBal ?? store.profile.startingBalance });
+    out.push({ d: labelForBalancePoint(d, range), bal: endingBalanceOnDate(store, key) });
   }
   return out;
 }
 
-export function last6MonthsSpending(store: FetyStore, ref = new Date()): { m: string; v: number }[] {
+export function last7DayEndingBalances(store: FetyStore, ref = new Date()): { d: string; bal: number }[] {
+  return endingBalancesForRange(store, "7d", ref);
+}
+
+/** Monthly outflow totals for the last N calendar months (inclusive of current). */
+export function monthsSpending(
+  store: FetyStore,
+  monthCount: SpendTrendMonths,
+  ref = new Date(),
+): { m: string; v: number }[] {
   const out: { m: string; v: number }[] = [];
-  for (let i = 5; i >= 0; i--) {
+  const n = Math.max(1, monthCount);
+  for (let i = n - 1; i >= 0; i--) {
     const d = new Date(ref.getFullYear(), ref.getMonth() - i, 1);
     const start = monthStart(d);
     const end = monthEnd(d);
@@ -328,10 +362,52 @@ export function last6MonthsSpending(store: FetyStore, ref = new Date()): { m: st
   return out;
 }
 
-export function categorySpendShares(store: FetyStore, ref = new Date()): { name: string; value: number }[] {
+export function last6MonthsSpending(store: FetyStore, ref = new Date()): { m: string; v: number }[] {
+  return monthsSpending(store, 6, ref);
+}
+
+function categoryPeriodBounds(period: CategorySpendPeriod, ref: Date): { start: Date; end: Date } {
+  const end = new Date(ref);
+  end.setHours(23, 59, 59, 999);
+  if (period === "week") {
+    return { start: startOfWeek(ref), end: endOfWeek(ref) };
+  }
+  if (period === "month") {
+    return { start: monthStart(ref), end: monthEnd(ref) };
+  }
+  const start = new Date(ref);
+  start.setHours(0, 0, 0, 0);
+  start.setDate(start.getDate() - (period === "30d" ? 29 : 89));
+  return { start, end };
+}
+
+function categorySpentInRange(
+  store: FetyStore,
+  categoryName: string,
+  start: Date,
+  end: Date,
+): number {
+  const asOf = balanceAsOfISO(store);
+  return store.transactions
+    .filter(
+      (t) =>
+        t.dateISO >= asOf &&
+        t.category === categoryName &&
+        isOutflow(t, store) &&
+        inRange(t.dateISO, start, end),
+    )
+    .reduce((s, t) => s + Math.abs(t.amount), 0);
+}
+
+export function categorySpendSharesForPeriod(
+  store: FetyStore,
+  period: CategorySpendPeriod,
+  ref = new Date(),
+): { name: string; value: number }[] {
+  const { start, end } = categoryPeriodBounds(period, ref);
   const cats = store.categories.map((c) => ({
     name: c.name,
-    value: categorySpentInMonth(store, c.name, ref),
+    value: categorySpentInRange(store, c.name, start, end),
   }));
   const total = cats.reduce((s, c) => s + c.value, 0) || 1;
   return cats
@@ -339,4 +415,8 @@ export function categorySpendShares(store: FetyStore, ref = new Date()): { name:
     .sort((a, b) => b.value - a.value)
     .slice(0, 5)
     .map((c) => ({ name: c.name, value: Math.round((c.value / total) * 100) }));
+}
+
+export function categorySpendShares(store: FetyStore, ref = new Date()): { name: string; value: number }[] {
+  return categorySpendSharesForPeriod(store, "month", ref);
 }

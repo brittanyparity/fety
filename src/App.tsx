@@ -1,7 +1,7 @@
 import { useState, useRef, useEffect, useCallback, useMemo } from "react";
 import { FetyLogo } from "./FetyLogo";
 import { useFetyData } from "./hooks/useFetyData";
-import { buildCalendarMap, endingBalanceOnDate, formatNavDate, last6MonthsSpending, last7DayEndingBalances, categorySpendShares, todayISO } from "./lib/fetyCalculations";
+import { buildCalendarMap, endingBalanceOnDate, endingBalancesForRange, formatNavDate, monthsSpending, categorySpendSharesForPeriod, todayISO, type BalanceChartRange, type CategorySpendPeriod, type SpendTrendMonths } from "./lib/fetyCalculations";
 import { formatTransactionDetailLine, goalSavedTotal, accountBalanceWithTransactions, accountBalanceAsOfISO, formatAccountBalanceDisplay, isDebtAccount, netWorthTotalsOnDate } from "./lib/ledger";
 import { flowForTransactionType, getTransactionTypes, isTransferTransactionType } from "./lib/transactionTypes";
 import { calendarEndingBalanceBg, calendarEndingBalanceBgStrong, calBalanceColor, calNetWorthColor, calSignedColor } from "./lib/calendarUi";
@@ -10,6 +10,8 @@ import EmojiIconPicker from "./components/EmojiIconPicker";
 import CurrencyInput, { amountToEditString } from "./components/CurrencyInput";
 import { flattenRowsAfterMoveRespectingLocks, isWidgetInFirstRow, isWidgetPositionLocked, packWidgetsIntoRows, pruneWidgetLocksToFirstRow, reorderWidgetRespectingLocks, toggleWidgetOnDashboard, unpinWidget } from "./lib/widgetLayout";
 import { ChatPanel, ChatExpandIcon } from "./components/ChatPanel";
+import WidgetPeriodFilter from "./components/WidgetPeriodFilter";
+import WidgetPinIcon from "./components/WidgetPinIcon";
 import { confirmAssistantAction, handleAssistantMessageWithDeps } from "./assistant/router";
 import type { ToolAction } from "./assistant/types";
 import type { BudgetCategory, CalDay, CalendarMap, ChatMessage, FetyStore, FetyTransactionType, FinanceSummary, Transaction, TransactionType } from "./types/fety";
@@ -28,7 +30,6 @@ import {
   PieChart, Pie, Cell,
 } from "recharts";
 import { nextBillOccurrenceOnOrAfter } from "./lib/billScheduling";
-import WidgetPinIcon from "./components/WidgetPinIcon";
 
 // ─── Types ─────────────────────────────────────────────────────────────────────
 type Page = "dashboard" | "budget" | "spending" | "goals" | "profile" | "networth" | "calendar";
@@ -291,6 +292,166 @@ const statPreview = (dot: string, label: string, value: string, sub?: string): R
   </div>
 );
 
+const BALANCE_RANGE_OPTIONS = [
+  { id: "7d" as const, label: "7D" },
+  { id: "14d" as const, label: "14D" },
+  { id: "30d" as const, label: "30D" },
+  { id: "month" as const, label: "MTD" },
+];
+
+const SPEND_TREND_OPTIONS = [
+  { id: "3" as const, label: "3M" },
+  { id: "6" as const, label: "6M" },
+  { id: "12" as const, label: "12M" },
+];
+
+const CATEGORY_PERIOD_OPTIONS = [
+  { id: "week" as const, label: "Week" },
+  { id: "month" as const, label: "Month" },
+  { id: "30d" as const, label: "30D" },
+  { id: "90d" as const, label: "90D" },
+];
+
+function BalanceChartWidget() {
+  const { store, summary: s } = widgetLive();
+  const [range, setRange] = useState<BalanceChartRange>("7d");
+  const weekData = endingBalancesForRange(store, range);
+  const endBal = weekData[weekData.length - 1]?.bal ?? s.balance;
+  const dataMax = weekData.length ? Math.max(...weekData.map((d) => d.bal)) : 0;
+  const dataMin = weekData.length ? Math.min(...weekData.map((d) => d.bal)) : 0;
+  const zeroOffset =
+    dataMax <= 0 ? 0 : dataMin >= 0 ? 1 : dataMax / (dataMax - dataMin);
+  const endColor = endBal < 0 ? "var(--trouble-dk)" : "var(--ink)";
+  const subtitle =
+    range === "7d"
+      ? "Last 7 days"
+      : range === "14d"
+        ? "Last 14 days"
+        : range === "30d"
+          ? "Last 30 days"
+          : "Month to date";
+
+  return (
+    <div>
+      <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: 12, marginBottom: 12, flexWrap: "wrap" }}>
+        <div>
+          <p style={{ fontSize: 12, fontWeight: 600, color: "var(--ink)" }}>Balance</p>
+          <p style={{ fontSize: 11, color: "var(--ink-3)", marginTop: 2 }}>Daily ending balance · {subtitle}</p>
+        </div>
+        <div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
+          <WidgetPeriodFilter options={BALANCE_RANGE_OPTIONS} value={range} onChange={setRange} ariaLabel="Balance period" />
+          <p style={{ fontSize: 22, fontWeight: 400, color: endColor, letterSpacing: "-0.8px", fontFamily: "var(--font-sans)", margin: 0 }}>{usd(endBal)}</p>
+        </div>
+      </div>
+      <ResponsiveContainer width="100%" height={160}>
+        <AreaChart data={weekData}>
+          <defs>
+            <linearGradient id="balanceStrokeSplit" x1="0" y1="0" x2="0" y2="1">
+              <stop offset={zeroOffset} stopColor="var(--clear-dk)" stopOpacity={1} />
+              <stop offset={zeroOffset} stopColor="var(--trouble-dk)" stopOpacity={1} />
+            </linearGradient>
+            <linearGradient id="balanceFillSplit" x1="0" y1="0" x2="0" y2="1">
+              <stop offset={zeroOffset} stopColor="var(--clear)" stopOpacity={0.45} />
+              <stop offset={zeroOffset} stopColor="var(--trouble)" stopOpacity={0.4} />
+              <stop offset="1" stopColor="var(--trouble)" stopOpacity={0.05} />
+            </linearGradient>
+          </defs>
+          <CartesianGrid strokeDasharray="3 3" stroke="var(--border-soft)" vertical={false} />
+          <XAxis
+            dataKey="d"
+            tick={{ fontSize: 10, fill: "var(--ink-3)", fontFamily: "var(--font-sans)" }}
+            axisLine={false}
+            tickLine={false}
+            interval={range === "30d" ? 4 : range === "14d" ? 1 : 0}
+          />
+          <YAxis tick={{ fontSize: 10, fill: "var(--ink-3)", fontFamily: "var(--font-sans)" }} axisLine={false} tickLine={false} tickFormatter={(v) => `$${Number(v) / 1000}k`} width={36} />
+          <Tooltip formatter={(v: unknown) => [usdF(Number(v)), "Balance"]} contentStyle={{ fontSize: 11, borderRadius: 8, border: "1px solid var(--border)", fontFamily: "var(--font-sans)" }} />
+          <Area type="monotone" dataKey="bal" stroke="url(#balanceStrokeSplit)" strokeWidth={2.5} fill="url(#balanceFillSplit)" baseValue={0} dot={false} />
+        </AreaChart>
+      </ResponsiveContainer>
+    </div>
+  );
+}
+
+function MonthlySpendChartWidget() {
+  const { store } = widgetLive();
+  const [monthsKey, setMonthsKey] = useState<"3" | "6" | "12">("6");
+  const months = Number(monthsKey) as SpendTrendMonths;
+  const monthlySpendLive = monthsSpending(store, months);
+  return (
+    <div>
+      <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: 10, marginBottom: 12, flexWrap: "wrap" }}>
+        <div>
+          <p style={{ fontSize: 12, fontWeight: 600, color: "var(--ink)", marginBottom: 2 }}>Spending trend</p>
+          <p style={{ fontSize: 11, color: "var(--ink-3)" }}>Last {months} months</p>
+        </div>
+        <WidgetPeriodFilter
+          options={SPEND_TREND_OPTIONS}
+          value={monthsKey}
+          onChange={setMonthsKey}
+          ariaLabel="Spending trend range"
+        />
+      </div>
+      <ResponsiveContainer width="100%" height={150}>
+        <BarChart data={monthlySpendLive} barSize={months === 12 ? 12 : 20}>
+          <CartesianGrid strokeDasharray="3 3" stroke="var(--border-soft)" vertical={false} />
+          <XAxis dataKey="m" tick={{ fontSize: 10, fill: "var(--ink-3)", fontFamily: "var(--font-sans)" }} axisLine={false} tickLine={false} />
+          <YAxis tick={{ fontSize: 10, fill: "var(--ink-3)", fontFamily: "var(--font-sans)" }} axisLine={false} tickLine={false} tickFormatter={(v) => `$${Number(v) / 1000}k`} width={36} />
+          <Tooltip formatter={(v: unknown) => [usd(Number(v)), "Spent"]} contentStyle={{ fontSize: 11, borderRadius: 9, border: "1px solid var(--border)", fontFamily: "var(--font-sans)" }} />
+          <Bar dataKey="v" fill="var(--ink)" radius={[4, 4, 0, 0]} />
+        </BarChart>
+      </ResponsiveContainer>
+    </div>
+  );
+}
+
+function SpendingBreakdownWidget() {
+  const { store } = widgetLive();
+  const [period, setPeriod] = useState<CategorySpendPeriod>("month");
+  const donutLive = categorySpendSharesForPeriod(store, period);
+  const periodLabel =
+    period === "week" ? "This week" : period === "month" ? "This month" : period === "30d" ? "Last 30 days" : "Last 90 days";
+  return (
+    <div>
+      <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: 10, marginBottom: 14, flexWrap: "wrap" }}>
+        <div>
+          <p style={{ fontSize: 12, fontWeight: 600, color: "var(--ink)" }}>Where money goes</p>
+          <p style={{ fontSize: 11, color: "var(--ink-3)", marginTop: 2 }}>{periodLabel}</p>
+        </div>
+        <WidgetPeriodFilter options={CATEGORY_PERIOD_OPTIONS} value={period} onChange={setPeriod} ariaLabel="Spending breakdown period" />
+      </div>
+      <div style={{ display: "flex", gap: 20, alignItems: "center" }}>
+        <ResponsiveContainer width={110} height={110}>
+          <PieChart>
+            <Pie
+              data={donutLive.length ? donutLive : [{ name: "None", value: 100 }]}
+              dataKey="value"
+              innerRadius={32}
+              outerRadius={52}
+              paddingAngle={2}
+              startAngle={90}
+              endAngle={-270}
+            >
+              {(donutLive.length ? donutLive : [{ name: "None", value: 100 }]).map((_, i) => (
+                <Cell key={i} fill={DONUT_COLORS[i % DONUT_COLORS.length]} />
+              ))}
+            </Pie>
+          </PieChart>
+        </ResponsiveContainer>
+        <div style={{ flex: 1, display: "flex", flexDirection: "column", gap: 5 }}>
+          {(donutLive.length ? donutLive : [{ name: "No spend yet", value: 0 }]).map((d, i) => (
+            <div key={d.name} style={{ display: "flex", alignItems: "center", gap: 7 }}>
+              <div style={{ width: 7, height: 7, borderRadius: 2, background: DONUT_COLORS[i % DONUT_COLORS.length], flexShrink: 0 }} />
+              <span style={{ fontSize: 11, color: "var(--ink-2)", flex: 1 }}>{d.name}</span>
+              <span style={{ fontSize: 11, fontWeight: 600, color: "var(--ink)", fontFamily: "var(--font-sans)" }}>{d.value}%</span>
+            </div>
+          ))}
+        </div>
+      </div>
+    </div>
+  );
+}
+
 const ALL_WIDGETS: WidgetDef[] = [
   {
     id: "spending-power-hero",
@@ -480,84 +641,19 @@ const ALL_WIDGETS: WidgetDef[] = [
     ),
   },
   {
-    id: "balance-chart", label: "Balance This Week", color: "var(--surface)", size: "full",
-    preview: () => statPreview("var(--clear-dk)", "Balance This Week", "$2,612", "Daily ending balance · area chart"),
-    render: () => {
-      const { store, summary: s } = widgetLive();
-      const weekData = last7DayEndingBalances(store);
-      const endBal = weekData[weekData.length - 1]?.bal ?? s.balance;
-      return (
-      <div>
-        <div style={{ display: "flex", alignItems: "baseline", justifyContent: "space-between", marginBottom: 16 }}>
-          <div>
-            <p style={{ fontSize: 12, fontWeight: 600, color: "var(--ink)" }}>Balance This Week</p>
-            <p style={{ fontSize: 11, color: "var(--ink-3)", marginTop: 2 }}>Daily ending balance</p>
-          </div>
-          <p style={{ fontSize: 22, fontWeight: 400, color: "var(--ink)", letterSpacing: "-0.8px", fontFamily: "var(--font-sans)" }}>{usd(endBal)}</p>
-        </div>
-        <ResponsiveContainer width="100%" height={160}>
-          <AreaChart data={weekData}>
-            <defs><linearGradient id="wg1" x1="0" y1="0" x2="0" y2="1"><stop offset="5%" stopColor="var(--clear)" stopOpacity={0.45}/><stop offset="95%" stopColor="var(--clear)" stopOpacity={0}/></linearGradient></defs>
-            <CartesianGrid strokeDasharray="3 3" stroke="var(--border-soft)" vertical={false}/>
-            <XAxis dataKey="d" tick={{ fontSize: 10, fill: "var(--ink-3)", fontFamily: "var(--font-sans)" }} axisLine={false} tickLine={false}/>
-            <YAxis tick={{ fontSize: 10, fill: "var(--ink-3)", fontFamily: "var(--font-sans)" }} axisLine={false} tickLine={false} tickFormatter={v => `$${Number(v)/1000}k`} width={36}/>
-            <Tooltip formatter={(v: unknown) => [usdF(Number(v)), "Balance"]} contentStyle={{ fontSize: 11, borderRadius: 8, border: "1px solid var(--border)", fontFamily: "var(--font-sans)" }}/>
-            <Area type="monotone" dataKey="bal" stroke="var(--clear-dk)" strokeWidth={2.5} fill="url(#wg1)" dot={false}/>
-          </AreaChart>
-        </ResponsiveContainer>
-      </div>
-      );
-    },
+    id: "balance-chart", label: "Balance", color: "var(--surface)", size: "full",
+    preview: () => statPreview("var(--clear-dk)", "Balance", "$2,612", "Daily ending balance · filterable"),
+    render: () => <BalanceChartWidget />,
   },
   {
-    id: "monthly-spend-chart", label: "Monthly Spending Trend", color: "var(--surface)", size: "half",
-    preview: () => statPreview("var(--ink)", "Monthly Spending Trend", "$3,650", "Bar chart · last 6 months"),
-    render: () => {
-      const { store } = widgetLive();
-      const monthlySpendLive = last6MonthsSpending(store);
-      return (
-      <div>
-        <p style={{ fontSize: 12, fontWeight: 600, color: "var(--ink)", marginBottom: 2 }}>Monthly Spending</p>
-        <p style={{ fontSize: 11, color: "var(--ink-3)", marginBottom: 16 }}>Last 6 months</p>
-        <ResponsiveContainer width="100%" height={150}>
-          <BarChart data={monthlySpendLive} barSize={20}>
-            <CartesianGrid strokeDasharray="3 3" stroke="var(--border-soft)" vertical={false}/>
-            <XAxis dataKey="m" tick={{ fontSize: 10, fill: "var(--ink-3)", fontFamily: "var(--font-sans)" }} axisLine={false} tickLine={false}/>
-            <YAxis tick={{ fontSize: 10, fill: "var(--ink-3)", fontFamily: "var(--font-sans)" }} axisLine={false} tickLine={false} tickFormatter={v => `$${Number(v)/1000}k`} width={36}/>
-            <Tooltip formatter={(v: unknown) => [usd(Number(v)), "Spent"]} contentStyle={{ fontSize: 11, borderRadius: 9, border: "1px solid var(--border)", fontFamily: "var(--font-sans)" }}/>
-            <Bar dataKey="v" fill="var(--ink)" radius={[4,4,0,0]}/>
-          </BarChart>
-        </ResponsiveContainer>
-      </div>
-      );
-    },
+    id: "monthly-spend-chart", label: "Spending Trend", color: "var(--surface)", size: "half",
+    preview: () => statPreview("var(--ink)", "Spending Trend", "$3,650", "Bar chart · 3 / 6 / 12 months"),
+    render: () => <MonthlySpendChartWidget />,
   },
   {
     id: "spending-breakdown", label: "Spending Breakdown", color: "var(--surface)", size: "half",
-    preview: () => statPreview("var(--ink-3)", "Spending Breakdown", "5 categories", "Donut chart · where money goes"),
-    render: () => {
-      const { store } = widgetLive();
-      const donutLive = categorySpendShares(store);
-      return (
-      <div>
-        <p style={{ fontSize: 12, fontWeight: 600, color: "var(--ink)", marginBottom: 16 }}>Where Your Money Is Going</p>
-        <div style={{ display: "flex", gap: 20, alignItems: "center" }}>
-          <ResponsiveContainer width={110} height={110}>
-            <PieChart><Pie data={donutLive.length ? donutLive : [{ name: "None", value: 100 }]} dataKey="value" innerRadius={32} outerRadius={52} paddingAngle={2} startAngle={90} endAngle={-270}>{(donutLive.length ? donutLive : [{ name: "None", value: 100 }]).map((_, i) => <Cell key={i} fill={DONUT_COLORS[i % DONUT_COLORS.length]}/>)}</Pie></PieChart>
-          </ResponsiveContainer>
-          <div style={{ flex: 1, display: "flex", flexDirection: "column", gap: 5 }}>
-            {(donutLive.length ? donutLive : [{ name: "No spend yet", value: 0 }]).map((d, i) => (
-              <div key={d.name} style={{ display: "flex", alignItems: "center", gap: 7 }}>
-                <div style={{ width: 7, height: 7, borderRadius: 2, background: DONUT_COLORS[i % DONUT_COLORS.length], flexShrink: 0 }}/>
-                <span style={{ fontSize: 11, color: "var(--ink-2)", flex: 1 }}>{d.name}</span>
-                <span style={{ fontSize: 11, fontWeight: 600, color: "var(--ink)", fontFamily: "var(--font-sans)" }}>{d.value}%</span>
-              </div>
-            ))}
-          </div>
-        </div>
-      </div>
-      );
-    },
+    preview: () => statPreview("var(--ink-3)", "Spending Breakdown", "5 categories", "Donut · week / month / 30D / 90D"),
+    render: () => <SpendingBreakdownWidget />,
   },
   {
     id: "today-balance", label: "Today's Balance (Card)", color: "var(--sky)", size: "half",
