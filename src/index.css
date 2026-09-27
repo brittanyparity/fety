@@ -1575,6 +1575,11 @@ html, body, #root {
     overflow: hidden;
   }
 
+  /* Hide decorative grip; row handle + pin/X are enough on touch */
+  .fety-widget-row--customizing .fety-widget-drag-hint {
+    display: none !important;
+  }
+
   .fety-cal-jump-summary {
     min-height: 44px;
     padding: 12px 14px;

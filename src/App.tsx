@@ -1886,41 +1886,23 @@ function CalendarSidePanel({
           </div>
 
           <div style={{ flex: 1, overflowY: "auto", padding: "14px", minHeight: 0 }}>
-            <div style={{ background: "var(--bg)", border: "1px solid var(--border)", borderRadius: 12, padding: "12px 14px", marginBottom: 12 }}>
-              {calView !== "daily" ? (
-                <>
-                  <p className="fety-label" style={{ marginBottom: 10 }}>Balance sheet</p>
-                  {[
-                    { label: "Starting", value: usd(day.startBal), color: calBalanceColor(day.startBal) },
-                    { label: "Income", value: day.income > 0 ? `+${usd(day.income)}` : "—", color: calSignedColor(day.income) },
-                    { label: "Expenses", value: day.expenses < 0 ? usd(day.expenses) : "—", color: calSignedColor(day.expenses) },
-                    { label: "Ending", value: usd(day.endBal), color: calBalanceColor(day.endBal) },
-                  ].map((r, i) => (
-                    <div key={r.label} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", paddingTop: i > 0 ? 7 : 0, paddingBottom: 7, borderTop: i > 0 ? "1px solid var(--border)" : undefined }}>
-                      <span style={{ fontSize: 11, color: "var(--ink-3)" }}>{r.label}</span>
-                      <span style={{ fontSize: 12, fontWeight: 600, fontFamily: "var(--font-sans)", color: r.color }}>{r.value}</span>
-                    </div>
-                  ))}
-                  <CalendarAccountsBreakdown store={ledgerStore} dateISO={CAL_KEY(day.date)} compact />
-                </>
-              ) : (
-                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", gap: 12 }}>
-                  <div>
-                    <p className="fety-label" style={{ marginBottom: 4 }}>Ending</p>
-                    <p style={{ fontSize: 18, fontWeight: 600, fontFamily: "var(--font-sans)", color: calBalanceColor(day.endBal), margin: 0 }}>
-                      {usd(day.endBal)}
-                    </p>
+            {calView !== "daily" && (
+              <div style={{ background: "var(--bg)", border: "1px solid var(--border)", borderRadius: 12, padding: "12px 14px", marginBottom: 12 }}>
+                <p className="fety-label" style={{ marginBottom: 10 }}>Balance sheet</p>
+                {[
+                  { label: "Starting", value: usd(day.startBal), color: calBalanceColor(day.startBal) },
+                  { label: "Income", value: day.income > 0 ? `+${usd(day.income)}` : "—", color: calSignedColor(day.income) },
+                  { label: "Expenses", value: day.expenses < 0 ? usd(day.expenses) : "—", color: calSignedColor(day.expenses) },
+                  { label: "Ending", value: usd(day.endBal), color: calBalanceColor(day.endBal) },
+                ].map((r, i) => (
+                  <div key={r.label} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", paddingTop: i > 0 ? 7 : 0, paddingBottom: 7, borderTop: i > 0 ? "1px solid var(--border)" : undefined }}>
+                    <span style={{ fontSize: 11, color: "var(--ink-3)" }}>{r.label}</span>
+                    <span style={{ fontSize: 12, fontWeight: 600, fontFamily: "var(--font-sans)", color: r.color }}>{r.value}</span>
                   </div>
-                  <div style={{ textAlign: "right" }}>
-                    <p className="fety-label" style={{ marginBottom: 4 }}>Net today</p>
-                    <p style={{ fontSize: 14, fontWeight: 600, fontFamily: "var(--font-sans)", color: calSignedColor(day.endBal - day.startBal), margin: 0 }}>
-                      {day.endBal - day.startBal >= 0 ? "+" : ""}
-                      {usd(day.endBal - day.startBal)}
-                    </p>
-                  </div>
-                </div>
-              )}
-            </div>
+                ))}
+                <CalendarAccountsBreakdown store={ledgerStore} dateISO={CAL_KEY(day.date)} compact />
+              </div>
+            )}
 
             <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 8 }}>
               <p className="fety-label">Transactions</p>
@@ -2160,13 +2142,13 @@ function DashboardView({
                       setOverRowIndex(null);
                     }}
                   >
-                    <svg width="10" height="14" viewBox="0 0 10 14" fill="none" aria-hidden>
-                      <circle cx="3" cy="2.5" r="1" fill="currentColor" />
-                      <circle cx="7" cy="2.5" r="1" fill="currentColor" />
-                      <circle cx="3" cy="7" r="1" fill="currentColor" />
+                    <svg className="fety-row-drag-handle-icon" width="14" height="10" viewBox="0 0 14 10" fill="none" aria-hidden>
+                      <circle cx="2.5" cy="3" r="1" fill="currentColor" />
+                      <circle cx="7" cy="3" r="1" fill="currentColor" />
+                      <circle cx="11.5" cy="3" r="1" fill="currentColor" />
+                      <circle cx="2.5" cy="7" r="1" fill="currentColor" />
                       <circle cx="7" cy="7" r="1" fill="currentColor" />
-                      <circle cx="3" cy="11.5" r="1" fill="currentColor" />
-                      <circle cx="7" cy="11.5" r="1" fill="currentColor" />
+                      <circle cx="11.5" cy="7" r="1" fill="currentColor" />
                     </svg>
                   </div>
                 )}
@@ -2236,7 +2218,7 @@ function DashboardView({
                       }}
                     >
                       {customizing && canDragWidget && (
-                        <div style={{ position: "absolute", top: 8, left: 10, opacity: 0.25, pointerEvents: "none" }}>
+                        <div className="fety-widget-drag-hint" style={{ position: "absolute", top: 8, left: 10, opacity: 0.25, pointerEvents: "none" }}>
                           <svg width="10" height="10" viewBox="0 0 10 10" fill="none"><circle cx="3" cy="2.5" r="1" fill="currentColor"/><circle cx="7" cy="2.5" r="1" fill="currentColor"/><circle cx="3" cy="5" r="1" fill="currentColor"/><circle cx="7" cy="5" r="1" fill="currentColor"/><circle cx="3" cy="7.5" r="1" fill="currentColor"/><circle cx="7" cy="7.5" r="1" fill="currentColor"/></svg>
                         </div>
                       )}
