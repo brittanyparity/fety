@@ -26,7 +26,7 @@ import {
   XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer,
   PieChart, Pie, Cell,
 } from "recharts";
-import { nextBillOccurrenceOnOrAfter } from "./lib/billScheduling";
+import { nextBillOccurrenceOnOrAfter, nextIncomeOccurrenceOnOrAfter } from "./lib/billScheduling";
 import WidgetPinIcon from "./components/WidgetPinIcon";
 
 // ─── Types ─────────────────────────────────────────────────────────────────────
@@ -47,55 +47,31 @@ const compactUsd = (n: number) => {
   );
 };
 
-// ─── Static demo chart data (dashboard widgets) ───────────────────────────────
-const cashFlow = [
-  { d: "Mon", bal: 1820 }, { d: "Tue", bal: 2170 }, { d: "Wed", bal: 1950 },
-  { d: "Thu", bal: 3960 }, { d: "Fri", bal: 3410 }, { d: "Sat", bal: 2680 }, { d: "Sun", bal: 2612 },
-];
-const monthlySpend = [
-  { m: "Apr", v: 3200 }, { m: "May", v: 3800 }, { m: "Jun", v: 3100 },
-  { m: "Jul", v: 4200 }, { m: "Aug", v: 3650 }, { m: "Sep", v: 1972 },
-];
-const donutData = [
-  { name: "Housing", value: 44 }, { name: "Food",     value: 14 },
-  { name: "Bills",   value: 20 }, { name: "Shopping", value:  9 }, { name: "Other", value: 13 },
-];
 const DONUT_COLORS = ["#111111", "#6B6B6B", "#B8A6FF", "#E4FF3F", "#EDEDED"];
-
-const budgetCategories = [
-  { name: "Housing",        icon: "🏠", budget: 2000, spent: 2000, color: "var(--ink)" },
-  { name: "Groceries",      icon: "🛒", budget:  500, spent:  320, color: "var(--ink)" },
-  { name: "Dining Out",     icon: "🍽️", budget:  200, spent:  148, color: "var(--ink)" },
-  { name: "Transportation", icon: "🚗", budget:  250, spent:  180, color: "var(--ink)" },
-  { name: "Shopping",       icon: "🛍️", budget:  400, spent:  425, color: "var(--trouble-dk)" },
-  { name: "Entertainment",  icon: "🎬", budget:  150, spent:   98, color: "var(--ink)" },
-  { name: "Bills",          icon: "⚡", budget:  900, spent:  890, color: "var(--ink)" },
-  { name: "Personal",       icon: "💆", budget:  200, spent:   62, color: "var(--ink)" },
-];
-
-const INIT_TRANSACTIONS = [
-  { date: "Today",     desc: "Whole Foods Market",  category: "Groceries",      amount:  -52.40, type: "expense"  as const, icon: "🛒" },
-  { date: "Today",     desc: "Freelance Invoice",   category: "Income",         amount:  350.00, type: "income"   as const, icon: "💼" },
-  { date: "Yesterday", desc: "Electric Bill",       category: "Bills",          amount: -142.00, type: "expense"  as const, icon: "⚡" },
-  { date: "Yesterday", desc: "Amazon",              category: "Shopping",       amount:  -89.99, type: "expense"  as const, icon: "📦" },
-  { date: "Sep 1",     desc: "Employer Paycheck",   category: "Income",         amount: 2800.00, type: "income"   as const, icon: "💵" },
-  { date: "Sep 1",     desc: "Gas Station",         category: "Transportation", amount:  -48.00, type: "expense"  as const, icon: "⛽" },
-  { date: "Aug 30",    desc: "Trader Joe's",        category: "Groceries",      amount:  -87.32, type: "expense"  as const, icon: "🛒" },
-  { date: "Aug 30",    desc: "Savings Transfer",    category: "Savings",        amount: -200.00, type: "transfer" as const, icon: "🏦" },
-];
-
-const goals = [
-  { name: "Emergency Fund", icon: "🛡️", target:  5000, saved: 3250, color: "var(--later)", date: "Dec 2026", monthly: 250 },
-  { name: "Vacation",       icon: "✈️", target:  2500, saved: 1200, color: "var(--later)", date: "Jun 2026", monthly: 200 },
-  { name: "Debt Payoff",    icon: "💳", target: 10000, saved: 6750, color: "var(--later)", date: "Mar 2027", monthly: 400 },
-  { name: "New Car",        icon: "🚗", target: 20000, saved: 4000, color: "var(--later)", date: "Jan 2028", monthly: 500 },
-];
 
 // ─── Helpers ───────────────────────────────────────────────────────────────────
 const usd  = (n: number) => new Intl.NumberFormat("en-US", { style: "currency", currency: "USD", maximumFractionDigits: 0 }).format(n);
 const usdF = (n: number) => new Intl.NumberFormat("en-US", { style: "currency", currency: "USD", minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(n);
 const MONTHS = ["January","February","March","April","May","June","July","August","September","October","November","December"];
 const DAYS_SHORT = ["Sun","Mon","Tue","Wed","Thu","Fri","Sat"];
+const signedUsd = (n: number) => `${n >= 0 ? "+" : "-"}${usd(Math.abs(n))}`;
+const monthLabel = (d = new Date()) => d.toLocaleDateString("en-US", { month: "long" });
+
+/** Monday-based week start (local), matching spending-power week math. */
+function weekStartMonday(ref = new Date()): Date {
+  const d = new Date(ref.getFullYear(), ref.getMonth(), ref.getDate());
+  const day = d.getDay();
+  const diff = day === 0 ? -6 : 1 - day;
+  d.setDate(d.getDate() + diff);
+  return d;
+}
+
+function isoLocal(d: Date): string {
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, "0");
+  const day = String(d.getDate()).padStart(2, "0");
+  return `${y}-${m}-${day}`;
+}
 
 const NAV_ITEMS: { id: Page; label: string }[] = [
   { id: "dashboard", label: "Dashboard"    },
@@ -400,41 +376,55 @@ const ALL_WIDGETS: WidgetDef[] = [
   {
     id: "stat-monthly-net", label: "Monthly Net", color: "var(--surface)", size: "small",
     preview: () => statPreview("var(--clear)", "Monthly Net", "+$2,450", "September"),
-    render: () => (
+    render: () => {
+      const { summary: s } = widgetLive();
+      const net = s.monthlyIncome - s.monthlyExpenses;
+      const positive = net >= 0;
+      return (
       <div style={{ display: "flex", alignItems: "center", gap: 8, height: "100%" }}>
-        <div style={{ width: 9, height: 9, borderRadius: "var(--radius-marker)", background: "var(--clear)", flexShrink: 0 }} />
+        <div style={{ width: 9, height: 9, borderRadius: "var(--radius-marker)", background: positive ? "var(--clear)" : "var(--trouble)", flexShrink: 0 }} />
         <div style={{ flex: 1, minWidth: 0 }}>
           <p style={{ fontSize: 10, fontWeight: 400, color: "var(--ink-3)", fontFamily: "var(--font-mono)", textTransform: "uppercase", letterSpacing: "0.16em", marginBottom: 4 }}>Monthly Net</p>
-          <p style={{ fontSize: 22, fontWeight: 400, color: "var(--lime-dk)", letterSpacing: "-0.8px", fontFamily: "var(--font-sans)", lineHeight: 1 }}>+$2,450</p>
+          <p style={{ fontSize: 22, fontWeight: 400, color: positive ? "var(--lime-dk)" : "var(--peach-dk)", letterSpacing: "-0.8px", fontFamily: "var(--font-sans)", lineHeight: 1 }}>{signedUsd(net)}</p>
         </div>
       </div>
-    ),
+      );
+    },
   },
   {
     id: "stat-weekly-spend", label: "Weekly Spend", color: "var(--surface)", size: "small",
     preview: () => statPreview("var(--ink)", "Weekly Spend", "$634", "This week"),
-    render: () => (
+    render: () => {
+      const { summary: s } = widgetLive();
+      return (
       <div style={{ display: "flex", alignItems: "center", gap: 8, height: "100%" }}>
         <div style={{ width: 9, height: 9, borderRadius: "var(--radius-marker)", background: "var(--ink)", flexShrink: 0 }} />
         <div style={{ flex: 1, minWidth: 0 }}>
           <p style={{ fontSize: 10, fontWeight: 400, color: "var(--ink-3)", fontFamily: "var(--font-mono)", textTransform: "uppercase", letterSpacing: "0.16em", marginBottom: 4 }}>Weekly Spend</p>
-          <p style={{ fontSize: 22, fontWeight: 400, color: "var(--ink)", letterSpacing: "-0.8px", fontFamily: "var(--font-sans)", lineHeight: 1 }}>$634</p>
+          <p style={{ fontSize: 22, fontWeight: 400, color: "var(--ink)", letterSpacing: "-0.8px", fontFamily: "var(--font-sans)", lineHeight: 1 }}>{usd(s.weeklySpent)}</p>
         </div>
       </div>
-    ),
+      );
+    },
   },
   {
     id: "stat-remaining", label: "Budget Remaining", color: "var(--surface)", size: "small",
     preview: () => statPreview("var(--ink-3)", "Budget Remaining", "$2,028", "This month"),
-    render: () => (
+    render: () => {
+      const { summary: s } = widgetLive();
+      const totalBudget = s.categoriesWithSpent.reduce((acc, c) => acc + c.monthlyBudget, 0);
+      const totalSpent = s.categoriesWithSpent.reduce((acc, c) => acc + c.spent, 0);
+      const left = totalBudget - totalSpent;
+      return (
       <div style={{ display: "flex", alignItems: "center", gap: 8, height: "100%" }}>
-        <div style={{ width: 9, height: 9, borderRadius: "var(--radius-marker)", background: "var(--ink-3)", flexShrink: 0 }} />
+        <div style={{ width: 9, height: 9, borderRadius: "var(--radius-marker)", background: left < 0 ? "var(--trouble)" : "var(--ink-3)", flexShrink: 0 }} />
         <div style={{ flex: 1, minWidth: 0 }}>
           <p style={{ fontSize: 10, fontWeight: 400, color: "var(--ink-3)", fontFamily: "var(--font-mono)", textTransform: "uppercase", letterSpacing: "0.16em", marginBottom: 4 }}>Budget Remaining</p>
-          <p style={{ fontSize: 22, fontWeight: 400, color: "var(--ink)", letterSpacing: "-0.8px", fontFamily: "var(--font-sans)", lineHeight: 1 }}>$2,028</p>
+          <p style={{ fontSize: 22, fontWeight: 400, color: left < 0 ? "var(--peach-dk)" : "var(--ink)", letterSpacing: "-0.8px", fontFamily: "var(--font-sans)", lineHeight: 1 }}>{usd(left)}</p>
         </div>
       </div>
-    ),
+      );
+    },
   },
 
   // ── Half-width detailed widgets ────────────────────────────────────────────────
@@ -462,21 +452,46 @@ const ALL_WIDGETS: WidgetDef[] = [
   {
     id: "daily-limit", label: "Daily spending limit", color: "var(--surface)", size: "half",
     preview: () => statPreview("var(--chart-dk)", "Daily Spending Limit", "$20", "Stay on budget today"),
-    render: () => (
+    render: () => {
+      const { store, summary: s } = widgetLive();
+      const today = todayISO();
+      const start = weekStartMonday();
+      const dayLabels = ["M", "T", "W", "T", "F", "S", "S"];
+      const daySpend: number[] = [];
+      for (let i = 0; i < 7; i++) {
+        const d = new Date(start);
+        d.setDate(start.getDate() + i);
+        const key = isoLocal(d);
+        const spent = store.transactions
+          .filter((t) => t.dateISO === key && t.amount < 0 && flowForTransactionType(store, t.type) !== "transfer")
+          .reduce((acc, t) => acc + Math.abs(t.amount), 0);
+        daySpend.push(spent);
+      }
+      const todayIdx = Math.max(0, Math.min(6, Math.floor((new Date(`${today}T12:00:00`).getTime() - start.getTime()) / 86400000)));
+      const daysLeft = 7 - todayIdx;
+      const dailyCap = daysLeft > 0 ? Math.round(s.weeklySpendingPower / daysLeft) : 0;
+      const daysWithSpend = daySpend.filter((v, i) => i <= todayIdx && v > 0).length;
+      const maxBar = Math.max(...daySpend, 1);
+      return (
       <div style={{ display: "flex", flexDirection: "column", height: "100%" }}>
         <p style={{ fontSize: 11, fontWeight: 600, color: "rgba(0,0,0,0.5)", marginBottom: 6, textTransform: "uppercase", letterSpacing: "0.16em" }}>Daily Limit</p>
-        <p style={{ fontSize: 42, fontWeight: 400, color: "var(--ink)", letterSpacing: "-2px", lineHeight: 1 }}>$20</p>
+        <p style={{ fontSize: 42, fontWeight: 400, color: "var(--ink)", letterSpacing: "-2px", lineHeight: 1 }}>{usd(dailyCap)}</p>
         <p style={{ fontSize: 12, color: "rgba(0,0,0,0.5)", marginTop: 6 }}>Remaining today to stay on track</p>
         <div style={{ marginTop: 16, display: "flex", gap: 4 }}>
-          {Array.from({ length: 7 }).map((_, i) => (
-            <div key={i} style={{ flex: 1, height: 28, borderRadius: 6, background: i < 5 ? "rgba(0,0,0,0.18)" : "rgba(0,0,0,0.07)", display: "flex", alignItems: "flex-end", justifyContent: "center", paddingBottom: 4 }}>
-              <span style={{ fontSize: 8, color: "rgba(0,0,0,0.4)", fontWeight: 600 }}>{["M","T","W","T","F","S","S"][i]}</span>
-            </div>
-          ))}
+          {dayLabels.map((label, i) => {
+            const pastOrToday = i <= todayIdx;
+            const intensity = pastOrToday ? 0.08 + 0.22 * (daySpend[i] / maxBar) : 0.07;
+            return (
+              <div key={`${label}-${i}`} style={{ flex: 1, height: 28, borderRadius: 6, background: `rgba(0,0,0,${intensity.toFixed(2)})`, display: "flex", alignItems: "flex-end", justifyContent: "center", paddingBottom: 4 }}>
+                <span style={{ fontSize: 8, color: "rgba(0,0,0,0.4)", fontWeight: 600 }}>{label}</span>
+              </div>
+            );
+          })}
         </div>
-        <p style={{ fontSize: 10, color: "rgba(0,0,0,0.4)", marginTop: 6 }}>5 days spent · 2 days left</p>
+        <p style={{ fontSize: 10, color: "rgba(0,0,0,0.4)", marginTop: 6 }}>{daysWithSpend} day{daysWithSpend === 1 ? "" : "s"} with spend · {daysLeft} day{daysLeft === 1 ? "" : "s"} left</p>
       </div>
-    ),
+      );
+    },
   },
   {
     id: "balance-chart", label: "Balance This Week", color: "var(--surface)", size: "full",
@@ -561,80 +576,126 @@ const ALL_WIDGETS: WidgetDef[] = [
   {
     id: "today-balance", label: "Today's Balance (Card)", color: "var(--sky)", size: "half",
     preview: () => statPreview("var(--sky-dk)", "Today's Balance", "$2,612", "Checking $1,812 · Savings $800"),
-    render: () => (
+    render: () => {
+      const { store, summary: s } = widgetLive();
+      const today = todayISO();
+      const assets = store.accounts
+        .filter((a) => !isDebtAccount(a))
+        .map((a) => ({
+          name: a.name,
+          bal: accountBalanceWithTransactions(store, a.id, today),
+          icon: a.icon,
+        }))
+        .sort((a, b) => b.bal - a.bal);
+      const topTwo = assets.slice(0, 2);
+      return (
       <div style={{ display: "flex", flexDirection: "column", height: "100%" }}>
         <p style={{ fontSize: 11, fontWeight: 600, color: "rgba(0,0,0,0.5)", marginBottom: 6, textTransform: "uppercase", letterSpacing: "0.16em" }}>Today's Balance</p>
-        <p style={{ fontSize: 42, fontWeight: 400, color: "var(--ink)", letterSpacing: "-2px", lineHeight: 1 }}>$2,612</p>
-        <p style={{ fontSize: 12, color: "rgba(0,0,0,0.5)", marginTop: 6 }}>All accounts combined</p>
+        <p style={{ fontSize: 42, fontWeight: 400, color: "var(--ink)", letterSpacing: "-2px", lineHeight: 1 }}>{usd(s.balanceThroughToday)}</p>
+        <p style={{ fontSize: 12, color: "rgba(0,0,0,0.5)", marginTop: 6 }}>
+          {store.accounts.length ? "All accounts through today" : "Starting balance through today"}
+        </p>
         <div style={{ marginTop: "auto", paddingTop: 16, display: "flex", gap: 10 }}>
-          <div style={{ flex: 1, background: "rgba(255,255,255,0.5)", borderRadius: 10, padding: "10px 12px" }}>
-            <p style={{ fontSize: 10, color: "rgba(0,0,0,0.5)", marginBottom: 3 }}>Checking</p>
-            <p style={{ fontSize: 15, fontWeight: 600, color: "var(--ink)", fontFamily: "var(--font-sans)" }}>$1,812</p>
-          </div>
-          <div style={{ flex: 1, background: "rgba(255,255,255,0.5)", borderRadius: 10, padding: "10px 12px" }}>
-            <p style={{ fontSize: 10, color: "rgba(0,0,0,0.5)", marginBottom: 3 }}>Savings</p>
-            <p style={{ fontSize: 15, fontWeight: 600, color: "var(--ink)", fontFamily: "var(--font-sans)" }}>$800</p>
-          </div>
+          {(topTwo.length ? topTwo : [{ name: "Cash", bal: s.balanceThroughToday, icon: "💵" }]).map((row) => (
+            <div key={row.name} style={{ flex: 1, background: "rgba(255,255,255,0.5)", borderRadius: 10, padding: "10px 12px" }}>
+              <p style={{ fontSize: 10, color: "rgba(0,0,0,0.5)", marginBottom: 3 }}>{row.name}</p>
+              <p style={{ fontSize: 15, fontWeight: 600, color: "var(--ink)", fontFamily: "var(--font-sans)" }}>{usd(row.bal)}</p>
+            </div>
+          ))}
         </div>
       </div>
-    ),
+      );
+    },
   },
   {
     id: "money-in", label: "Money In Today (Card)", color: "var(--clear)", size: "half",
     preview: () => statPreview("var(--mint-dk)", "Money In Today", "+$350", "Freelance Invoice"),
-    render: () => (
+    render: () => {
+      const { store, summary: s } = widgetLive();
+      const today = todayISO();
+      const inflows = store.transactions
+        .filter((t) => t.dateISO === today && t.amount > 0 && flowForTransactionType(store, t.type) === "income")
+        .sort((a, b) => Math.abs(b.amount) - Math.abs(a.amount));
+      const top = inflows[0];
+      return (
       <div style={{ display: "flex", flexDirection: "column", height: "100%" }}>
         <p style={{ fontSize: 11, fontWeight: 600, color: "rgba(0,0,0,0.5)", marginBottom: 6, textTransform: "uppercase", letterSpacing: "0.16em" }}>Money In Today</p>
-        <p style={{ fontSize: 42, fontWeight: 400, color: "var(--mint-dk)", letterSpacing: "-2px", lineHeight: 1 }}>+$350</p>
+        <p style={{ fontSize: 42, fontWeight: 400, color: "var(--mint-dk)", letterSpacing: "-2px", lineHeight: 1 }}>+{usd(s.moneyInToday)}</p>
         <p style={{ fontSize: 12, color: "rgba(0,0,0,0.5)", marginTop: 6 }}>Income received today</p>
         <div style={{ marginTop: "auto", paddingTop: 16 }}>
-          <div style={{ display: "flex", alignItems: "center", gap: 10, padding: "9px 0", borderTop: "1px solid rgba(0,0,0,0.08)" }}>
-            <span style={{ fontSize: 16 }}>💼</span>
-            <div style={{ flex: 1 }}><p style={{ fontSize: 12, fontWeight: 500, color: "var(--ink)" }}>Freelance Invoice</p><p style={{ fontSize: 10, color: "rgba(0,0,0,0.4)" }}>Today · Income</p></div>
-            <span style={{ fontSize: 13, fontWeight: 600, color: "var(--mint-dk)", fontFamily: "var(--font-sans)" }}>+$350</span>
-          </div>
+          {top ? (
+            <div style={{ display: "flex", alignItems: "center", gap: 10, padding: "9px 0", borderTop: "1px solid rgba(0,0,0,0.08)" }}>
+              <span style={{ fontSize: 16 }}>{top.icon || "💵"}</span>
+              <div style={{ flex: 1 }}><p style={{ fontSize: 12, fontWeight: 500, color: "var(--ink)" }}>{top.desc}</p><p style={{ fontSize: 10, color: "rgba(0,0,0,0.4)" }}>Today · {top.category}</p></div>
+              <span style={{ fontSize: 13, fontWeight: 600, color: "var(--mint-dk)", fontFamily: "var(--font-sans)" }}>+{usd(top.amount)}</span>
+            </div>
+          ) : (
+            <div style={{ padding: "9px 0", borderTop: "1px solid rgba(0,0,0,0.08)" }}>
+              <p style={{ fontSize: 12, color: "rgba(0,0,0,0.45)" }}>No income logged today</p>
+            </div>
+          )}
         </div>
       </div>
-    ),
+      );
+    },
   },
   {
     id: "money-out", label: "Money Out Today (Card)", color: "var(--surface)", size: "half",
     preview: () => statPreview("var(--peach-dk)", "Money Out Today", "-$52", "Whole Foods Market"),
-    render: () => (
+    render: () => {
+      const { store, summary: s } = widgetLive();
+      const today = todayISO();
+      const outflows = store.transactions
+        .filter((t) => t.dateISO === today && t.amount < 0 && flowForTransactionType(store, t.type) !== "transfer")
+        .sort((a, b) => Math.abs(b.amount) - Math.abs(a.amount));
+      const top = outflows[0];
+      return (
       <div style={{ display: "flex", flexDirection: "column", height: "100%" }}>
         <p style={{ fontSize: 11, fontWeight: 600, color: "rgba(0,0,0,0.5)", marginBottom: 6, textTransform: "uppercase", letterSpacing: "0.16em" }}>Money Out Today</p>
-        <p style={{ fontSize: 42, fontWeight: 400, color: "var(--peach-dk)", letterSpacing: "-2px", lineHeight: 1 }}>-$52</p>
+        <p style={{ fontSize: 42, fontWeight: 400, color: "var(--peach-dk)", letterSpacing: "-2px", lineHeight: 1 }}>-{usd(s.moneyOutToday)}</p>
         <p style={{ fontSize: 12, color: "rgba(0,0,0,0.5)", marginTop: 6 }}>Expenses paid today</p>
         <div style={{ marginTop: "auto", paddingTop: 16 }}>
-          <div style={{ display: "flex", alignItems: "center", gap: 10, padding: "9px 0", borderTop: "1px solid rgba(0,0,0,0.08)" }}>
-            <span style={{ fontSize: 16 }}>🛒</span>
-            <div style={{ flex: 1 }}><p style={{ fontSize: 12, fontWeight: 500, color: "var(--ink)" }}>Whole Foods Market</p><p style={{ fontSize: 10, color: "rgba(0,0,0,0.4)" }}>Today · Groceries</p></div>
-            <span style={{ fontSize: 13, fontWeight: 600, color: "var(--peach-dk)", fontFamily: "var(--font-sans)" }}>-$52</span>
-          </div>
+          {top ? (
+            <div style={{ display: "flex", alignItems: "center", gap: 10, padding: "9px 0", borderTop: "1px solid rgba(0,0,0,0.08)" }}>
+              <span style={{ fontSize: 16 }}>{top.icon || "🛒"}</span>
+              <div style={{ flex: 1 }}><p style={{ fontSize: 12, fontWeight: 500, color: "var(--ink)" }}>{top.desc}</p><p style={{ fontSize: 10, color: "rgba(0,0,0,0.4)" }}>Today · {top.category}</p></div>
+              <span style={{ fontSize: 13, fontWeight: 600, color: "var(--peach-dk)", fontFamily: "var(--font-sans)" }}>-{usd(Math.abs(top.amount))}</span>
+            </div>
+          ) : (
+            <div style={{ padding: "9px 0", borderTop: "1px solid rgba(0,0,0,0.08)" }}>
+              <p style={{ fontSize: 12, color: "rgba(0,0,0,0.45)" }}>No expenses logged today</p>
+            </div>
+          )}
         </div>
       </div>
-    ),
+      );
+    },
   },
   {
     id: "monthly-net", label: "Monthly Net Cash Flow", color: "var(--clear)", size: "half",
     preview: () => statPreview("var(--lime-dk)", "Monthly Net Cash Flow", "+$2,450", "In $3,150 · Out $700"),
-    render: () => (
+    render: () => {
+      const { summary: s } = widgetLive();
+      const net = s.monthlyIncome - s.monthlyExpenses;
+      const positive = net >= 0;
+      return (
       <div style={{ display: "flex", flexDirection: "column", height: "100%" }}>
         <p style={{ fontSize: 11, fontWeight: 600, color: "rgba(0,0,0,0.5)", marginBottom: 6, textTransform: "uppercase", letterSpacing: "0.16em" }}>Monthly Net Cash Flow</p>
-        <p style={{ fontSize: 42, fontWeight: 400, color: "var(--lime-dk)", letterSpacing: "-2px", lineHeight: 1 }}>+$2,450</p>
-        <p style={{ fontSize: 12, color: "rgba(0,0,0,0.5)", marginTop: 6 }}>September net so far</p>
+        <p style={{ fontSize: 42, fontWeight: 400, color: positive ? "var(--lime-dk)" : "var(--peach-dk)", letterSpacing: "-2px", lineHeight: 1 }}>{signedUsd(net)}</p>
+        <p style={{ fontSize: 12, color: "rgba(0,0,0,0.5)", marginTop: 6 }}>{monthLabel()} net so far</p>
         <div style={{ marginTop: "auto", paddingTop: 16, display: "flex", gap: 12 }}>
           <div style={{ flex: 1 }}>
             <p style={{ fontSize: 10, color: "rgba(0,0,0,0.45)", marginBottom: 3 }}>Income</p>
-            <p style={{ fontSize: 16, fontWeight: 400, color: "var(--lime-dk)", fontFamily: "var(--font-sans)" }}>+$3,150</p>
+            <p style={{ fontSize: 16, fontWeight: 400, color: "var(--lime-dk)", fontFamily: "var(--font-sans)" }}>+{usd(s.monthlyIncome)}</p>
           </div>
           <div style={{ flex: 1 }}>
             <p style={{ fontSize: 10, color: "rgba(0,0,0,0.45)", marginBottom: 3 }}>Expenses</p>
-            <p style={{ fontSize: 16, fontWeight: 400, color: "var(--peach-dk)", fontFamily: "var(--font-sans)" }}>-$700</p>
+            <p style={{ fontSize: 16, fontWeight: 400, color: "var(--peach-dk)", fontFamily: "var(--font-sans)" }}>-{usd(s.monthlyExpenses)}</p>
           </div>
         </div>
       </div>
-    ),
+      );
+    },
   },
   {
     id: "budget-remaining", label: "Budget Health", color: "var(--surface)", size: "half",
@@ -674,12 +735,22 @@ const ALL_WIDGETS: WidgetDef[] = [
     preview: () => statPreview("var(--lav-dk)", "Next Paycheck", "Sept 15", "$2,800 · 2 days away"),
     render: () => {
       const { store } = widgetLive();
-      const nextIncome = store.transactions
+      const now = new Date();
+      const fromStreams = (store.incomeStreams ?? [])
+        .map((stream) => {
+          const next = nextIncomeOccurrenceOnOrAfter(stream, now);
+          return next
+            ? { desc: stream.name, amount: stream.amount, dateISO: next, source: "stream" as const }
+            : null;
+        })
+        .filter((x): x is NonNullable<typeof x> => x != null);
+      const fromTx = store.transactions
         .filter((t) => t.type === "income" && t.dateISO >= todayISO())
-        .sort((a, b) => a.dateISO.localeCompare(b.dateISO))[0];
+        .map((t) => ({ desc: t.desc, amount: Math.abs(t.amount), dateISO: t.dateISO, source: "tx" as const }));
+      const nextIncome = [...fromStreams, ...fromTx].sort((a, b) => a.dateISO.localeCompare(b.dateISO))[0];
       const payDate = nextIncome ? new Date(`${nextIncome.dateISO}T12:00:00`) : null;
       const payLabel = payDate ? payDate.toLocaleDateString("en-US", { month: "short", day: "numeric" }) : "—";
-      const payAmt = nextIncome ? Math.abs(nextIncome.amount) : 0;
+      const payAmt = nextIncome ? nextIncome.amount : 0;
       const balanceAfterPay = nextIncome
         ? endingBalanceOnDate(store, nextIncome.dateISO)
         : endingBalanceOnDate(store, todayISO());
