@@ -1188,6 +1188,451 @@ html, body, #root {
   }
 }
 
+/* ─── Splash / marketing entry ───────────────────────────────────────────── */
+
+.fety-splash {
+  min-height: 100%;
+  display: flex;
+  flex-direction: column;
+  background:
+    radial-gradient(120% 80% at 100% 0%, rgba(228, 255, 63, 0.22) 0%, transparent 55%),
+    radial-gradient(90% 70% at 0% 100%, rgba(145, 216, 182, 0.28) 0%, transparent 50%),
+    linear-gradient(165deg, #f7f6f3 0%, #fafaf9 42%, #eef2ec 100%);
+  color: var(--ink);
+  overflow-x: hidden;
+}
+
+.fety-splash-nav {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 18px 28px;
+  padding-top: calc(18px + env(safe-area-inset-top, 0px));
+  position: relative;
+  z-index: 2;
+}
+
+.fety-splash-nav .fety-logo-word {
+  display: inline;
+}
+
+.fety-splash-nav-actions {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.fety-splash-link {
+  border: none;
+  background: transparent;
+  font-family: var(--font-mono);
+  font-size: 12px;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--ink-2);
+  cursor: pointer;
+  padding: 8px 10px;
+}
+
+.fety-splash-btn-primary {
+  border: none;
+  background: var(--ink);
+  color: #fff;
+  font-family: var(--font-sans);
+  font-size: 14px;
+  font-weight: 600;
+  padding: 10px 18px;
+  border-radius: 8px;
+  cursor: pointer;
+  transition: transform 0.2s ease, background 0.2s ease;
+}
+
+.fety-splash-btn-primary:hover {
+  background: #222;
+  transform: translateY(-1px);
+}
+
+.fety-splash-btn-ghost {
+  border: 1px solid var(--ink);
+  background: transparent;
+  color: var(--ink);
+  font-family: var(--font-sans);
+  font-size: 14px;
+  font-weight: 600;
+  padding: 10px 18px;
+  border-radius: 8px;
+  cursor: pointer;
+  transition: background 0.2s ease, transform 0.2s ease;
+}
+
+.fety-splash-btn-ghost:hover {
+  background: rgba(17, 17, 17, 0.05);
+  transform: translateY(-1px);
+}
+
+.fety-splash-btn-lg {
+  padding: 14px 22px;
+  font-size: 15px;
+}
+
+.fety-splash-hero {
+  flex: 1;
+  display: grid;
+  grid-template-columns: minmax(0, 1.05fr) minmax(0, 0.95fr);
+  gap: 40px;
+  align-items: center;
+  min-height: calc(100vh - 72px);
+  min-height: calc(100dvh - 72px);
+  padding: 24px 48px 48px;
+  position: relative;
+}
+
+.fety-splash-hero-copy {
+  max-width: 540px;
+  animation: fety-splash-rise 0.7s ease-out both;
+}
+
+.fety-splash-brand {
+  font-family: var(--font-mark);
+  font-size: clamp(56px, 9vw, 96px);
+  line-height: 0.9;
+  color: var(--ink);
+  margin: 0 0 18px;
+  letter-spacing: 0.02em;
+}
+
+.fety-splash-headline {
+  font-family: var(--font-sans);
+  font-size: clamp(28px, 4.2vw, 44px);
+  font-weight: 600;
+  letter-spacing: -0.035em;
+  line-height: 1.1;
+  margin: 0 0 14px;
+  color: var(--ink);
+}
+
+.fety-splash-lede {
+  font-size: clamp(15px, 1.6vw, 18px);
+  line-height: 1.55;
+  color: var(--ink-2);
+  margin: 0 0 28px;
+  max-width: 38ch;
+}
+
+.fety-splash-cta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+}
+
+.fety-splash-hero-visual {
+  position: relative;
+  min-height: 360px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  animation: fety-splash-rise 0.85s ease-out 0.12s both;
+}
+
+.fety-splash-orbit {
+  position: absolute;
+  border-radius: 50%;
+  pointer-events: none;
+}
+
+.fety-splash-orbit-a {
+  width: min(92%, 420px);
+  aspect-ratio: 1;
+  background: radial-gradient(circle at 35% 30%, rgba(228, 255, 63, 0.55), transparent 62%);
+  animation: fety-splash-drift 12s ease-in-out infinite alternate;
+}
+
+.fety-splash-orbit-b {
+  width: min(70%, 300px);
+  aspect-ratio: 1;
+  right: 8%;
+  bottom: 10%;
+  background: radial-gradient(circle at 60% 60%, rgba(145, 216, 182, 0.5), transparent 65%);
+  animation: fety-splash-drift 10s ease-in-out 1s infinite alternate-reverse;
+}
+
+.fety-splash-ledger {
+  position: relative;
+  z-index: 1;
+  width: min(100%, 340px);
+  padding: 22px 20px;
+  background: rgba(255, 255, 255, 0.72);
+  backdrop-filter: blur(10px);
+  border: 1px solid rgba(17, 17, 17, 0.08);
+  border-radius: 16px;
+  box-shadow: 0 24px 60px rgba(17, 17, 17, 0.08);
+  animation: fety-splash-float 5.5s ease-in-out infinite;
+}
+
+.fety-splash-ledger-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: 16px;
+  padding: 10px 0;
+  font-size: 14px;
+  color: var(--ink-2);
+  border-bottom: 1px solid var(--border-soft);
+}
+
+.fety-splash-ledger-row--head {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--ink-3);
+  padding-top: 0;
+  border-bottom-color: var(--border);
+}
+
+.fety-splash-ledger-row--total {
+  border-bottom: none;
+  padding-bottom: 0;
+  margin-top: 4px;
+  font-size: 18px;
+  font-weight: 600;
+  color: var(--ink);
+  letter-spacing: -0.02em;
+}
+
+.fety-splash-pos {
+  color: var(--clear-dk);
+  font-variant-numeric: tabular-nums;
+}
+
+.fety-splash-neg {
+  color: var(--trouble-dk);
+  font-variant-numeric: tabular-nums;
+}
+
+.fety-splash-features {
+  padding: 64px 48px 40px;
+  border-top: 1px solid rgba(17, 17, 17, 0.06);
+  background: rgba(255, 255, 255, 0.35);
+}
+
+.fety-splash-features-title {
+  font-size: clamp(22px, 3vw, 30px);
+  font-weight: 600;
+  letter-spacing: -0.03em;
+  margin: 0 0 10px;
+  max-width: 20ch;
+}
+
+.fety-splash-features-sub {
+  font-size: 15px;
+  color: var(--ink-2);
+  margin: 0 0 36px;
+  max-width: 42ch;
+  line-height: 1.5;
+}
+
+.fety-splash-feature-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 28px 40px;
+  max-width: 920px;
+}
+
+.fety-splash-feature h3 {
+  font-size: 16px;
+  font-weight: 600;
+  margin: 0 0 8px;
+  letter-spacing: -0.02em;
+}
+
+.fety-splash-feature p {
+  margin: 0;
+  font-size: 14px;
+  line-height: 1.55;
+  color: var(--ink-2);
+  max-width: 36ch;
+}
+
+.fety-splash-footer {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 28px 48px calc(28px + env(safe-area-inset-bottom, 0px));
+  border-top: 1px solid rgba(17, 17, 17, 0.06);
+}
+
+.fety-splash-footer p {
+  margin: 0;
+  font-size: 13px;
+  color: var(--ink-3);
+}
+
+.fety-splash-login {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  max-width: 420px;
+  width: 100%;
+  margin: 0 auto;
+  padding: 32px 24px calc(40px + env(safe-area-inset-bottom, 0px));
+  animation: fety-splash-rise 0.45s ease-out both;
+}
+
+.fety-splash-login-title {
+  font-size: 32px;
+  font-weight: 600;
+  letter-spacing: -0.03em;
+  margin: 0 0 10px;
+}
+
+.fety-splash-login-lede {
+  font-size: 15px;
+  line-height: 1.5;
+  color: var(--ink-2);
+  margin: 0 0 28px;
+}
+
+.fety-splash-login-form {
+  display: grid;
+  gap: 16px;
+}
+
+.fety-splash-field {
+  display: grid;
+  gap: 6px;
+}
+
+.fety-splash-field input {
+  width: 100%;
+  padding: 12px 14px;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: rgba(255, 255, 255, 0.85);
+  font-family: var(--font-sans);
+  font-size: 15px;
+  color: var(--ink);
+}
+
+.fety-splash-field input:focus {
+  outline: 2px solid rgba(17, 17, 17, 0.2);
+  outline-offset: 1px;
+}
+
+.fety-splash-login-note {
+  margin: 0;
+  padding: 12px 14px;
+  border-radius: 10px;
+  background: rgba(228, 255, 63, 0.28);
+  border: 1px solid rgba(110, 124, 0, 0.2);
+  font-size: 13px;
+  line-height: 1.45;
+  color: var(--ink-2);
+}
+
+@keyframes fety-splash-rise {
+  from {
+    opacity: 0;
+    transform: translateY(16px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes fety-splash-float {
+  0%,
+  100% {
+    transform: translateY(0);
+  }
+  50% {
+    transform: translateY(-10px);
+  }
+}
+
+@keyframes fety-splash-drift {
+  from {
+    transform: translate(0, 0) scale(1);
+  }
+  to {
+    transform: translate(12px, -16px) scale(1.04);
+  }
+}
+
+@media (max-width: 900px) {
+  .fety-splash-hero {
+    grid-template-columns: 1fr;
+    min-height: auto;
+    padding: 12px 20px 40px;
+    gap: 28px;
+  }
+
+  .fety-splash-hero-visual {
+    min-height: 240px;
+  }
+
+  .fety-splash-brand {
+    font-size: clamp(52px, 16vw, 72px);
+  }
+
+  .fety-splash-features {
+    padding: 40px 20px 28px;
+  }
+
+  .fety-splash-feature-list {
+    grid-template-columns: 1fr;
+    gap: 22px;
+  }
+
+  .fety-splash-footer {
+    padding: 24px 20px calc(24px + env(safe-area-inset-bottom, 0px));
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .fety-splash-footer .fety-splash-btn-primary {
+    width: 100%;
+  }
+}
+
+@media (max-width: 768px) {
+  .fety-splash-nav {
+    padding: 14px 16px;
+    padding-top: calc(14px + env(safe-area-inset-top, 0px));
+  }
+
+  .fety-splash-cta {
+    flex-direction: column;
+  }
+
+  .fety-splash-cta .fety-splash-btn-primary,
+  .fety-splash-cta .fety-splash-btn-ghost {
+    width: 100%;
+  }
+
+  .fety-splash-ledger {
+    width: min(100%, 300px);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .fety-splash-hero-copy,
+  .fety-splash-hero-visual,
+  .fety-splash-login,
+  .fety-splash-ledger,
+  .fety-splash-orbit-a,
+  .fety-splash-orbit-b {
+    animation: none;
+  }
+}
+
 ::-webkit-scrollbar { width: 4px; height: 4px; }
 ::-webkit-scrollbar-track { background: transparent; }
 ::-webkit-scrollbar-thumb { background: var(--border); border-radius: var(--radius-track); }

@@ -21,6 +21,7 @@ import {
   NetWorthManageView,
 } from "./views/ManageViews";
 import { OnboardingView } from "./views/OnboardingView";
+import SplashView from "./views/SplashView";
 import {
   AreaChart, Area, BarChart, Bar,
   XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer,
@@ -2294,6 +2295,8 @@ export default function App() {
   const [chatCollapsed, setChatCollapsed] = useState(false);
   const [pickerOpen, setPickerOpen] = useState(false);
   const [chatProcessing, setChatProcessing] = useState(false);
+  /** Shown before onboarding for first-time users. */
+  const [showSplash, setShowSplash] = useState(true);
   const pendingConfirmations = useRef<Map<string, ToolAction>>(new Map());
 
   const pinned = store.pinnedWidgets;
@@ -2455,7 +2458,10 @@ export default function App() {
             onUpdateProfile={updateProfile}
             onReset={resetAll}
             onRestartSetup={() => {
-              if (confirm("Clear all data and run setup again? This cannot be undone.")) startFreshSetup();
+              if (confirm("Clear all data and run setup again? This cannot be undone.")) {
+                startFreshSetup();
+                setShowSplash(true);
+              }
             }}
           />
         );
@@ -2491,6 +2497,9 @@ export default function App() {
   };
 
   if (!store.onboardingCompleted) {
+    if (showSplash) {
+      return <SplashView onSignUp={() => setShowSplash(false)} />;
+    }
     return (
       <>
         <OnboardingView

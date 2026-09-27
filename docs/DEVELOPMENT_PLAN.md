@@ -1,6 +1,24 @@
 # Fety development plan
 
-Living backlog aligned with the Conversational Assistant PRD (Phase 1–4). Items marked **Later** are agreed scope but not scheduled for the current sprint.
+Prioritized backlog for product work. Ordered **easiest → hardest** so early items can ship as complete workflow slices while harder foundations wait for the right dependencies.
+
+## Priority order (easiest first)
+
+| # | Item | Why this order | Depends on |
+|---|------|----------------|------------|
+| **1** | Create splash page (features + sign up / login) | Self-contained marketing/entry UI; no backend; clear done criteria | None |
+| **2** | Improve mobile view | Mostly CSS/layout polish on surfaces that already exist; can ship in small passes | Splash (#1) should be included in mobile QA |
+| **3** | Curate and fix widgets | Bounded UI/data cleanup once dashboard is usable on mobile | Mobile pass (#2) helps validate |
+| **4** | Improve wizard setup UI & visuals | Larger existing surface (`OnboardingView`); visual redesign after entry flow feels right | Splash → wizard path (#1) |
+| **5** | Build Chatless version for Etsy | Feature-flag / packaging cut of chat; product decision + build variant | Stable core UX (#2–4) |
+| **6** | Make the app work as a retroactive cash flow system | Core domain correctness (ledger, schedules, as-of balances); higher risk | Widget/cash-flow UX (#3) |
+| **7** | Secure the system | Auth boundaries, input validation, threat model for money data | Real accounts imply auth (#8–9) |
+| **8** | Integrate AI into layered chat (premium) | PRD Phases 2–3 (local model + cloud fallback); needs stable tool layer | Phase 1 assistant already shipped |
+| **9** | Add database | Persistence, sync, multi-device; largest architecture jump | Security (#7) designed with it |
+
+## Current sprint focus
+
+**#1 Splash page** — entry screen before onboarding with brand hero, feature summary, and Sign up / Log in CTAs. Log in is UI-ready; cloud accounts land with security + database work.
 
 ## Done (recent)
 
@@ -13,7 +31,7 @@ Living backlog aligned with the Conversational Assistant PRD (Phase 1–4). Item
 | Phase | Goal | Status |
 |-------|------|--------|
 | **1** | Tool system without AI | **Shipped** |
-| **2** | Local lightweight model (WebLLM / schema intents) | Not started |
+| **2** | Local lightweight model (WebLLM / schema intents) | Not started — backlog #8 |
 | **3** | Cloud fallback (OpenRouter, server proxy, minimal context) | Not started — blocked on OpenRouter account |
 | **4** | Routing metrics, optimization | Not started |
 
