@@ -589,7 +589,38 @@ html, body, #root {
 }
 
 .fety-widget-row-grid {
+  flex: 1;
   min-width: 0;
+  display: grid;
+  grid-template-columns: repeat(6, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.fety-widget-cell {
+  min-width: 0;
+}
+
+.fety-widget-cell--small {
+  grid-column: span 2;
+}
+
+.fety-widget-cell--half {
+  grid-column: span 3;
+  min-height: 160px;
+}
+
+.fety-widget-cell--full {
+  grid-column: span 6;
+}
+
+.fety-widget-chart {
+  width: 100%;
+}
+
+.fety-widget-breakdown {
+  display: flex;
+  gap: 20px;
+  align-items: center;
 }
 
 .fety-row-drag-handle {
@@ -610,12 +641,6 @@ html, body, #root {
 .fety-row-drag-handle:active {
   cursor: grabbing;
 }
-
-.fety-widget-cell {
-  min-width: 0;
-}
-
-/* ─── Setup / onboarding ─────────────────────────────────────────────────── */
 
 .fety-onboarding {
   min-height: 100dvh;
@@ -748,33 +773,6 @@ html, body, #root {
   min-width: 0;
   overflow-x: auto;
   -webkit-overflow-scrolling: touch;
-}
-
-/* Smaller desktop / tablet: stack compact tiles; full-width as large tiles */
-@media (max-width: 1024px) {
-  .fety-widget-row-grid {
-    grid-template-columns: 1fr !important;
-    gap: 10px !important;
-  }
-
-  .fety-widget-cell--small,
-  .fety-widget-cell--half {
-    grid-column: 1 / -1 !important;
-  }
-
-  .fety-widget-cell--full {
-    grid-column: 1 / -1 !important;
-    aspect-ratio: 1 / 1;
-    max-height: min(56vw, 380px);
-    overflow: hidden;
-  }
-}
-
-@media (max-width: 1024px) and (orientation: landscape) {
-  .fety-widget-cell--full {
-    aspect-ratio: 5 / 4;
-    max-height: min(42vh, 360px);
-  }
 }
 
 @media (max-width: 1280px) {
@@ -1158,18 +1156,31 @@ html, body, #root {
 
   .fety-widget-row-grid {
     grid-template-columns: 1fr !important;
+    gap: 10px !important;
   }
 
   .fety-widget-cell--small,
   .fety-widget-cell--half,
   .fety-widget-cell--full {
     grid-column: 1 / -1 !important;
+    min-height: 0;
+    max-height: none;
+    aspect-ratio: unset;
+    overflow: visible;
+  }
+
+  .fety-widget-cell--half {
+    min-height: 140px;
   }
 
   .fety-widget-cell--full {
-    aspect-ratio: 1 / 1;
-    max-height: min(88vw, 440px);
-    overflow: hidden;
+    min-height: 0;
+  }
+
+  .fety-widget-breakdown {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 14px;
   }
 
   .fety-row-drag-handle {

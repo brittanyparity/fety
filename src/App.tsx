@@ -540,7 +540,7 @@ const ALL_WIDGETS: WidgetDef[] = [
       return (
       <div>
         <p style={{ fontSize: 12, fontWeight: 600, color: "var(--ink)", marginBottom: 16 }}>Where Your Money Is Going</p>
-        <div style={{ display: "flex", gap: 20, alignItems: "center" }}>
+        <div className="fety-widget-breakdown">
           <ResponsiveContainer width={110} height={110}>
             <PieChart><Pie data={donutLive.length ? donutLive : [{ name: "None", value: 100 }]} dataKey="value" innerRadius={32} outerRadius={52} paddingAngle={2} startAngle={90} endAngle={-270}>{(donutLive.length ? donutLive : [{ name: "None", value: 100 }]).map((_, i) => <Cell key={i} fill={DONUT_COLORS[i % DONUT_COLORS.length]}/>)}</Pie></PieChart>
           </ResponsiveContainer>
@@ -2019,11 +2019,15 @@ function DashboardView({
     setPinned((prev) => reorderWidgetRespectingLocks(prev, lockedWidgets, fromId, beforeId));
   };
 
-  const colSpan = (size: WidgetDef["size"]) =>
-    size === "full" ? "span 6" : size === "half" ? "span 3" : "span 2";
 
   const minH = (size: WidgetDef["size"]) =>
-    size === "small" ? 80 : size === "half" ? 160 : undefined;
+    size === "small" ? 80 : undefined;
+
+  const widgetCellClass = (w: WidgetDef) => {
+    const chart =
+      w.id === "balance-chart" || w.id === "monthly-spend-chart" ? " fety-widget-chart" : "";
+    return `fety-widget-cell fety-widget-cell--${w.size}${chart}`;
+  };
 
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
@@ -2093,16 +2097,7 @@ function DashboardView({
                     </svg>
                   </div>
                 )}
-                <div
-                  className="fety-widget-row-grid"
-                  style={{
-                    flex: 1,
-                    display: "grid",
-                    gridTemplateColumns: "repeat(6, 1fr)",
-                    gap: 12,
-                    minWidth: 0,
-                  }}
-                >
+                <div className="fety-widget-row-grid">
                 {rowIds.map((id) => {
                   const w = byId.get(id);
                   if (!w) return null;
@@ -2114,7 +2109,7 @@ function DashboardView({
                   return (
                     <div
                       key={w.id}
-                      className={`fety-widget-cell fety-widget-cell--${w.size}`}
+                      className={widgetCellClass(w)}
                       draggable={canDragWidget}
                       onDragStart={(e) => {
                         if (!canDragWidget) return;
@@ -2145,7 +2140,6 @@ function DashboardView({
                         setOverWidgetId(null);
                       }}
                       style={{
-                        gridColumn: colSpan(w.size),
                         background: w.color === "var(--surface)" ? "var(--surface)" : w.color,
                         borderRadius: "var(--radius-card)",
                         padding: w.size === "small" ? "14px 16px" : "20px 22px",
