@@ -1,4 +1,10 @@
-import type { FinancialAnalysis, FinancialInsight } from "../types/analysis";
+import type {
+  AnalysisTourStep,
+  FinancialAnalysis,
+  FinancialInsight,
+  FinancialTip,
+  FetyActionTarget,
+} from "../types/analysis";
 import type { Bill, FetyStore, IncomeStream, RecurringTransaction } from "../types/fety";
 import { computeSummary } from "./fetyCalculations";
 import { formatUsd, monthlyFromFrequency } from "./scheduleAmounts";
@@ -50,6 +56,11 @@ function formatDayList(days: number[]): string {
   return `the ${head}, and ${ordinal(days[days.length - 1])}`;
 }
 
+function categoryIdByName(store: FetyStore, name: string): string | undefined {
+  const needle = name.trim().toLowerCase();
+  return store.categories.find((c) => c.name.trim().toLowerCase() === needle)?.id;
+}
+
 function topInsights(insights: FinancialInsight[], limit = 5): FinancialInsight[] {
   return insights
     .slice()
@@ -57,7 +68,11 @@ function topInsights(insights: FinancialInsight[], limit = 5): FinancialInsight[
     .slice(0, limit);
 }
 
-/** Deterministic insights from the Fety store. Values come from scheduled items plus `computeSummary`. */
+function budgetAction(store: FetyStore, categoryName: string): FetyActionTarget {
+  return { type: "budget", categoryId: categoryIdByName(store, categoryName), categoryName };
+}
+
+/** Deterministic insights and tips from the Fety store. Numbers come from schedules plus `computeSummary`. */
 export function analyzeStore(store: FetyStore, ref = new Date()): FinancialAnalysis {
   const summary = computeSummary(store, ref);
   const streams = store.incomeStreams ?? [];
@@ -104,7 +119,15 @@ export function analyzeStore(store: FetyStore, ref = new Date()): FinancialAnaly
       value: spendTotal > 0 ? Math.round((monthly / spendTotal) * 100) : 0,
     }));
 
+  const topFlex = [...flexibleByCategory.entries()].sort((a, b) => b[1] - a[1])[0];
+  const largestBill = bills
+    .map((b) => ({ bill: b, monthly: billMonthly(b) }))
+    .sort((a, b) => b.monthly - a.monthly)[0];
+  const obligationShare =
+    expectedMonthlyIncome > 0 ? regularObligations / expectedMonthlyIncome : 0;
+
   const insights: FinancialInsight[] = [];
+  const tips: FinancialTip[] = [];
 
   if (missing.income && missing.obligations && missing.flexible) {
     insights.push({
@@ -115,8 +138,9 @@ export function analyzeStore(store: FetyStore, ref = new Date()): FinancialAnaly
       explanation:
         "I need a little more information before I can tell you where your money is going. Add income or regular expenses whenever you're ready.",
       supportingData: { missing },
-      actionLabel: "Add income",
-      actionTarget: "budget",
+      dashboardTarget: "snapshot",
+      actionLabel: "Open budget",
+      action: { type: "budget" },
     });
   } else if (missing.flexible && !missing.income && !missing.obligations) {
     insights.push({
@@ -127,6 +151,7 @@ export function analyzeStore(store: FetyStore, ref = new Date()): FinancialAnaly
       explanation:
         "I have enough information to show your regular cash flow. You can add everyday spending later to make this analysis more complete.",
       supportingData: { missing },
+      dashboardTarget: "snapshot",
     });
   }
 
@@ -141,6 +166,9 @@ export function analyzeStore(store: FetyStore, ref = new Date()): FinancialAnaly
           : "Here's how money comes in",
       explanation: `${qualifier}, you bring in about ${formatUsd(expectedMonthlyIncome)} a month.`,
       supportingData: { expectedMonthlyIncome, incomeStreamCount: streams.length },
+      dashboardTarget: "snapshot-income",
+      actionLabel: "Review income",
+      action: { type: "budget" },
     });
   }
 
@@ -151,15 +179,13 @@ export function analyzeStore(store: FetyStore, ref = new Date()): FinancialAnaly
       priority: 3,
       title: "Your regular expenses are on the calendar",
       explanation: `You have about ${formatUsd(regularObligations)} in regular expenses each month.`,
-      supportingData: { regularObligations, billCount: bills.length },
-      actionLabel: "View calendar",
-      actionTarget: "calendar",
+      supportingData: { regularObligations, billCount: bills.length, obligationShare },
+      dashboardTarget: "snapshot-obligations",
+      actionLabel: "Review bills",
+      action: { type: "bills" },
     });
   }
 
-  const largestBill = bills
-    .map((b) => ({ bill: b, monthly: billMonthly(b) }))
-    .sort((a, b) => b.monthly - a.monthly)[0];
   if (largestBill && largestBill.monthly > 0) {
     const share =
       regularObligations > 0 ? Math.round((largestBill.monthly / regularObligations) * 100) : 0;
@@ -174,33 +200,30 @@ export function analyzeStore(store: FetyStore, ref = new Date()): FinancialAnaly
           ? `${label} is about ${share}% of your recurring spending.`
           : `${label} is the biggest regular payment you entered.`,
       supportingData: { name: largestBill.bill.name, category: label, monthly: largestBill.monthly, share },
-      actionLabel: "View spending",
-      actionTarget: "spending",
+      dashboardTarget: "widget-next-paycheck",
+      actionLabel: "View calendar",
+      action: { type: "calendar" },
     });
   }
 
-  if (flexibleSpending > 0) {
-    const topFlex = [...flexibleByCategory.entries()].sort((a, b) => b[1] - a[1])[0];
-    const names = topFlex
-      ? topFlex[0]
-      : recurring
-          .slice(0, 2)
-          .map((r) => r.name)
-          .join(" and ");
+  if (flexibleSpending > 0 && topFlex) {
     insights.push({
       id: "flexible-spending",
       type: "spending_pattern",
       priority: 5,
-      title: `${names} add up`,
-      explanation: `You spend about ${formatUsd(flexibleSpending)} a month on everyday purchases. Dining, coffee, and similar habits are one area where you may have room to adjust spending.`,
-      supportingData: { flexibleSpending, topCategory: topFlex?.[0], topMonthly: topFlex?.[1] },
-      actionLabel: "Explore spending",
-      actionTarget: "spending",
+      title: `${topFlex[0]} is one of your larger flexible expenses`,
+      explanation: `You currently spend about ${formatUsd(topFlex[1])} a month on ${topFlex[0]}. If you'd like to create more room in your budget, this is one option — not a requirement.`,
+      supportingData: { flexibleSpending, topCategory: topFlex[0], topMonthly: topFlex[1] },
+      dashboardTarget: "widget-spending-breakdown",
+      actionLabel: `Adjust ${topFlex[0]} budget`,
+      action: budgetAction(store, topFlex[0]),
     });
   }
 
   const payDays = incomePayDays(streams);
-  const billDays = uniqueDays(bills.filter((b) => b.frequency === "monthly" || b.frequency === "quarterly").map((b) => b.dueDay));
+  const billDays = uniqueDays(
+    bills.filter((b) => b.frequency === "monthly" || b.frequency === "quarterly").map((b) => b.dueDay),
+  );
   if (payDays.length > 0) {
     const earlyBills = billDays.filter((d) => d <= 7).length;
     insights.push({
@@ -213,8 +236,9 @@ export function analyzeStore(store: FetyStore, ref = new Date()): FinancialAnaly
           ? `Your cash flow may be easier to understand using the calendar. Most of your large bills arrive during the first week.`
           : `Your cash flow may be easier to understand using the calendar — it shows when money comes in and when expenses happen.`,
       supportingData: { payDays, billDays },
-      actionLabel: "View calendar",
-      actionTarget: "calendar",
+      dashboardTarget: "widget-balance-chart",
+      actionLabel: "Review monthly cash flow",
+      action: { type: "calendar" },
     });
   }
 
@@ -227,8 +251,9 @@ export function analyzeStore(store: FetyStore, ref = new Date()): FinancialAnaly
       title: `${nextBill.name} is on your regular schedule`,
       explanation: `${nextBill.name} is due around the ${ordinal(nextBill.dueDay)} each cycle.`,
       supportingData: { name: nextBill.name, dueDay: nextBill.dueDay },
+      dashboardTarget: "widget-next-paycheck",
       actionLabel: "View calendar",
-      actionTarget: "calendar",
+      action: { type: "calendar" },
     });
   }
 
@@ -240,8 +265,9 @@ export function analyzeStore(store: FetyStore, ref = new Date()): FinancialAnaly
       title: "Regular expenses are higher than income right now",
       explanation: `${qualifier}, regular expenses are about ${formatUsd(regularObligations)} versus about ${formatUsd(expectedMonthlyIncome)} coming in. This is a place to look first — not a judgment, just the picture so far.`,
       supportingData: { regularObligations, expectedMonthlyIncome },
-      actionLabel: "Review budget",
-      actionTarget: "budget",
+      dashboardTarget: "snapshot",
+      actionLabel: "Review recurring expenses",
+      action: { type: "bills" },
     });
   }
 
@@ -253,12 +279,68 @@ export function analyzeStore(store: FetyStore, ref = new Date()): FinancialAnaly
       priority: 7,
       title: `You could put leftover cash toward ${goal.name}`,
       explanation: `You could potentially direct part of your remaining cash toward your ${formatUsd(goal.target)} ${goal.name.toLowerCase()} goal.`,
-      supportingData: { goalName: goal.name, target: goal.target, estimatedAvailable },
-      actionLabel: "See goals",
-      actionTarget: "goals",
+      supportingData: { goalName: goal.name, goalId: goal.id, target: goal.target, estimatedAvailable },
+      dashboardTarget: "widget-savings-goal",
+      actionLabel: `Update ${goal.name} contribution`,
+      action: { type: "goals", goalId: goal.id },
     });
   }
 
+  if (topFlex && topFlex[1] >= 40) {
+    const cut = Math.max(10, Math.round(topFlex[1] * 0.15));
+    const yearly = cut * 12;
+    const tip: FinancialTip = {
+      id: "tip-flex-reduce",
+      title: "Create more breathing room",
+      explanation: `You're currently spending about ${formatUsd(topFlex[1])}/month on ${topFlex[0]}. Reducing that by ${formatUsd(cut)} would leave about ${formatUsd(cut)} more each month — roughly ${formatUsd(yearly)} over a year — for saving, bills, or other priorities.`,
+      category: "spending",
+      actionLabel: `Adjust ${topFlex[0]} budget`,
+      action: budgetAction(store, topFlex[0]),
+      relatedInsightId: "flexible-spending",
+    };
+    tips.push(tip);
+    const flexInsight = insights.find((i) => i.id === "flexible-spending");
+    if (flexInsight) flexInsight.tip = tip;
+  }
+
+  if (goal && estimatedAvailable > 0) {
+    const tip: FinancialTip = {
+      id: "tip-goal-room",
+      title: "Point leftover cash at your goal",
+      explanation: `You have about ${formatUsd(estimatedAvailable)} remaining after regular expenses and everyday spending. That room could potentially support ${goal.name}.`,
+      category: "goals",
+      actionLabel: `Update ${goal.name}`,
+      action: { type: "goals", goalId: goal.id },
+      relatedInsightId: "goal-opportunity",
+    };
+    tips.push(tip);
+  }
+
+  if (obligationShare >= 0.5 && expectedMonthlyIncome > 0) {
+    tips.push({
+      id: "tip-obligations-share",
+      title: "Look at what has to go out first",
+      explanation: `Regular expenses account for about ${Math.round(obligationShare * 100)}% of expected income. Reviewing those commitments in one place can make it easier to see where the month is tight.`,
+      category: "organization",
+      actionLabel: "Review recurring expenses",
+      action: { type: "bills" },
+      relatedInsightId: "obligations-summary",
+    });
+  }
+
+  if (payDays.length > 0 && billDays.some((d) => d <= 7)) {
+    tips.push({
+      id: "tip-cash-flow-calendar",
+      title: "Watch the first week of the month",
+      explanation: `Income arrives around ${formatDayList(payDays)}, while several expenses land early in the month. The calendar is a practical way to see that timing.`,
+      category: "cash_flow",
+      actionLabel: "Review monthly cash flow",
+      action: { type: "calendar" },
+      relatedInsightId: "cash-flow-timing",
+    });
+  }
+
+  const rankedInsights = topInsights(insights);
   return {
     expectedMonthlyIncome,
     regularObligations,
@@ -269,6 +351,139 @@ export function analyzeStore(store: FetyStore, ref = new Date()): FinancialAnaly
     qualifier,
     missing,
     categoryShares,
-    insights: topInsights(insights),
+    insights: rankedInsights,
+    tips: tips.slice(0, 4),
   };
+}
+
+export function pageForAction(action: FetyActionTarget): AnalysisTourStep["page"] {
+  if (action.type === "calendar") return "calendar";
+  if (action.type === "goals") return "goals";
+  if (action.type === "spending" || action.type === "transactions") return "spending";
+  if (action.type === "budget" || action.type === "bills") return "budget";
+  return "dashboard";
+}
+
+/** Personalized first-use walkthrough. Omits steps the user's data does not support. */
+export function buildPersonalizedTour(store: FetyStore, analysis: FinancialAnalysis): AnalysisTourStep[] {
+  const steps: AnalysisTourStep[] = [];
+  const firstName = store.profile.displayName.trim().split(/\s+/)[0] || "";
+  const greeting = firstName ? `${firstName}, here's` : "Here's";
+  const topTip = analysis.tips[0];
+  const flexInsight = analysis.insights.find((i) => i.type === "spending_pattern");
+  const goalInsight = analysis.insights.find((i) => i.type === "goal_opportunity");
+  const goal = store.goals[0];
+
+  steps.push({
+    id: "snapshot",
+    title: "Here's what I found",
+    explanation: analysis.missing.income && analysis.missing.obligations
+      ? "Let's start with your dashboard. As you add income and expenses, this snapshot will fill in."
+      : `${greeting} what I found. You have about ${formatUsd(analysis.expectedMonthlyIncome)} coming in each month, with about ${formatUsd(analysis.regularObligations)} going toward regular expenses. That leaves about ${formatUsd(Math.max(0, analysis.expectedMonthlyIncome - analysis.regularObligations))} before everyday spending and other priorities. This snapshot is where you'll keep an eye on that picture.`,
+    page: "dashboard",
+    target: "snapshot",
+  });
+
+  if (!analysis.missing.income) {
+    steps.push({
+      id: "income",
+      title: "Income",
+      explanation:
+        store.incomeStreams && store.incomeStreams.length > 1
+          ? `This is where the income you told me about is reflected — ${store.incomeStreams.length} streams totaling about ${formatUsd(analysis.expectedMonthlyIncome)} a month.`
+          : `This is where the income you told me about is reflected: about ${formatUsd(analysis.expectedMonthlyIncome)} a month.`,
+      page: "dashboard",
+      target: "snapshot-income",
+      relatedInsightId: "income-summary",
+    });
+  }
+
+  if (!analysis.missing.obligations) {
+    steps.push({
+      id: "obligations",
+      title: "Regular expenses",
+      explanation: `These are the expenses you said you need to pay regularly — about ${formatUsd(analysis.regularObligations)} a month.`,
+      page: "dashboard",
+      target: "snapshot-obligations",
+      relatedInsightId: "obligations-summary",
+      action: { type: "bills" },
+    });
+  }
+
+  if (!analysis.missing.flexible && flexInsight) {
+    const cat = String(flexInsight.supportingData.topCategory ?? "everyday spending");
+    steps.push({
+      id: "spending",
+      title: "Where money goes",
+      explanation: `This is where you can see flexible spending. ${cat} is one of your larger everyday categories.`,
+      page: "dashboard",
+      target: "widget-spending-breakdown",
+      relatedInsightId: "flexible-spending",
+      action: { type: "spending", categoryName: cat },
+    });
+  }
+
+  if (store.categories.some((c) => c.monthlyBudget > 0) || flexInsight) {
+    const cat = flexInsight ? String(flexInsight.supportingData.topCategory ?? "") : "";
+    const catId = cat ? categoryIdByName(store, cat) : undefined;
+    steps.push({
+      id: "budget",
+      title: "Budget",
+      explanation: cat
+        ? `You told me that ${cat} is one of your larger flexible expenses. This is your Budget area. You can use it to decide how much you want to allow yourself to spend on ${cat} each month.`
+        : "This is where you can decide how much you want to spend in each category.",
+      page: "budget",
+      target: catId ? `budget-category-${catId}` : "budget-summary",
+      relatedTipId: topTip?.id,
+      action: cat ? budgetAction(store, cat) : { type: "budget" },
+    });
+  }
+
+  if (goal) {
+    steps.push({
+      id: "goals",
+      title: "Goals",
+      explanation: `You told me you want to work toward ${goal.name}. That's what this section is for.${goalInsight ? ` You currently have room in your monthly cash flow that could potentially support it.` : ""}`,
+      page: "goals",
+      target: `goal-${goal.id}`,
+      relatedInsightId: "goal-opportunity",
+      action: { type: "goals", goalId: goal.id },
+    });
+  }
+
+  if (!analysis.missing.income || !analysis.missing.obligations) {
+    steps.push({
+      id: "calendar",
+      title: "Calendar",
+      explanation:
+        "This gives you a time-based view of when money is coming in and going out — often easier than a spreadsheet.",
+      page: "calendar",
+      target: "calendar",
+      relatedInsightId: "cash-flow-timing",
+      action: { type: "calendar" },
+    });
+  }
+
+  steps.push({
+    id: "transactions",
+    title: "Transactions",
+    explanation: "This is where the individual money movements behind these numbers live.",
+    page: "spending",
+    target: "transactions",
+    action: { type: "transactions" },
+  });
+
+  if (topTip) {
+    steps.push({
+      id: "tip",
+      title: topTip.title,
+      explanation: `${topTip.explanation} That's the basic Fety loop: understand what your money is doing, organize it, and make adjustments when you want to.`,
+      page: topTip.action ? pageForAction(topTip.action) : "dashboard",
+      target: "tip-card",
+      relatedTipId: topTip.id,
+      action: topTip.action,
+    });
+  }
+
+  return steps;
 }

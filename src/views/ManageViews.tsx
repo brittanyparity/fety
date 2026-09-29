@@ -262,6 +262,9 @@ export function BudgetManageView({
   onUpdateRecurringTransaction,
   onAddRecurringTransaction,
   onDeleteRecurringTransaction,
+  highlightCategoryId,
+  highlightBills,
+  highlightTarget,
   onAddTransactionType,
   onUpdateTransactionType,
   onDeleteTransactionType,
@@ -303,6 +306,9 @@ export function BudgetManageView({
   ) => void;
   onAddRecurringTransaction: (item: Omit<RecurringTransaction, "id">) => void;
   onDeleteRecurringTransaction: (id: string) => void;
+  highlightCategoryId?: string;
+  highlightBills?: boolean;
+  highlightTarget?: string | null;
   onAddTransactionType: (input: { name: string; icon: string; flow: TransactionFlow }) => void;
   onUpdateTransactionType: (id: string, updates: Partial<Pick<FetyTransactionType, "name" | "icon" | "flow">>) => void;
   onDeleteTransactionType: (id: string) => void;
@@ -323,6 +329,23 @@ export function BudgetManageView({
   const [budgetAddMode, setBudgetAddMode] = useState<"bill" | "income" | "recur" | "type">("bill");
   const [editingCategoryCapId, setEditingCategoryCapId] = useState<string | null>(null);
   const [categoryCapDraft, setCategoryCapDraft] = useState("");
+
+  useEffect(() => {
+    if (!highlightCategoryId) return;
+    const cat = categories.find((c) => c.id === highlightCategoryId);
+    if (!cat) return;
+    setEditingCategoryCapId(cat.id);
+    setCategoryCapDraft(cat.monthlyBudget === 0 ? "" : String(cat.monthlyBudget));
+  }, [highlightCategoryId]); // categories looked up when the highlight target changes
+
+  useEffect(() => {
+    const id = highlightTarget
+      || (highlightCategoryId ? `budget-category-${highlightCategoryId}` : null)
+      || (highlightBills ? "budget-bills" : null);
+    if (!id) return;
+    const el = document.querySelector(`[data-tour-id="${id}"]`);
+    if (el instanceof HTMLElement) el.scrollIntoView({ behavior: "smooth", block: "center" });
+  }, [highlightTarget, highlightCategoryId, highlightBills]);
   const [incomeName, setIncomeName] = useState("");
   const [incomeAmount, setIncomeAmount] = useState("");
   const [incomeDue, setIncomeDue] = useState(1);
@@ -657,7 +680,11 @@ export function BudgetManageView({
 
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
-      <div className="fety-budget-summary-grid" style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 10 }}>
+      <div
+        className={`fety-budget-summary-grid${highlightTarget === "budget-summary" ? " fety-tour-ring" : ""}`}
+        data-tour-id="budget-summary"
+        style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 10 }}
+      >
         {[
           { label: "Monthly budget", value: usd(totalBudget) },
           { label: "Spent so far", value: usd(totalSpent) },
@@ -676,7 +703,12 @@ export function BudgetManageView({
           const over = c.spent > c.monthlyBudget;
           const editingCap = editingCategoryCapId === c.id;
           return (
-            <div key={c.id} style={{ position: "relative", background: "var(--surface)", borderRadius: 14, padding: "16px 18px", border: "1px solid var(--border)" }}>
+            <div
+              key={c.id}
+              data-tour-id={`budget-category-${c.id}`}
+              className={highlightCategoryId === c.id || highlightTarget === `budget-category-${c.id}` ? "fety-tour-ring" : undefined}
+              style={{ position: "relative", background: "var(--surface)", borderRadius: 14, padding: "16px 18px", border: "1px solid var(--border)" }}
+            >
               <div style={{ position: "absolute", top: 8, right: 8, display: "flex", gap: 0, zIndex: 1 }}>
                 <button
                   type="button"
@@ -932,7 +964,11 @@ export function BudgetManageView({
         )}
       </form>
 
-      <div style={{ background: "var(--surface)", border: "1px solid var(--border)", borderRadius: 14, padding: "18px 20px" }}>
+      <div
+        data-tour-id="budget-bills"
+        className={highlightBills ? "fety-tour-ring" : undefined}
+        style={{ background: "var(--surface)", border: "1px solid var(--border)", borderRadius: 14, padding: "18px 20px" }}
+      >
         <p className="fety-label-strong" style={{ marginBottom: 12 }}>Bills</p>
         <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
           {bills.map((b) => {
@@ -1741,6 +1777,8 @@ export function GoalsManageView({
   accounts,
   goalLedgerStore,
   viewMode,
+  highlightGoalId,
+  highlightTarget,
   onAdd,
   onUpdate,
   onDelete,
@@ -1749,6 +1787,8 @@ export function GoalsManageView({
   accounts: Account[];
   goalLedgerStore: import("../types/fety").FetyStore;
   viewMode: ViewMode;
+  highlightGoalId?: string;
+  highlightTarget?: string | null;
   onAdd: (goal: Omit<Goal, "id">) => void;
   onUpdate: (id: string, updates: Partial<Goal>) => void;
   onDelete: (id: string) => void;
@@ -1801,6 +1841,22 @@ export function GoalsManageView({
     setEditAccountId(g.accountId ?? "");
   };
 
+  useEffect(() => {
+    if (!highlightGoalId) return;
+    const g = goals.find((goal) => goal.id === highlightGoalId);
+    if (g) {
+      setEditGoalId(g.id);
+      setEditName(g.name);
+      setEditSaved(g.saved === 0 ? "" : String(g.saved));
+      setEditTarget(g.target === 0 ? "" : String(g.target));
+      setEditTargetDate(g.targetDate === "TBD" ? "" : g.targetDate);
+      setEditMonthly(g.monthlyContribution === 0 ? "" : String(g.monthlyContribution));
+      setEditAccountId(g.accountId ?? "");
+    }
+    const el = document.querySelector(`[data-tour-id="goal-${highlightGoalId}"]`);
+    if (el instanceof HTMLElement) el.scrollIntoView({ behavior: "smooth", block: "center" });
+  }, [highlightGoalId]);
+
   const cancelEditGoal = () => {
     setEditGoalId(null);
   };
@@ -1835,6 +1891,8 @@ export function GoalsManageView({
           return (
             <div
               key={g.id}
+              data-tour-id={`goal-${g.id}`}
+              className={highlightGoalId === g.id || highlightTarget === `goal-${g.id}` ? "fety-tour-ring" : undefined}
               style={{
                 background: "var(--surface)",
                 borderRadius: 16,

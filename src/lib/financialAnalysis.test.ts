@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 import { createEmptyStore } from "./fetyStorage";
-import { analyzeStore } from "./financialAnalysis";
+import { analyzeStore, buildPersonalizedTour, pageForAction } from "./financialAnalysis";
 import { monthlyFromFrequency } from "./scheduleAmounts";
 import type { FetyStore } from "../types/fety";
 
@@ -144,5 +144,87 @@ describe("analyzeStore", () => {
     const analysis = analyzeStore(store);
     assert.equal(analysis.missing.flexible, true);
     assert.equal(analysis.insights.some((i) => i.id === "missing-flexible"), true);
+  });
+
+  it("attaches quantitative tips mapped to Fety tools", () => {
+    const store = withMoney({
+      incomeStreams: [
+        { id: "i1", name: "Paycheck", amount: 4000, dueDay: 1, frequency: "monthly", category: "Income", icon: "💵" },
+      ],
+      bills: [
+        { id: "b1", name: "Rent", amount: 1500, dueDay: 1, frequency: "monthly", category: "Housing", icon: "🏠" },
+      ],
+      recurringTransactions: [
+        { id: "r1", name: "Coffee", amount: 40, dueDay: 1, frequency: "weekly", category: "Coffee", icon: "☕", transactionType: "expense" },
+      ],
+      goals: [
+        { id: "g1", name: "Emergency fund", icon: "🛟", target: 5000, saved: 0, targetDate: "2027-12-31", monthlyContribution: 0 },
+      ],
+      categories: [{ id: "c-coffee", name: "Coffee", icon: "☕", monthlyBudget: 200 }],
+    });
+    const analysis = analyzeStore(store);
+    assert.ok(analysis.tips.length > 0);
+    const flex = analysis.tips.find((t) => t.id === "tip-flex-reduce");
+    assert.ok(flex, "expected a flexible-spending tip");
+    assert.match(flex!.explanation, /\$/);
+    assert.equal(flex!.action?.type, "budget");
+    if (flex!.action?.type === "budget") {
+      assert.equal(flex!.action.categoryId, "c-coffee");
+    }
+    const goalTip = analysis.tips.find((t) => t.id === "tip-goal-room");
+    assert.equal(goalTip?.action?.type, "goals");
+    const flexInsight = analysis.insights.find((i) => i.id === "flexible-spending");
+    assert.equal(flexInsight?.action?.type, "budget");
+    assert.equal(flexInsight?.dashboardTarget, "widget-spending-breakdown");
+  });
+});
+
+describe("pageForAction", () => {
+  it("routes each action to the matching page", () => {
+    assert.equal(pageForAction({ type: "calendar" }), "calendar");
+    assert.equal(pageForAction({ type: "goals", goalId: "g1" }), "goals");
+    assert.equal(pageForAction({ type: "budget" }), "budget");
+    assert.equal(pageForAction({ type: "bills" }), "budget");
+    assert.equal(pageForAction({ type: "spending" }), "spending");
+    assert.equal(pageForAction({ type: "transactions" }), "spending");
+    assert.equal(pageForAction({ type: "dashboard" }), "dashboard");
+  });
+});
+
+describe("buildPersonalizedTour", () => {
+  it("always starts on the dashboard snapshot", () => {
+    const store = createEmptyStore();
+    const steps = buildPersonalizedTour(store, analyzeStore(store));
+    assert.equal(steps[0]?.id, "snapshot");
+    assert.equal(steps[0]?.page, "dashboard");
+    assert.equal(steps.some((s) => s.id === "income"), false);
+    assert.equal(steps.some((s) => s.id === "goals"), false);
+  });
+
+  it("walks income, budget, goals, and calendar when the store has them", () => {
+    const store = withMoney({
+      profile: { ...createEmptyStore().profile, displayName: "Alex" },
+      incomeStreams: [
+        { id: "i1", name: "Paycheck", amount: 4000, dueDay: 1, frequency: "monthly", category: "Income", icon: "💵" },
+      ],
+      bills: [
+        { id: "b1", name: "Rent", amount: 1500, dueDay: 1, frequency: "monthly", category: "Housing", icon: "🏠" },
+      ],
+      recurringTransactions: [
+        { id: "r1", name: "Dining", amount: 80, dueDay: 1, frequency: "weekly", category: "Dining", icon: "🍽️", transactionType: "expense" },
+      ],
+      goals: [
+        { id: "g1", name: "Emergency fund", icon: "🛟", target: 5000, saved: 0, targetDate: "2027-12-31", monthlyContribution: 0 },
+      ],
+      categories: [{ id: "c-dining", name: "Dining", icon: "🍽️", monthlyBudget: 400 }],
+    });
+    const analysis = analyzeStore(store);
+    const steps = buildPersonalizedTour(store, analysis);
+    assert.ok(steps.some((s) => s.id === "income"));
+    assert.ok(steps.some((s) => s.id === "budget" && s.target === "budget-category-c-dining"));
+    assert.ok(steps.some((s) => s.id === "goals" && s.target === "goal-g1"));
+    assert.ok(steps.some((s) => s.id === "calendar" && s.page === "calendar"));
+    assert.ok(steps.some((s) => s.id === "tip" && s.action));
+    assert.match(steps[0].explanation, /Alex/);
   });
 });

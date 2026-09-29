@@ -9,7 +9,34 @@ export type InsightType =
   | "attention_needed"
   | "missing_data";
 
-export type InsightActionTarget = "spending" | "calendar" | "goals" | "budget";
+export type TipCategory =
+  | "spending"
+  | "budgeting"
+  | "cash_flow"
+  | "income"
+  | "goals"
+  | "organization";
+
+export type FetyActionTarget =
+  | { type: "budget"; categoryId?: string; categoryName?: string }
+  | { type: "spending"; categoryName?: string }
+  | { type: "goals"; goalId?: string }
+  | { type: "calendar" }
+  | { type: "transactions" }
+  | { type: "bills"; billId?: string }
+  | { type: "dashboard" };
+
+export type TourPage = "dashboard" | "budget" | "spending" | "goals" | "calendar";
+
+export type FinancialTip = {
+  id: string;
+  title: string;
+  explanation: string;
+  category: TipCategory;
+  actionLabel?: string;
+  action?: FetyActionTarget;
+  relatedInsightId?: string;
+};
 
 export type FinancialInsight = {
   id: string;
@@ -18,8 +45,21 @@ export type FinancialInsight = {
   title: string;
   explanation: string;
   supportingData: Record<string, unknown>;
+  dashboardTarget?: string;
   actionLabel?: string;
-  actionTarget?: InsightActionTarget;
+  action?: FetyActionTarget;
+  tip?: FinancialTip;
+};
+
+export type AnalysisTourStep = {
+  id: string;
+  title: string;
+  explanation: string;
+  page: TourPage;
+  target: string;
+  relatedInsightId?: string;
+  relatedTipId?: string;
+  action?: FetyActionTarget;
 };
 
 export type CategoryShare = {
@@ -44,4 +84,5 @@ export type FinancialAnalysis = {
   };
   categoryShares: CategoryShare[];
   insights: FinancialInsight[];
+  tips: FinancialTip[];
 };

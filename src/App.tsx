@@ -27,7 +27,8 @@ import { OnboardingView } from "./views/OnboardingView";
 import AnalysisReportView from "./views/AnalysisReportView";
 import ProductTour from "./components/ProductTour";
 import SplashView from "./views/SplashView";
-import { analyzeStore } from "./lib/financialAnalysis";
+import { analyzeStore, buildPersonalizedTour, pageForAction } from "./lib/financialAnalysis";
+import type { FetyActionTarget } from "./types/analysis";
 import {
   AreaChart, Area, BarChart, Bar,
   XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer,
@@ -1010,12 +1011,14 @@ function CalendarView({
   onAddTransaction,
   onUpdateTransaction,
   onDeleteTransaction,
+  highlighted,
 }: {
   store: FetyStore;
   transactionTypes: FetyTransactionType[];
   onAddTransaction: ReturnType<typeof useFetyData>["addTransaction"];
   onUpdateTransaction: ReturnType<typeof useFetyData>["updateTransaction"];
   onDeleteTransaction: ReturnType<typeof useFetyData>["deleteTransaction"];
+  highlighted?: boolean;
 }) {
   const [calView, setCalView] = useState<CalView>("monthly");
   const [focusDate, setFocusDate] = useState(() => new Date());
@@ -1088,7 +1091,7 @@ function CalendarView({
   };
 
   return (
-    <div className="fety-calendar-root" style={{ display: "flex", flexDirection: "column", flex: 1, width: 0, height: "100%", overflow: "hidden" }}>
+    <div className={`fety-calendar-root${highlighted ? " fety-tour-ring" : ""}`} data-tour-id="calendar" style={{ display: "flex", flexDirection: "column", flex: 1, width: 0, height: "100%", overflow: "hidden" }}>
       <div className="fety-calendar-toolbar" style={{ display: "flex", alignItems: "center", gap: 12, padding: "14px 24px", borderBottom: "1px solid var(--border)", background: "var(--surface)", flexShrink: 0, flexWrap: "wrap" }}>
         <h2 className="fety-calendar-toolbar-title" style={{ fontSize: 15, fontWeight: 600, color: "var(--ink)", letterSpacing: "-0.3px" }}>Financial Calendar</h2>
         <div className="fety-calendar-toolbar-spacer" style={{ flex: 1 }}/>
@@ -2108,10 +2111,18 @@ function CalendarSidePanel({
 function DashboardView({
   store,
   summary,
+  analysis,
+  firstLook,
+  highlightTarget,
+  onTipAction,
   pinned, setPinned, lockedWidgets, onToggleWidgetLock, onSetLockedWidgets, onCustomize, customizing,
 }: {
   store: FetyStore;
   summary: FinanceSummary;
+  analysis: import("./types/analysis").FinancialAnalysis;
+  firstLook: boolean;
+  highlightTarget?: string | null;
+  onTipAction: (action: FetyActionTarget) => void;
   pinned: string[];
   setPinned: React.Dispatch<React.SetStateAction<string[]>>;
   lockedWidgets: string[];
@@ -2169,6 +2180,12 @@ function DashboardView({
 
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
+      <AnalysisReportView
+        analysis={analysis}
+        firstLook={firstLook}
+        highlightTarget={highlightTarget}
+        onAction={onTipAction}
+      />
       {pinned.length === 0 ? (
         <button
           onClick={onCustomize}
@@ -2247,7 +2264,8 @@ function DashboardView({
                   return (
                     <div
                       key={w.id}
-                      className={widgetCellClass(w)}
+                      data-tour-id={`widget-${w.id}`}
+                      className={`${widgetCellClass(w)}${highlightTarget === `widget-${w.id}` ? " fety-tour-ring" : ""}`}
                       draggable={canDragWidget}
                       onDragStart={(e) => {
                         if (!canDragWidget) return;
@@ -2430,8 +2448,25 @@ export default function App() {
   const [chatProcessing, setChatProcessing] = useState(false);
   /** Shown before onboarding for first-time users. */
   const [showSplash, setShowSplash] = useState(true);
-  const [postSetup, setPostSetup] = useState<"analysis" | "tour" | null>(null);
+  const [postSetup, setPostSetup] = useState<"tour" | null>(null);
+  const [tourTarget, setTourTarget] = useState<string | null>(null);
+  const [focusAction, setFocusAction] = useState<FetyActionTarget | null>(null);
   const analysis = useMemo(() => analyzeStore(store), [store]);
+  const tourSteps = useMemo(() => buildPersonalizedTour(store, analysis), [store, analysis]);
+
+  const applyFetyAction = useCallback((action: FetyActionTarget) => {
+    setFocusAction(action);
+    setPage(pageForAction(action));
+  }, []);
+
+  useEffect(() => {
+    if (!tourTarget) return;
+    const id = window.setTimeout(() => {
+      const el = document.querySelector(`[data-tour-id="${tourTarget}"]`);
+      if (el instanceof HTMLElement) el.scrollIntoView({ behavior: "smooth", block: "center" });
+    }, 80);
+    return () => window.clearTimeout(id);
+  }, [tourTarget, page]);
   const isNarrow = useIsNarrow();
   const pendingConfirmations = useRef<Map<string, ToolAction>>(new Map());
 
@@ -2522,10 +2557,11 @@ export default function App() {
 
   const pageTitle = useMemo(() => {
     if (page === "dashboard") {
+      if (postSetup === "tour") return "Here's what I found.";
       return `Good morning, ${store.profile.displayName}`;
     }
     return PAGE_META[page].title;
-  }, [page, store.profile.displayName]);
+  }, [page, postSetup, store.profile.displayName]);
 
   const renderView = () => {
     if (page === "calendar") return null;
@@ -2539,6 +2575,9 @@ export default function App() {
             recurringTransactions={store.recurringTransactions ?? []}
             transactionTypes={transactionTypes}
             viewMode={viewMode}
+            highlightCategoryId={focusAction?.type === "budget" ? focusAction.categoryId : undefined}
+            highlightBills={focusAction?.type === "bills"}
+            highlightTarget={tourTarget}
             onUpdateBudget={updateCategoryBudget}
             onDeleteCategory={deleteCategory}
             onUpdateBill={updateBill}
@@ -2561,6 +2600,7 @@ export default function App() {
         );
       case "spending":
         return (
+          <div data-tour-id="transactions" className={tourTarget === "transactions" || focusAction?.type === "spending" || focusAction?.type === "transactions" ? "fety-tour-ring" : undefined}>
           <TransactionsManageView
             transactions={store.transactions}
             categories={store.categories}
@@ -2574,6 +2614,7 @@ export default function App() {
             onDelete={deleteTransaction}
             initialAccountFilter={transactionsAccountFilter}
           />
+          </div>
         );
       case "goals":
         return (
@@ -2582,6 +2623,8 @@ export default function App() {
             accounts={store.accounts}
             goalLedgerStore={store}
             viewMode={viewMode}
+            highlightGoalId={focusAction?.type === "goals" ? focusAction.goalId : undefined}
+            highlightTarget={tourTarget}
             onAdd={addGoal}
             onUpdate={updateGoal}
             onDelete={deleteGoal}
@@ -2620,6 +2663,10 @@ export default function App() {
           <DashboardView
             store={store}
             summary={summary}
+            analysis={analysis}
+            firstLook={postSetup === "tour"}
+            highlightTarget={tourTarget}
+            onTipAction={applyFetyAction}
             pinned={pinned}
             setPinned={setPinnedWidgets}
             lockedWidgets={store.lockedDashboardWidgets ?? []}
@@ -2646,25 +2693,9 @@ export default function App() {
         onReplaceGoals={replaceGoals}
         onComplete={() => {
           completeOnboarding();
-          setPostSetup("analysis");
-        }}
-      />
-    );
-  }
-
-  if (postSetup === "analysis") {
-    return (
-      <AnalysisReportView
-        analysis={analysis}
-        onExplore={(target) => {
-          setPage(target);
-          setPostSetup(null);
-        }}
-        onTakeTour={() => {
           setPage("dashboard");
           setPostSetup("tour");
         }}
-        onSkip={() => setPostSetup(null)}
       />
     );
   }
@@ -2688,13 +2719,14 @@ export default function App() {
             <CalendarView
               store={store}
               transactionTypes={transactionTypes}
+              highlighted={tourTarget === "calendar"}
               onAddTransaction={addTransaction}
               onUpdateTransaction={updateTransaction}
               onDeleteTransaction={deleteTransaction}
             />
           ) : (
             <>
-              <main className={`fety-main-scroll${pickerOpen && page === "dashboard" ? " fety-main-customizing" : ""}`} style={{ flex: 1, overflowY: "auto", padding: "24px 24px 48px", minWidth: 0 }}>
+              <main className={`fety-main-scroll${pickerOpen && page === "dashboard" ? " fety-main-customizing" : ""}${postSetup === "tour" ? " fety-main-touring" : ""}`} style={{ flex: 1, overflowY: "auto", padding: postSetup === "tour" ? "24px 24px 200px" : "24px 24px 48px", minWidth: 0 }}>
                 <div className="fety-page-header" style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", marginBottom: 20 }}>
                   <div className="fety-page-header-text">
                     <h1 style={{ fontSize: 26, fontWeight: 600, color: "var(--ink)", letterSpacing: "-0.02em", lineHeight: 1.2 }}>
@@ -2788,8 +2820,22 @@ export default function App() {
 
       {postSetup === "tour" && (
         <ProductTour
-          onGo={setPage}
-          onDismiss={() => setPostSetup(null)}
+          steps={tourSteps}
+          onStep={(step) => {
+            setPage(step.page);
+            setTourTarget(step.target);
+            if (step.action) setFocusAction(step.action);
+          }}
+          onDismiss={() => {
+            setPostSetup(null);
+            setTourTarget(null);
+            setFocusAction(null);
+          }}
+          onFinishAction={(step) => {
+            setPostSetup(null);
+            setTourTarget(null);
+            if (step.action) applyFetyAction(step.action);
+          }}
         />
       )}
     </div>

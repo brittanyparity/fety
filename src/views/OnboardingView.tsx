@@ -28,6 +28,15 @@ type Phase =
   | "goal-edit"
   | "starting";
 
+const SETUP_STAGES: { label: string; phases: Phase[] }[] = [
+  { label: "About you", phases: ["welcome", "about"] },
+  { label: "Money coming in", phases: ["income-pick", "income-edit"] },
+  { label: "Regular expenses", phases: ["obligations-pick", "obligation-edit"] },
+  { label: "Everyday spending", phases: ["everyday-pick", "everyday-edit"] },
+  { label: "Goals & priorities", phases: ["goals", "goal-edit"] },
+  { label: "Starting position", phases: ["starting"] },
+];
+
 type IncomeDraft = {
   key: string;
   name: string;
@@ -459,6 +468,9 @@ export function OnboardingView({
     onComplete();
   };
 
+  const stageIndex = Math.max(0, SETUP_STAGES.findIndex((s) => s.phases.includes(phase)));
+  const stage = SETUP_STAGES[stageIndex];
+  const stagePct = Math.round(((stageIndex + 1) / SETUP_STAGES.length) * 100);
   const currentIncome = incomes[incomeIndex];
   const currentObligation = obligations[obligationIndex];
   const currentEveryday = everyday[everydayIndex];
@@ -488,6 +500,25 @@ export function OnboardingView({
       </header>
       <div className="fety-onboarding-scroll">
         <div className="fety-talk-inner">
+          <div className="fety-talk-progress" aria-label={`Setup progress: ${stage.label}`}>
+            <p className="fety-talk-progress-kicker">Let's understand your money.</p>
+            <div className="fety-talk-progress-row">
+              <span className="fety-label">{stage.label}</span>
+              <span className="fety-talk-progress-count">
+                {stageIndex + 1} of {SETUP_STAGES.length}
+              </span>
+            </div>
+            <div
+              className="fety-talk-progress-track"
+              role="progressbar"
+              aria-valuemin={1}
+              aria-valuemax={SETUP_STAGES.length}
+              aria-valuenow={stageIndex + 1}
+              aria-valuetext={`${stage.label}, step ${stageIndex + 1} of ${SETUP_STAGES.length}`}
+            >
+              <div className="fety-talk-progress-fill" style={{ width: `${stagePct}%` }} />
+            </div>
+          </div>
           {phase === "welcome" && (
             <>
               <Prompt

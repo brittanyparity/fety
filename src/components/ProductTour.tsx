@@ -1,87 +1,63 @@
 import { useEffect, useState } from "react";
-
-export type TourPage = "dashboard" | "calendar" | "spending" | "budget" | "goals";
-
-const STEPS: { title: string; body: string; page: TourPage }[] = [
-  {
-    title: "Spending power",
-    body: "This is the amount Fety estimates you can safely spend based on your current cash flow.",
-    page: "dashboard",
-  },
-  {
-    title: "Calendar",
-    body: "This shows when your money comes in and when expenses happen.",
-    page: "calendar",
-  },
-  {
-    title: "Spending",
-    body: "Here you can see where your money is going.",
-    page: "spending",
-  },
-  {
-    title: "Budget",
-    body: "Use this to set spending targets and compare them with actual spending.",
-    page: "budget",
-  },
-  {
-    title: "Goals",
-    body: "This is where you can connect your money to the things you're working toward.",
-    page: "goals",
-  },
-  {
-    title: "Transactions",
-    body: "Spending also holds the detailed record behind your financial picture.",
-    page: "spending",
-  },
-];
+import type { AnalysisTourStep } from "../types/analysis";
 
 export default function ProductTour({
-  onGo,
+  steps,
+  onStep,
   onDismiss,
+  onFinishAction,
 }: {
-  onGo: (page: TourPage) => void;
+  steps: AnalysisTourStep[];
+  onStep: (step: AnalysisTourStep) => void;
   onDismiss: () => void;
+  onFinishAction?: (step: AnalysisTourStep) => void;
 }) {
   const [index, setIndex] = useState(0);
-  const step = STEPS[index];
-  const last = index === STEPS.length - 1;
+  const step = steps[index];
+  const last = index >= steps.length - 1;
 
   useEffect(() => {
-    onGo(STEPS[0].page);
-    // Start on the first tour surface once.
+    if (step) onStep(step);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, [index, steps]);
+
+  if (!step) return null;
 
   return (
-    <div className="fety-tour" role="dialog" aria-modal="true" aria-labelledby="fety-tour-title">
-      <button type="button" className="fety-tour-backdrop" aria-label="Close tour" onClick={onDismiss} />
+    <div className="fety-tour fety-tour--dock" role="dialog" aria-modal="true" aria-labelledby="fety-tour-title">
       <div className="fety-tour-card">
         <p className="fety-label">
-          {index + 1} of {STEPS.length}
+          {index + 1} of {steps.length}
         </p>
         <h2 id="fety-tour-title">{step.title}</h2>
-        <p>{step.body}</p>
+        <p>{step.explanation}</p>
         <div className="fety-tour-actions">
           <button type="button" className="fety-talk-skip" onClick={onDismiss}>
             Skip tour
           </button>
-          {!last ? (
-            <button
-              type="button"
-              className="fety-splash-btn-primary"
-              onClick={() => {
-                const next = STEPS[index + 1];
-                setIndex((n) => n + 1);
-                if (next) onGo(next.page);
-              }}
-            >
-              Next
-            </button>
-          ) : (
-            <button type="button" className="fety-splash-btn-primary" onClick={onDismiss}>
-              Done
-            </button>
-          )}
+          <div className="fety-tour-nav">
+            {index > 0 ? (
+              <button type="button" className="fety-splash-btn-ghost" onClick={() => setIndex((n) => n - 1)}>
+                Back
+              </button>
+            ) : null}
+            {!last ? (
+              <button type="button" className="fety-splash-btn-primary" onClick={() => setIndex((n) => n + 1)}>
+                Continue
+              </button>
+            ) : (
+              <button
+                type="button"
+                className="fety-splash-btn-primary"
+                onClick={() => {
+                  if (step.action) onFinishAction?.(step);
+                  else onDismiss();
+                }}
+              >
+                Finish
+              </button>
+            )}
+          </div>
         </div>
       </div>
     </div>
