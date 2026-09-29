@@ -329,11 +329,29 @@ function ScrollableChart({
   children: (width: number) => React.ReactNode;
 }) {
   const narrow = useIsNarrow();
-  const minWidth = Math.max(pointCount * (narrow ? Math.max(minPointWidth, 40) : minPointWidth), narrow ? 280 : 240);
+  const scrollerRef = useRef<HTMLDivElement>(null);
+  const [availableWidth, setAvailableWidth] = useState(0);
+  const minWidth = Math.max(
+    pointCount * (narrow ? Math.max(minPointWidth, 40) : minPointWidth),
+    narrow ? 280 : 240,
+  );
+
+  useEffect(() => {
+    const el = scrollerRef.current;
+    if (!el) return;
+    const update = () => setAvailableWidth(el.clientWidth);
+    update();
+    const ro = new ResizeObserver(update);
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, []);
+
+  // Fill the widget on desktop; keep a point-based floor so dense ranges can still scroll on mobile.
+  const chartWidth = Math.max(availableWidth, minWidth);
   return (
-    <div className="fety-chart-scroll">
-      <div className="fety-chart-scroll-inner" style={{ minWidth, height }}>
-        {children(minWidth)}
+    <div className="fety-chart-scroll" ref={scrollerRef}>
+      <div className="fety-chart-scroll-inner" style={{ width: chartWidth, minWidth, height }}>
+        {children(chartWidth)}
       </div>
     </div>
   );
