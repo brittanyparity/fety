@@ -180,23 +180,33 @@ export default function SplashView({
     );
   } else if (pastHero) {
     navTrailing = (
-      <button
-        type="button"
-        className="fety-splash-hamburger"
-        aria-label={menuOpen ? "Close menu" : "Open menu"}
-        aria-expanded={menuOpen}
-        onClick={() => setMenuOpen((o) => !o)}
-      >
-        {menuOpen ? (
-          <svg width="18" height="18" viewBox="0 0 18 18" fill="none" aria-hidden>
-            <path d="M4 4l10 10M14 4L4 14" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" />
-          </svg>
-        ) : (
-          <svg width="18" height="18" viewBox="0 0 18 18" fill="none" aria-hidden>
-            <path d="M2.5 5h13M2.5 9h13M2.5 13h13" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" />
-          </svg>
-        )}
-      </button>
+      <>
+        <div className="fety-splash-nav-desktop">
+          <button type="button" className="fety-splash-link" onClick={() => setMode("login")}>
+            Log in
+          </button>
+          <button type="button" className="fety-splash-btn-primary" onClick={onSignUp}>
+            Sign up
+          </button>
+        </div>
+        <button
+          type="button"
+          className="fety-splash-hamburger"
+          aria-label={menuOpen ? "Close menu" : "Open menu"}
+          aria-expanded={menuOpen}
+          onClick={() => setMenuOpen((o) => !o)}
+        >
+          {menuOpen ? (
+            <svg width="18" height="18" viewBox="0 0 18 18" fill="none" aria-hidden>
+              <path d="M4 4l10 10M14 4L4 14" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" />
+            </svg>
+          ) : (
+            <svg width="18" height="18" viewBox="0 0 18 18" fill="none" aria-hidden>
+              <path d="M2.5 5h13M2.5 9h13M2.5 13h13" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" />
+            </svg>
+          )}
+        </button>
+      </>
     );
   }
 
@@ -250,75 +260,87 @@ export default function SplashView({
       {mode === "home" ? (
         <>
           <section ref={heroRef} className="fety-splash-hero" aria-label="Fety introduction">
-            <div className="fety-splash-hero-copy">
-              <p className="fety-splash-brand">Fety</p>
-              <h1 className="fety-splash-headline">Money with a memory.</h1>
-              <p className="fety-splash-lede">
-                A retroactive cash-flow system that tracks what you had, what is coming, and what you can still spend.
-              </p>
-              <div className="fety-splash-cta">
-                <button type="button" className="fety-splash-btn-primary fety-splash-btn-lg" onClick={onSignUp}>
-                  Get started
-                </button>
-                <button type="button" className="fety-splash-btn-ghost fety-splash-btn-lg" onClick={() => setMode("login")}>
-                  Log in
-                </button>
-              </div>
-            </div>
-
-            <div className="fety-splash-hero-visual" aria-hidden>
-              <div className="fety-splash-orbit fety-splash-orbit-a" />
-              <div className="fety-splash-orbit fety-splash-orbit-b" />
-              <div className="fety-splash-ledger">
-                <div className="fety-splash-ledger-row fety-splash-ledger-row--head">
-                  <span>Today</span>
-                  <span>Balance</span>
-                </div>
-                <div className="fety-splash-ledger-row">
-                  <span>Paycheck</span>
-                  <span className="fety-splash-pos">+$2,800</span>
-                </div>
-                <div className="fety-splash-ledger-row">
-                  <span>Rent</span>
-                  <span className="fety-splash-neg">−$2,000</span>
-                </div>
-                <div className="fety-splash-ledger-row">
-                  <span>Groceries</span>
-                  <span className="fety-splash-neg">−$52</span>
-                </div>
-                <div className="fety-splash-ledger-row fety-splash-ledger-row--total">
-                  <span>Ending</span>
-                  <span>$2,612</span>
+            <div className="fety-splash-shell fety-splash-hero-inner">
+              <div className="fety-splash-hero-copy">
+                <p className="fety-splash-brand">Fety</p>
+                <h1 className="fety-splash-headline">Money with a memory.</h1>
+                <p className="fety-splash-lede">
+                  A retroactive cash-flow system that tracks what you had, what is coming, and what you can still spend.
+                </p>
+                <div className="fety-splash-cta">
+                  <button type="button" className="fety-splash-btn-primary fety-splash-btn-lg" onClick={onSignUp}>
+                    Get started
+                  </button>
+                  <button type="button" className="fety-splash-btn-ghost fety-splash-btn-lg" onClick={() => setMode("login")}>
+                    Log in
+                  </button>
                 </div>
               </div>
-            </div>
-          </section>
 
-          <section className="fety-splash-features" id="features" aria-labelledby="fety-features-heading">
-            <h2 id="fety-features-heading" className="fety-splash-features-title">
-              Built for how money actually moves
-            </h2>
-            <p className="fety-splash-features-sub">
-              Not another envelope spreadsheet — a living timeline of cash in and out.
-            </p>
-            <ul className="fety-splash-feature-list">
-              {FEATURES.map((f) => (
-                <li key={f.title} className="fety-splash-feature">
-                  <FeatureVisual kind={f.visual} />
-                  <div className="fety-splash-feature-copy">
-                    <h3>{f.title}</h3>
-                    <p>{f.body}</p>
+              <div className="fety-splash-hero-visual" aria-hidden>
+                <div className="fety-splash-orbit fety-splash-orbit-a" />
+                <div className="fety-splash-orbit fety-splash-orbit-b" />
+                <div className="fety-splash-ledger">
+                  <div className="fety-splash-ledger-row fety-splash-ledger-row--head">
+                    <span>Today</span>
+                    <span>Balance</span>
                   </div>
-                </li>
-              ))}
-            </ul>
+                  <div className="fety-splash-ledger-row">
+                    <span>Paycheck</span>
+                    <span className="fety-splash-pos">+$2,800</span>
+                  </div>
+                  <div className="fety-splash-ledger-row">
+                    <span>Rent</span>
+                    <span className="fety-splash-neg">−$2,000</span>
+                  </div>
+                  <div className="fety-splash-ledger-row">
+                    <span>Groceries</span>
+                    <span className="fety-splash-neg">−$52</span>
+                  </div>
+                  <div className="fety-splash-ledger-row fety-splash-ledger-row--total">
+                    <span>Ending</span>
+                    <span>$2,612</span>
+                  </div>
+                </div>
+              </div>
+            </div>
           </section>
+
+          <section className="fety-splash-features-intro" id="features" aria-labelledby="fety-features-heading">
+            <div className="fety-splash-shell">
+              <p className="fety-label">What you get</p>
+              <h2 id="fety-features-heading" className="fety-splash-features-title">
+                Built for how money actually moves
+              </h2>
+              <p className="fety-splash-features-sub">
+                Not another envelope spreadsheet — a living timeline of cash in and out.
+              </p>
+            </div>
+          </section>
+
+          {FEATURES.map((f, i) => (
+            <section
+              key={f.title}
+              className={`fety-splash-feature-band${i % 2 === 1 ? " fety-splash-feature-band--alt" : ""}`}
+              aria-labelledby={`fety-feature-${i}`}
+            >
+              <div className="fety-splash-shell fety-splash-feature-band-inner">
+                <div className="fety-splash-feature-copy">
+                  <h3 id={`fety-feature-${i}`}>{f.title}</h3>
+                  <p>{f.body}</p>
+                </div>
+                <FeatureVisual kind={f.visual} />
+              </div>
+            </section>
+          ))}
 
           <footer className="fety-splash-footer">
-            <p>Fety keeps your books on this device until you choose cloud sync.</p>
-            <button type="button" className="fety-splash-btn-primary" onClick={onSignUp}>
-              Create your setup
-            </button>
+            <div className="fety-splash-shell fety-splash-footer-inner">
+              <p>Fety keeps your books on this device until you choose cloud sync.</p>
+              <button type="button" className="fety-splash-btn-primary" onClick={onSignUp}>
+                Create your setup
+              </button>
+            </div>
           </footer>
         </>
       ) : (
