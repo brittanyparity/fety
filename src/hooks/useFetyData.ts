@@ -481,6 +481,10 @@ export function useFetyData() {
     patch((prev) => ({ ...prev, recurringTransactions }));
   }, [patch]);
 
+  const replaceGoals = useCallback((goals: Goal[]) => {
+    patch((prev) => ({ ...prev, goals }));
+  }, [patch]);
+
   const importTransactionsBulk = useCallback(
     (inputs: Omit<Transaction, "id">[]) => {
       patch((prev) => ({
@@ -530,6 +534,7 @@ export function useFetyData() {
     replaceBills,
     replaceIncomeStreams,
     replaceRecurringTransactions,
+    replaceGoals,
     importTransactionsBulk,
     updateTypeIcons,
     addTransactionType,

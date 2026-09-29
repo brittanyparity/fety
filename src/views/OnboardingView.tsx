@@ -1,1150 +1,763 @@
 import { useMemo, useState } from "react";
 import { FetyLogo } from "../FetyLogo";
-import {
-  assignmentsFromGuess,
-  mappingFromAssignments,
-  parseCsvText,
-  rowsToImportDrafts,
-  validateImportMapping,
-  type ColumnRole,
-  type ImportDraftRow,
-  type ParsedCsv,
-} from "../lib/fetyCsvImport";
-import { CsvColumnMapper } from "../components/CsvColumnMapper";
 import CurrencyInput, { amountToEditString } from "../components/CurrencyInput";
-import EmojiIconPicker from "../components/EmojiIconPicker";
 import { todayISO } from "../lib/fetyCalculations";
 import { newId } from "../lib/fetyStorage";
-import BillScheduleFields from "../components/BillScheduleFields";
-import IncomeScheduleFields from "../components/IncomeScheduleFields";
-import { getTransactionTypes } from "../lib/transactionTypes";
+import { everydayToStoredSchedule, type EverydayFrequency } from "../lib/scheduleAmounts";
 import type {
   Bill,
-  BudgetCategory,
-  FetyStore,
-  IncomeStream,
-  IncomeFrequency,
-  RecurringTransaction,
-  Transaction,
-  TransactionType,
-  UserProfile,
   BillFrequency,
+  BudgetCategory,
+  Goal,
+  IncomeFrequency,
+  IncomeStream,
+  RecurringTransaction,
+  UserProfile,
 } from "../types/fety";
 
-type StepId = "welcome" | "profile" | "budget" | "bills" | "income" | "recurring" | "import" | "map" | "review" | "finish";
+type Phase =
+  | "welcome"
+  | "about"
+  | "income-pick"
+  | "income-edit"
+  | "obligations-pick"
+  | "obligation-edit"
+  | "everyday-pick"
+  | "everyday-edit"
+  | "goals"
+  | "goal-edit"
+  | "starting";
 
-const STEPS: { id: StepId; label: string }[] = [
-  { id: "welcome", label: "Welcome" },
-  { id: "profile", label: "You" },
-  { id: "budget", label: "Budget" },
-  { id: "bills", label: "Bills" },
-  { id: "income", label: "Income" },
-  { id: "recurring", label: "Recurring" },
-  { id: "import", label: "Import" },
-  { id: "map", label: "Map" },
-  { id: "review", label: "Review" },
-  { id: "finish", label: "Done" },
-];
-
-type ScheduleDraftRow = {
-  name: string;
-  amount: string;
-  dueDay: number;
-  frequency: BillFrequency;
-  category: string;
-};
-
-type RecurringDraftRow = ScheduleDraftRow & { transactionType: TransactionType };
-
-type IncomeDraftRow = {
-  name: string;
-  amount: string;
-  dueDay: number;
-  frequency: IncomeFrequency;
-  category: string;
-  semiMonthlyDays: [number, number];
-  startDateISO: string;
-  endDateISO: string;
-};
-
-type BudgetDraftRow = {
-  draftId: string;
+type IncomeDraft = {
+  key: string;
   name: string;
   icon: string;
-  monthlyBudget: string;
+  amount: string;
+  frequency: IncomeFrequency;
+  dueDay: number;
+  semiMonthlyDays: [number, number];
 };
 
-const CUSTOM_EXPENSE_CATEGORY = "__custom__";
+type ObligationDraft = {
+  key: string;
+  name: string;
+  icon: string;
+  category: string;
+  amount: string;
+  frequency: BillFrequency;
+  dueDay: number;
+};
 
-const EXPENSE_CATEGORY_PRESETS: { name: string; icon: string }[] = [
-  { name: "Housing", icon: "🏠" },
-  { name: "Groceries", icon: "🛒" },
-  { name: "Dining Out", icon: "🍽️" },
-  { name: "Transportation", icon: "🚗" },
-  { name: "Shopping", icon: "🛍️" },
-  { name: "Bills", icon: "⚡" },
-  { name: "Entertainment", icon: "🎬" },
-  { name: "Personal", icon: "💆" },
-  { name: "Health", icon: "💊" },
-  { name: "Travel", icon: "✈️" },
-  { name: "Subscriptions", icon: "📱" },
-  { name: "Education", icon: "🎓" },
-];
+type EverydayDraft = {
+  key: string;
+  name: string;
+  icon: string;
+  category: string;
+  amount: string;
+  frequency: EverydayFrequency;
+};
 
-/** Tap-to-add chips on the Budget step (includes income-style names users often need). */
-const CATEGORY_SUGGESTIONS: { name: string; icon: string }[] = [
-  ...EXPENSE_CATEGORY_PRESETS,
-  { name: "Income", icon: "💵" },
+const INCOME_PRESETS = [
+  { name: "Paycheck", icon: "💵" },
+  { name: "Social Security", icon: "🏛️" },
+  { name: "Retirement", icon: "🏖️" },
+  { name: "Disability", icon: "♿" },
+  { name: "Freelance", icon: "💻" },
+  { name: "Gig work", icon: "🚗" },
+  { name: "Business income", icon: "🏢" },
+  { name: "Rental income", icon: "🏠" },
+  { name: "Investment income", icon: "📈" },
+  { name: "Child support", icon: "👶" },
+  { name: "Alimony", icon: "🤝" },
+  { name: "Other", icon: "✨" },
+] as const;
+
+const OBLIGATION_PRESETS = [
+  { name: "Rent", icon: "🏠", category: "Housing" },
+  { name: "Mortgage", icon: "🏡", category: "Housing" },
+  { name: "Utilities", icon: "⚡", category: "Utilities" },
+  { name: "Insurance", icon: "🛡️", category: "Insurance" },
+  { name: "Phone", icon: "📱", category: "Subscriptions" },
+  { name: "Internet", icon: "🌐", category: "Subscriptions" },
+  { name: "Car payment", icon: "🚗", category: "Transportation" },
+  { name: "Debt payment", icon: "💳", category: "Debt" },
+  { name: "Subscription", icon: "📺", category: "Subscriptions" },
+  { name: "Taxes", icon: "🧾", category: "Taxes" },
+  { name: "Tuition", icon: "🎓", category: "Education" },
+] as const;
+
+const EVERYDAY_PRESETS = [
+  { name: "Coffee", icon: "☕", category: "Coffee" },
+  { name: "Eating out", icon: "🍽️", category: "Dining" },
+  { name: "Snacks", icon: "🍩", category: "Dining" },
+  { name: "Gas", icon: "⛽", category: "Transportation" },
+  { name: "Groceries", icon: "🛒", category: "Groceries" },
+  { name: "Shopping", icon: "🛍️", category: "Shopping" },
+  { name: "Entertainment", icon: "🎬", category: "Entertainment" },
+  { name: "Hobbies", icon: "🎨", category: "Hobbies" },
+  { name: "Personal care", icon: "💆", category: "Personal" },
+  { name: "Pet expenses", icon: "🐾", category: "Pets" },
+] as const;
+
+const GOAL_PRESETS = [
+  { name: "Emergency fund", icon: "🛟" },
+  { name: "Vacation", icon: "✈️" },
+  { name: "Debt payoff", icon: "💳" },
+  { name: "Home", icon: "🏠" },
+  { name: "Car", icon: "🚗" },
   { name: "Savings", icon: "🎯" },
+  { name: "Retirement", icon: "🏖️" },
+  { name: "Major purchase", icon: "🎁" },
+] as const;
+
+const INCOME_FREQ: { id: IncomeFrequency; label: string }[] = [
+  { id: "weekly", label: "Every week" },
+  { id: "biweekly", label: "Every 2 weeks" },
+  { id: "semimonthly", label: "Twice a month" },
+  { id: "monthly", label: "Every month" },
 ];
 
-function SetupCategorySelect({
-  value,
-  onChange,
-  categoryNames,
+const BILL_FREQ: { id: BillFrequency; label: string }[] = [
+  { id: "weekly", label: "Every week" },
+  { id: "biweekly", label: "Every 2 weeks" },
+  { id: "monthly", label: "Every month" },
+  { id: "quarterly", label: "Every 3 months" },
+];
+
+const EVERYDAY_FREQ: { id: EverydayFrequency; label: string }[] = [
+  { id: "weekday", label: "Every weekday" },
+  { id: "weekly", label: "Every week" },
+  { id: "monthly", label: "Every month" },
+];
+
+function Chip({
+  label,
+  icon,
+  active,
+  onClick,
 }: {
-  value: string;
-  onChange: (v: string) => void;
-  categoryNames: string[];
+  label: string;
+  icon?: string;
+  active?: boolean;
+  onClick: () => void;
 }) {
-  const emptyLabel =
-    categoryNames.length === 0 ? "Add categories on the Budget step" : "Select category";
   return (
-    <select
-      value={categoryNames.includes(value) ? value : ""}
-      onChange={(e) => onChange(e.target.value)}
-      style={inputStyle}
-      disabled={categoryNames.length === 0}
+    <button
+      type="button"
+      className={`fety-talk-chip${active ? " fety-talk-chip-active" : ""}`}
+      aria-pressed={active}
+      onClick={onClick}
     >
-      <option value="">{emptyLabel}</option>
-      {categoryNames.map((name) => (
-        <option key={name} value={name}>
-          {name}
-        </option>
-      ))}
-    </select>
+      {icon ? <span aria-hidden>{icon}</span> : null}
+      <span>{label}</span>
+    </button>
   );
 }
 
-function newBudgetDraftRow(partial?: Partial<Omit<BudgetDraftRow, "draftId">>): BudgetDraftRow {
-  return {
-    draftId: newId("bcat-draft"),
-    name: partial?.name ?? "",
-    icon: partial?.icon ?? "📁",
-    monthlyBudget: partial?.monthlyBudget ?? "",
-  };
+function Prompt({ title, body }: { title: string; body?: string }) {
+  return (
+    <div className="fety-talk-prompt">
+      <h2>{title}</h2>
+      {body ? <p>{body}</p> : null}
+    </div>
+  );
 }
 
-const inputStyle: React.CSSProperties = {
-  width: "100%",
-  padding: "10px 12px",
-  borderRadius: "var(--radius-ctrl)",
-  border: "1px solid var(--border)",
-  fontSize: 14,
-  fontFamily: "inherit",
-  background: "var(--surface)",
-};
-
-const btnPrimary: React.CSSProperties = {
-  padding: "10px 18px",
-  borderRadius: 99,
-  border: "none",
-  background: "var(--ink)",
-  color: "#fff",
-  fontSize: 13,
-  fontWeight: 600,
-  cursor: "pointer",
-};
-
-const btnSecondary: React.CSSProperties = {
-  padding: "10px 18px",
-  borderRadius: 99,
-  border: "1px solid var(--border)",
-  background: "var(--surface)",
-  color: "var(--ink)",
-  fontSize: 13,
-  fontWeight: 600,
-  cursor: "pointer",
-};
+function upsertCategory(
+  categories: BudgetCategory[],
+  name: string,
+  icon: string,
+  monthlyBudget: number,
+): BudgetCategory[] {
+  const trimmed = name.trim();
+  if (!trimmed) return categories;
+  const existing = categories.find((c) => c.name.toLowerCase() === trimmed.toLowerCase());
+  if (existing) {
+    return categories.map((c) =>
+      c.id === existing.id ? { ...c, monthlyBudget: c.monthlyBudget + monthlyBudget, icon: c.icon || icon } : c,
+    );
+  }
+  return [...categories, { id: newId("cat"), name: trimmed, icon, monthlyBudget }];
+}
 
 export function OnboardingView({
-  store,
   onUpdateProfile,
   onReplaceCategories,
   onReplaceBills,
   onReplaceIncomeStreams,
   onReplaceRecurringTransactions,
-  onImportTransactionsBulk,
+  onReplaceGoals,
   onComplete,
 }: {
-  store: FetyStore;
   onUpdateProfile: (u: Partial<UserProfile>) => void;
   onReplaceCategories: (categories: BudgetCategory[]) => void;
   onReplaceBills: (bills: Bill[]) => void;
   onReplaceIncomeStreams: (streams: IncomeStream[]) => void;
   onReplaceRecurringTransactions: (items: RecurringTransaction[]) => void;
-  onImportTransactionsBulk: (txns: Omit<Transaction, "id">[]) => void;
+  onReplaceGoals: (goals: Goal[]) => void;
   onComplete: () => void;
 }) {
-  const [step, setStep] = useState<StepId>("welcome");
-  const [displayName, setDisplayName] = useState(store.profile.displayName);
-  const [email, setEmail] = useState(store.profile.email);
-  const [currency, setCurrency] = useState(store.profile.currency || "USD");
-  const [startingBalance, setStartingBalance] = useState(() => amountToEditString(store.profile.startingBalance));
-  const [balanceAsOfISO, setBalanceAsOfISO] = useState(
-    () => store.profile.balanceAsOfISO ?? todayISO(),
+  const [phase, setPhase] = useState<Phase>("welcome");
+  const [displayName, setDisplayName] = useState("");
+  const [incomes, setIncomes] = useState<IncomeDraft[]>([]);
+  const [incomeIndex, setIncomeIndex] = useState(0);
+  const [customIncome, setCustomIncome] = useState("");
+  const [obligations, setObligations] = useState<ObligationDraft[]>([]);
+  const [obligationIndex, setObligationIndex] = useState(0);
+  const [customObligation, setCustomObligation] = useState("");
+  const [everyday, setEveryday] = useState<EverydayDraft[]>([]);
+  const [everydayIndex, setEverydayIndex] = useState(0);
+  const [customEveryday, setCustomEveryday] = useState("");
+  const [goalName, setGoalName] = useState("");
+  const [goalIcon, setGoalIcon] = useState("🎯");
+  const [goalTarget, setGoalTarget] = useState("");
+  const [customGoal, setCustomGoal] = useState("");
+  const [startingBalance, setStartingBalance] = useState("");
+  const [balanceAsOfISO, setBalanceAsOfISO] = useState(todayISO);
+
+  const phaseOrder: Phase[] = useMemo(
+    () => [
+      "welcome",
+      "about",
+      "income-pick",
+      "income-edit",
+      "obligations-pick",
+      "obligation-edit",
+      "everyday-pick",
+      "everyday-edit",
+      "goals",
+      "goal-edit",
+      "starting",
+    ],
+    [],
   );
 
-  const [budgetRows, setBudgetRows] = useState<BudgetDraftRow[]>(() =>
-    store.categories.length > 0
-      ? store.categories.map((c) => ({
-          draftId: newId("bcat-draft"),
-          name: c.name,
-          icon: c.icon,
-          monthlyBudget: amountToEditString(c.monthlyBudget),
-        }))
-      : [],
-  );
-
-  const [billRows, setBillRows] = useState<ScheduleDraftRow[]>([]);
-  const [incomeRows, setIncomeRows] = useState<IncomeDraftRow[]>([]);
-  const [recurringRows, setRecurringRows] = useState<RecurringDraftRow[]>([]);
-
-  const recurringTypeOptions = useMemo(
-    () => getTransactionTypes(store).filter((t) => t.id !== "bill"),
-    [store],
-  );
-
-  const [rawCsvText, setRawCsvText] = useState<string | null>(null);
-  const [parsedCsv, setParsedCsv] = useState<ParsedCsv | null>(null);
-  const [headerRowIndex, setHeaderRowIndex] = useState(0);
-  const [columnAssignments, setColumnAssignments] = useState<ColumnRole[]>([]);
-  const [importDrafts, setImportDrafts] = useState<ImportDraftRow[]>([]);
-  const [importError, setImportError] = useState<string | null>(null);
-
-  const reparseCsv = (text: string, headerIdx: number) => {
-    const parsed = parseCsvText(text, { headerRowIndex: headerIdx });
-    setParsedCsv(parsed);
-    setColumnAssignments(assignmentsFromGuess(parsed.headers));
-    return parsed;
+  const go = (next: Phase) => setPhase(next);
+  const back = () => {
+    if (phase === "income-edit" && incomeIndex > 0) {
+      setIncomeIndex((n) => n - 1);
+      return;
+    }
+    if (phase === "obligation-edit" && obligationIndex > 0) {
+      setObligationIndex((n) => n - 1);
+      return;
+    }
+    if (phase === "everyday-edit" && everydayIndex > 0) {
+      setEverydayIndex((n) => n - 1);
+      return;
+    }
+    const skip: Partial<Record<Phase, Phase>> = {
+      "income-edit": "income-pick",
+      "obligation-edit": "obligations-pick",
+      "everyday-edit": "everyday-pick",
+      "goal-edit": "goals",
+      "obligations-pick": incomes.length ? "income-edit" : "income-pick",
+      "everyday-pick": obligations.length ? "obligation-edit" : "obligations-pick",
+      goals: everyday.length ? "everyday-edit" : "everyday-pick",
+      starting: goalName ? "goal-edit" : "goals",
+    };
+    const fallback = skip[phase];
+    if (fallback) {
+      setPhase(fallback);
+      return;
+    }
+    const i = phaseOrder.indexOf(phase);
+    if (i > 0) setPhase(phaseOrder[i - 1]);
   };
 
-  const applyMappingAndPreview = () => {
-    if (!parsedCsv) return false;
-    const mapping = mappingFromAssignments(columnAssignments);
-    const errors = validateImportMapping(mapping);
-    if (errors.length > 0) {
-      setImportError(errors[0]);
-      return false;
-    }
-    const drafts = rowsToImportDrafts(parsedCsv, mapping, categoryNames);
-    if (drafts.length === 0) {
-      setImportError("No transaction rows found. Try another header row or column mapping.");
-      return false;
-    }
-    setImportError(null);
-    setImportDrafts(drafts);
-    return true;
-  };
-
-  const stepIndex = STEPS.findIndex((s) => s.id === step);
-
-  const categoryNames = useMemo(() => budgetRows.map((r) => r.name.trim()).filter(Boolean), [budgetRows]);
-
-  const addSuggestedCategory = (suggestion: { name: string; icon: string }) => {
-    setBudgetRows((rows) => {
-      if (rows.some((r) => r.name.trim().toLowerCase() === suggestion.name.toLowerCase())) return rows;
-      return [...rows, newBudgetDraftRow({ name: suggestion.name, icon: suggestion.icon })];
+  const toggleIncome = (preset: (typeof INCOME_PRESETS)[number]) => {
+    setIncomes((rows) => {
+      const exists = rows.some((r) => r.name === preset.name);
+      if (exists) return rows.filter((r) => r.name !== preset.name);
+      return [
+        ...rows,
+        {
+          key: newId("inc"),
+          name: preset.name,
+          icon: preset.icon,
+          amount: "",
+          frequency: preset.name === "Paycheck" ? "semimonthly" : "monthly",
+          dueDay: 1,
+          semiMonthlyDays: [1, 15],
+        },
+      ];
     });
   };
 
-  const goNext = () => {
-    const next = STEPS[stepIndex + 1]?.id;
-    if (next) setStep(next);
+  const addCustomIncome = () => {
+    const name = customIncome.trim();
+    if (!name) return;
+    setIncomes((rows) => [
+      ...rows,
+      {
+        key: newId("inc"),
+        name,
+        icon: "✨",
+        amount: "",
+        frequency: "monthly",
+        dueDay: 1,
+        semiMonthlyDays: [1, 15],
+      },
+    ]);
+    setCustomIncome("");
   };
 
-  const goBack = () => {
-    const prev = STEPS[stepIndex - 1]?.id;
-    if (prev) setStep(prev);
+  const toggleObligation = (preset: (typeof OBLIGATION_PRESETS)[number]) => {
+    setObligations((rows) => {
+      const exists = rows.some((r) => r.name === preset.name);
+      if (exists) return rows.filter((r) => r.name !== preset.name);
+      return [
+        ...rows,
+        {
+          key: newId("ob"),
+          name: preset.name,
+          icon: preset.icon,
+          category: preset.category,
+          amount: "",
+          frequency: "monthly",
+          dueDay: 1,
+        },
+      ];
+    });
   };
 
-  const saveProfile = () => {
+  const addCustomObligation = () => {
+    const name = customObligation.trim();
+    if (!name) return;
+    setObligations((rows) => [
+      ...rows,
+      {
+        key: newId("ob"),
+        name,
+        icon: "✨",
+        category: name,
+        amount: "",
+        frequency: "monthly",
+        dueDay: 1,
+      },
+    ]);
+    setCustomObligation("");
+  };
+
+  const toggleEveryday = (preset: (typeof EVERYDAY_PRESETS)[number]) => {
+    setEveryday((rows) => {
+      const exists = rows.some((r) => r.name === preset.name);
+      if (exists) return rows.filter((r) => r.name !== preset.name);
+      return [
+        ...rows,
+        {
+          key: newId("ev"),
+          name: preset.name,
+          icon: preset.icon,
+          category: preset.category,
+          amount: "",
+          frequency: preset.name === "Coffee" ? "weekday" : "weekly",
+        },
+      ];
+    });
+  };
+
+  const addCustomEveryday = () => {
+    const name = customEveryday.trim();
+    if (!name) return;
+    setEveryday((rows) => [
+      ...rows,
+      {
+        key: newId("ev"),
+        name,
+        icon: "✨",
+        category: name,
+        amount: "",
+        frequency: "weekly",
+      },
+    ]);
+    setCustomEveryday("");
+  };
+
+  const finish = () => {
+    let categories: BudgetCategory[] = [{ id: newId("cat"), name: "Income", icon: "💵", monthlyBudget: 0 }];
+
+    const streams: IncomeStream[] = incomes
+      .filter((row) => parseFloat(row.amount) > 0)
+      .map((row) => ({
+        id: newId("income"),
+        name: row.name,
+        amount: parseFloat(row.amount) || 0,
+        dueDay: row.dueDay,
+        frequency: row.frequency,
+        category: "Income",
+        icon: row.icon,
+        semiMonthlyDays: row.frequency === "semimonthly" ? row.semiMonthlyDays : undefined,
+      }));
+
+    const bills: Bill[] = obligations
+      .filter((row) => parseFloat(row.amount) > 0)
+      .map((row) => {
+        categories = upsertCategory(categories, row.category, row.icon, 0);
+        return {
+          id: newId("bill"),
+          name: row.name,
+          amount: parseFloat(row.amount) || 0,
+          dueDay: row.dueDay,
+          frequency: row.frequency,
+          category: row.category,
+          icon: row.icon,
+        };
+      });
+
+    const recurring: RecurringTransaction[] = everyday
+      .filter((row) => parseFloat(row.amount) > 0)
+      .map((row) => {
+        const raw = parseFloat(row.amount) || 0;
+        const stored = everydayToStoredSchedule(raw, row.frequency);
+        const monthly =
+          row.frequency === "weekday"
+            ? (raw * 5 * 52) / 12
+            : row.frequency === "weekly"
+              ? (raw * 52) / 12
+              : raw;
+        categories = upsertCategory(categories, row.category, row.icon, monthly);
+        return {
+          id: newId("recur"),
+          name: row.name,
+          amount: stored.amount,
+          dueDay: 1,
+          frequency: stored.frequency,
+          category: row.category,
+          icon: row.icon,
+          transactionType: "expense" as const,
+        };
+      });
+
+    const goals: Goal[] =
+      goalName.trim() && parseFloat(goalTarget) > 0
+        ? [
+            {
+              id: newId("goal"),
+              name: goalName.trim(),
+              icon: goalIcon,
+              target: parseFloat(goalTarget) || 0,
+              saved: 0,
+              targetDate: "",
+              monthlyContribution: 0,
+            },
+          ]
+        : [];
+
     onUpdateProfile({
       displayName: displayName.trim() || "Friend",
-      email: email.trim(),
-      currency: currency.trim() || "USD",
+      email: "",
+      currency: "USD",
       startingBalance: parseFloat(startingBalance) || 0,
       balanceAsOfISO: balanceAsOfISO || todayISO(),
     });
-    goNext();
-  };
-
-  const saveBudget = () => {
-    const categories: BudgetCategory[] = budgetRows
-      .filter((r) => r.name.trim())
-      .map((r) => ({
-        id: newId("cat"),
-        name: r.name.trim(),
-        icon: r.icon || "📁",
-        monthlyBudget: parseFloat(r.monthlyBudget) || 0,
-      }));
-    onReplaceCategories(categories);
-    goNext();
-  };
-
-  const saveBills = () => {
-    const bills: Bill[] = billRows
-      .filter((b) => b.name.trim() && parseFloat(b.amount))
-      .map((b) => ({
-        id: newId("bill"),
-        name: b.name.trim(),
-        amount: parseFloat(b.amount) || 0,
-        dueDay: b.dueDay,
-        frequency: b.frequency,
-        category: b.category.trim(),
-        icon: "📄",
-      }));
-    onReplaceBills(bills);
-    goNext();
-  };
-
-  const saveIncomeStreams = () => {
-    const streams: IncomeStream[] = incomeRows
-      .filter((b) => b.name.trim() && parseFloat(b.amount))
-      .map((b) => ({
-        id: newId("income"),
-        name: b.name.trim(),
-        amount: parseFloat(b.amount) || 0,
-        dueDay: b.dueDay,
-        frequency: b.frequency,
-        category: b.category.trim(),
-        icon: "💵",
-        semiMonthlyDays: b.frequency === "semimonthly" ? b.semiMonthlyDays : undefined,
-        startDateISO: b.startDateISO.trim() || undefined,
-        endDateISO: b.endDateISO.trim() || undefined,
-      }));
+    onReplaceCategories(categories.filter((c) => c.name !== "Income" || streams.length > 0));
     onReplaceIncomeStreams(streams);
-    goNext();
-  };
-
-  const saveRecurringTransactions = () => {
-    const items: RecurringTransaction[] = recurringRows
-      .filter((b) => b.name.trim() && parseFloat(b.amount))
-      .map((b) => ({
-        id: newId("recur"),
-        name: b.name.trim(),
-        amount: parseFloat(b.amount) || 0,
-        dueDay: b.dueDay,
-        frequency: b.frequency,
-        category: b.category.trim(),
-        icon: "🔄",
-        transactionType: b.transactionType || "expense",
-      }));
-    onReplaceRecurringTransactions(items);
-    goNext();
-  };
-
-  const handleCsvFile = async (file: File) => {
-    setImportError(null);
-    const text = await file.text();
-    setRawCsvText(text);
-    const parsed = parseCsvText(text);
-    if (parsed.headers.length === 0 || parsed.rows.length === 0) {
-      setImportError("Could not read rows from that file. Export as CSV (comma or tab separated) with a header row.");
-      return;
-    }
-    setHeaderRowIndex(parsed.headerRowIndex);
-    setParsedCsv(parsed);
-    setColumnAssignments(assignmentsFromGuess(parsed.headers));
-    setStep("map");
-  };
-
-  const skipImport = () => {
-    setImportDrafts([]);
-    setStep("finish");
-  };
-
-  const commitImport = () => {
-    const selected = importDrafts.filter((d) => d.include);
-    const extraCategories = new Set<string>();
-    selected.forEach((d) => {
-      if (d.category && !categoryNames.includes(d.category) && d.category !== "Income") {
-        extraCategories.add(d.category);
-      }
-    });
-    if (extraCategories.size > 0) {
-      const merged = [
-        ...store.categories,
-        ...[...extraCategories].map((name) => ({
-          id: newId("cat"),
-          name,
-          icon: "📁",
-          monthlyBudget: 0,
-        })),
-      ];
-      onReplaceCategories(merged);
-    }
-    onImportTransactionsBulk(
-      selected.map((d) => ({
-        dateISO: d.dateISO,
-        desc: d.desc,
-        amount: d.amount,
-        type: d.type,
-        category: d.category,
-        icon: d.icon,
-      })),
-    );
-    setStep("finish");
-  };
-
-  const finishSetup = () => {
+    onReplaceBills(bills);
+    onReplaceRecurringTransactions(recurring);
+    onReplaceGoals(goals);
     onComplete();
   };
 
+  const currentIncome = incomes[incomeIndex];
+  const currentObligation = obligations[obligationIndex];
+  const currentEveryday = everyday[everydayIndex];
+
+  const actions = (opts: { back?: boolean; skip?: () => void; nextLabel?: string; onNext: () => void; nextDisabled?: boolean }) => (
+    <div className="fety-talk-actions">
+      {opts.back !== false && phase !== "welcome" ? (
+        <button type="button" className="fety-splash-btn-ghost" onClick={back}>
+          Back
+        </button>
+      ) : null}
+      {opts.skip ? (
+        <button type="button" className="fety-talk-skip" onClick={opts.skip}>
+          Skip for now
+        </button>
+      ) : null}
+      <button type="button" className="fety-splash-btn-primary fety-splash-btn-lg" onClick={opts.onNext} disabled={opts.nextDisabled}>
+        {opts.nextLabel ?? "Continue"}
+      </button>
+    </div>
+  );
+
   return (
-    <div className="fety-onboarding">
+    <div className="fety-onboarding fety-talk">
       <header className="fety-onboarding-header">
         <FetyLogo />
       </header>
-
       <div className="fety-onboarding-scroll">
-        <div className="fety-onboarding-inner">
-          <div className="fety-onboarding-steps">
-            {STEPS.map((s, i) => (
-              <div
-                key={s.id}
-                className={`fety-onboarding-step${i === stepIndex ? " fety-onboarding-step-active" : ""}${i < stepIndex ? " fety-onboarding-step-done" : ""}`}
-              >
-                {s.label}
+        <div className="fety-talk-inner">
+          {phase === "welcome" && (
+            <>
+              <Prompt
+                title="Let's get to know your money."
+                body="I'll ask you a few questions about your income, bills, everyday spending, and goals. Then I'll show you what I find."
+              />
+              {actions({ back: false, nextLabel: "Let's get started", onNext: () => go("about") })}
+            </>
+          )}
+
+          {phase === "about" && (
+            <>
+              <Prompt title="What should I call you?" body="This stays on this device. You can skip it if you'd rather not say." />
+              <label className="fety-talk-field">
+                <span className="fety-label">Name</span>
+                <input value={displayName} onChange={(e) => setDisplayName(e.target.value)} placeholder="Alex" autoComplete="name" />
+              </label>
+              {actions({ skip: () => go("income-pick"), onNext: () => go("income-pick") })}
+            </>
+          )}
+
+          {phase === "income-pick" && (
+            <>
+              <Prompt title="How does money usually come into your household?" body="Pick everything that applies. Don't see yours? Add your own." />
+              <div className="fety-talk-chips">
+                {INCOME_PRESETS.map((p) => (
+                  <Chip key={p.name} icon={p.icon} label={p.name} active={incomes.some((r) => r.name === p.name)} onClick={() => toggleIncome(p)} />
+                ))}
               </div>
-            ))}
-          </div>
-
-          <div className="fety-onboarding-card">
-            {step === "welcome" && (
-              <>
-                <h1 style={{ fontSize: 28, fontWeight: 600, letterSpacing: "-0.03em", color: "var(--ink)", marginBottom: 10 }}>
-                  Set up Fety from scratch
-                </h1>
-                <p style={{ fontSize: 15, color: "var(--ink-2)", lineHeight: 1.55, marginBottom: 20 }}>
-                  We will walk you through your baseline balance, monthly budget categories, recurring bills and income, other repeating transactions, and optional CSV import.
-                  Everything stays on this device until you change it.
-                </p>
-                <ul style={{ fontSize: 14, color: "var(--ink-2)", lineHeight: 1.7, marginBottom: 24, paddingLeft: 18 }}>
-                  <li>Profile and starting balance</li>
-                  <li>Monthly category caps</li>
-                  <li>Bills, paychecks, and other schedules</li>
-                  <li>Import past transactions from a bank CSV</li>
-                </ul>
-                <button type="button" style={btnPrimary} onClick={goNext}>
-                  Get started
+              <div className="fety-talk-custom">
+                <input value={customIncome} onChange={(e) => setCustomIncome(e.target.value)} placeholder="Add your own income type" onKeyDown={(e) => e.key === "Enter" && addCustomIncome()} />
+                <button type="button" className="fety-splash-btn-ghost" onClick={addCustomIncome}>
+                  Add
                 </button>
-              </>
-            )}
+              </div>
+              {actions({
+                skip: () => { setIncomes([]); go("obligations-pick"); },
+                nextLabel: incomes.length ? "Next" : "I don't get regular income",
+                onNext: () => {
+                  if (incomes.length === 0) go("obligations-pick");
+                  else { setIncomeIndex(0); go("income-edit"); }
+                },
+              })}
+            </>
+          )}
 
-            {step === "profile" && (
-              <>
-                <h2 style={{ fontSize: 22, fontWeight: 600, marginBottom: 8 }}>About you</h2>
-                <p style={{ fontSize: 14, color: "var(--ink-2)", marginBottom: 20 }}>This powers greetings and your baseline cash position.</p>
-                <div style={{ display: "grid", gap: 14 }}>
-                  <div>
-                    <label className="fety-label" style={{ display: "block", marginBottom: 6 }}>Display name</label>
-                    <input value={displayName} onChange={(e) => setDisplayName(e.target.value)} style={inputStyle} placeholder="Alex" />
-                  </div>
-                  <div>
-                    <label className="fety-label" style={{ display: "block", marginBottom: 6 }}>Email (optional)</label>
-                    <input value={email} onChange={(e) => setEmail(e.target.value)} type="email" style={inputStyle} placeholder="you@example.com" />
-                  </div>
-                  <div className="fety-onboarding-two-col">
-                    <div>
-                      <label className="fety-label" style={{ display: "block", marginBottom: 6 }}>Starting balance</label>
-                      <CurrencyInput value={startingBalance} onChange={setStartingBalance} placeholder="0.00" />
-                    </div>
-                    <div>
-                      <label className="fety-label" style={{ display: "block", marginBottom: 6 }}>Balance as of</label>
-                      <input
-                        type="date"
-                        value={balanceAsOfISO}
-                        onChange={(e) => setBalanceAsOfISO(e.target.value)}
-                        style={inputStyle}
-                      />
-                    </div>
-                  </div>
-                  <div style={{ maxWidth: 160 }}>
-                    <label className="fety-label" style={{ display: "block", marginBottom: 6 }}>Currency</label>
-                    <input value={currency} onChange={(e) => setCurrency(e.target.value)} style={inputStyle} placeholder="USD" />
-                  </div>
-                  <p style={{ fontSize: 11, color: "var(--ink-3)", margin: 0, lineHeight: 1.4 }}>
-                    Transactions before this date won&apos;t change your starting balance; activity on and after this date builds from the amount above.
-                  </p>
+          {phase === "income-edit" && currentIncome && (
+            <>
+              <Prompt
+                title={`About how much do you usually receive from ${currentIncome.name}?`}
+                body={`${incomeIndex + 1} of ${incomes.length}. I'm not sure is okay — skip this one and keep going.`}
+              />
+              <label className="fety-talk-field">
+                <span className="fety-label">Amount</span>
+                <CurrencyInput value={currentIncome.amount} onChange={(v) => setIncomes((rows) => rows.map((r, i) => (i === incomeIndex ? { ...r, amount: v } : r)))} placeholder="0.00" />
+              </label>
+              <p className="fety-label" style={{ marginBottom: 8 }}>How often does it come in?</p>
+              <div className="fety-talk-chips">
+                {INCOME_FREQ.map((f) => (
+                  <Chip key={f.id} label={f.label} active={currentIncome.frequency === f.id} onClick={() => setIncomes((rows) => rows.map((r, i) => (i === incomeIndex ? { ...r, frequency: f.id } : r)))} />
+                ))}
+              </div>
+              {currentIncome.frequency === "semimonthly" ? (
+                <div className="fety-talk-two">
+                  <label className="fety-talk-field">
+                    <span className="fety-label">First payday</span>
+                    <input type="number" min={1} max={31} value={currentIncome.semiMonthlyDays[0]} onChange={(e) => setIncomes((rows) => rows.map((r, i) => (i === incomeIndex ? { ...r, semiMonthlyDays: [Number(e.target.value) || 1, r.semiMonthlyDays[1]] } : r)))} />
+                  </label>
+                  <label className="fety-talk-field">
+                    <span className="fety-label">Second payday</span>
+                    <input type="number" min={1} max={31} value={currentIncome.semiMonthlyDays[1]} onChange={(e) => setIncomes((rows) => rows.map((r, i) => (i === incomeIndex ? { ...r, semiMonthlyDays: [r.semiMonthlyDays[0], Number(e.target.value) || 15] } : r)))} />
+                  </label>
                 </div>
-                <div className="fety-onboarding-actions">
-                  <button type="button" style={btnSecondary} onClick={goBack}>Back</button>
-                  <button type="button" style={btnPrimary} onClick={saveProfile}>Continue</button>
-                </div>
-              </>
-            )}
-
-            {step === "budget" && (
-              <>
-                <h2 style={{ fontSize: 22, fontWeight: 600, marginBottom: 8 }}>Monthly budget</h2>
-                <p style={{ fontSize: 14, color: "var(--ink-2)", marginBottom: 12 }}>
-                  Add the categories you want to track. Suggested names are below — or add your own. Bills and recurring items later can only use categories you add here.
-                </p>
-                <p className="fety-label" style={{ marginBottom: 8 }}>Suggestions</p>
-                <div style={{ display: "flex", flexWrap: "wrap", gap: 6, marginBottom: 16 }}>
-                  {CATEGORY_SUGGESTIONS.map((s) => {
-                    const added = budgetRows.some(
-                      (r) => r.name.trim().toLowerCase() === s.name.toLowerCase(),
-                    );
-                    return (
-                      <button
-                        key={s.name}
-                        type="button"
-                        disabled={added}
-                        onClick={() => addSuggestedCategory(s)}
-                        style={{
-                          padding: "6px 12px",
-                          borderRadius: 99,
-                          border: `1px solid ${added ? "var(--border-soft)" : "var(--border)"}`,
-                          background: added ? "var(--bg)" : "var(--surface)",
-                          color: added ? "var(--ink-3)" : "var(--ink-2)",
-                          fontSize: 12,
-                          fontWeight: 500,
-                          cursor: added ? "default" : "pointer",
-                        }}
-                      >
-                        {s.icon} {s.name}
-                      </button>
-                    );
-                  })}
-                </div>
-                {budgetRows.length === 0 ? (
-                  <p style={{ fontSize: 13, color: "var(--ink-3)", marginBottom: 10 }}>
-                    No categories yet — tap a suggestion or add your own.
-                  </p>
-                ) : null}
-                <div style={{ display: "flex", flexDirection: "column", gap: 10, maxHeight: 360, overflowY: "auto" }}>
-                  {budgetRows.map((row, i) => {
-                    const presetMatch = EXPENSE_CATEGORY_PRESETS.find((p) => p.name === row.name);
-                    const selectValue = presetMatch ? row.name : CUSTOM_EXPENSE_CATEGORY;
-                    const isCustom = selectValue === CUSTOM_EXPENSE_CATEGORY;
-                    return (
-                      <div
-                        key={row.draftId}
-                        className="fety-onboarding-budget-row"
-                        style={{
-                          display: "grid",
-                          gridTemplateColumns: "auto 1fr minmax(110px, 130px) auto",
-                          gap: 8,
-                          alignItems: "end",
-                          padding: "10px 12px",
-                          border: "1px solid var(--border-soft)",
-                          borderRadius: 12,
-                        }}
-                      >
-                        <EmojiIconPicker
-                          compact
-                          hideLabel
-                          value={row.icon}
-                          defaultEmoji={row.icon || "📁"}
-                          onChange={(icon) => {
-                            const next = [...budgetRows];
-                            next[i] = { ...next[i], icon };
-                            setBudgetRows(next);
-                          }}
-                        />
-                        <div style={{ minWidth: 0 }}>
-                          <label className="fety-label" style={{ display: "block", marginBottom: 4 }}>Expense category</label>
-                          <select
-                            value={selectValue}
-                            onChange={(e) => {
-                              const next = [...budgetRows];
-                              const v = e.target.value;
-                              if (v === CUSTOM_EXPENSE_CATEGORY) {
-                                next[i] = { ...next[i], name: "", icon: next[i].icon || "📁" };
-                              } else {
-                                const preset = EXPENSE_CATEGORY_PRESETS.find((p) => p.name === v);
-                                next[i] = {
-                                  ...next[i],
-                                  name: v,
-                                  icon: preset?.icon ?? next[i].icon,
-                                };
-                              }
-                              setBudgetRows(next);
-                            }}
-                            style={inputStyle}
-                          >
-                            {EXPENSE_CATEGORY_PRESETS.map((p) => (
-                              <option key={p.name} value={p.name}>
-                                {p.name}
-                              </option>
-                            ))}
-                            <option value={CUSTOM_EXPENSE_CATEGORY}>Other (custom)</option>
-                          </select>
-                          {isCustom && (
-                            <input
-                              value={row.name}
-                              onChange={(e) => {
-                                const next = [...budgetRows];
-                                next[i] = { ...next[i], name: e.target.value };
-                                setBudgetRows(next);
-                              }}
-                              style={{ ...inputStyle, marginTop: 6 }}
-                              placeholder="Custom category name"
-                            />
-                          )}
-                        </div>
-                        <div>
-                          <label className="fety-label" style={{ display: "block", marginBottom: 4 }}>Monthly cap</label>
-                          <CurrencyInput
-                            compact
-                            value={row.monthlyBudget}
-                            onChange={(monthlyBudget) => {
-                              const next = [...budgetRows];
-                              next[i] = { ...next[i], monthlyBudget };
-                              setBudgetRows(next);
-                            }}
-                            placeholder="0.00"
-                          />
-                        </div>
-                        <button
-                          type="button"
-                          title="Remove category"
-                          onClick={() => setBudgetRows((rows) => rows.filter((r) => r.draftId !== row.draftId))}
-                          style={{
-                            border: "none",
-                            background: "transparent",
-                            cursor: "pointer",
-                            fontSize: 14,
-                            color: "var(--trouble-dk)",
-                            padding: "4px 5px",
-                            minWidth: 28,
-                            minHeight: 28,
-                            marginBottom: 2,
-                          }}
-                        >
-                          ×
-                        </button>
-                      </div>
-                    );
-                  })}
-                </div>
-                <button
-                  type="button"
-                  style={{ ...btnSecondary, marginTop: 12 }}
-                  onClick={() => setBudgetRows((r) => [...r, newBudgetDraftRow()])}
-                >
-                  + Add category
-                </button>
-                <div className="fety-onboarding-actions"
-                  style={{ display: "flex", gap: 10, marginTop: 24 }}>
-                  <button type="button" style={btnSecondary} onClick={goBack}>Back</button>
-                  <button type="button" style={btnPrimary} onClick={saveBudget}>Continue</button>
-                </div>
-              </>
-            )}
-
-            {step === "bills" && (
-              <>
-                <h2 style={{ fontSize: 22, fontWeight: 600, marginBottom: 8 }}>Recurring bills</h2>
-                <p style={{ fontSize: 14, color: "var(--ink-2)", marginBottom: 16 }}>
-                  Optional — add rent, utilities, and subscriptions. Choose how often each bill is due and which day it repeats; we&apos;ll add them to your calendar and transaction list automatically.
-                </p>
-                {billRows.length === 0 ? (
-                  <p style={{ fontSize: 13, color: "var(--ink-3)", marginBottom: 12 }}>No bills yet.</p>
-                ) : (
-                  <div style={{ display: "flex", flexDirection: "column", gap: 14, marginBottom: 12 }}>
-                    {billRows.map((b, i) => (
-                      <div key={i} style={{ padding: "12px 14px", border: "1px solid var(--border)", borderRadius: 12, background: "var(--surface)" }}>
-                        <div className="fety-onboarding-schedule-grid" style={{ display: "grid", gridTemplateColumns: "1.2fr 100px 1fr auto", gap: 8, marginBottom: 10 }}>
-                          <input value={b.name} onChange={(e) => { const n = [...billRows]; n[i].name = e.target.value; setBillRows(n); }} style={inputStyle} placeholder="Rent" />
-                          <CurrencyInput
-                            compact
-                            value={b.amount}
-                            onChange={(amount) => {
-                              const n = [...billRows];
-                              n[i].amount = amount;
-                              setBillRows(n);
-                            }}
-                            placeholder="0.00"
-                          />
-                          <div>
-                            <label className="fety-label" style={{ display: "block", marginBottom: 4 }}>Category</label>
-                            <SetupCategorySelect
-                              value={b.category}
-                              categoryNames={categoryNames}
-                              onChange={(category) => {
-                                const n = [...billRows];
-                                n[i].category = category;
-                                setBillRows(n);
-                              }}
-                            />
-                          </div>
-                          <button type="button" onClick={() => setBillRows(billRows.filter((_, j) => j !== i))} style={{ border: "none", background: "transparent", cursor: "pointer", color: "var(--ink-3)" }}>×</button>
-                        </div>
-                        <BillScheduleFields
-                          compact
-                          frequency={b.frequency}
-                          dueDay={b.dueDay}
-                          onFrequencyChange={(frequency) => {
-                            const n = [...billRows];
-                            n[i].frequency = frequency;
-                            setBillRows(n);
-                          }}
-                          onDueDayChange={(dueDay) => {
-                            const n = [...billRows];
-                            n[i].dueDay = dueDay;
-                            setBillRows(n);
-                          }}
-                          inputStyle={inputStyle}
-                        />
-                      </div>
-                    ))}
-                  </div>
-                )}
-                <button type="button" style={btnSecondary} onClick={() => setBillRows((r) => [...r, { name: "", amount: "", dueDay: 1, frequency: "monthly", category: "" }])}>
-                  + Add bill
-                </button>
-                <div className="fety-onboarding-actions"
-                  style={{ display: "flex", gap: 10, marginTop: 24 }}>
-                  <button type="button" style={btnSecondary} onClick={goBack}>Back</button>
-                  <button type="button" style={btnSecondary} onClick={() => { onReplaceBills([]); goNext(); }}>Skip</button>
-                  <button type="button" style={btnPrimary} onClick={saveBills}>Continue</button>
-                </div>
-              </>
-            )}
-
-            {step === "income" && (
-              <>
-                <h2 style={{ fontSize: 22, fontWeight: 600, marginBottom: 8 }}>Income streams</h2>
-                <p style={{ fontSize: 14, color: "var(--ink-2)", marginBottom: 16 }}>
-                  Optional — add paychecks, freelance deposits, or other money that arrives on a schedule. These show up on your calendar and Transactions list like bills.
-                </p>
-                {incomeRows.length === 0 ? (
-                  <p style={{ fontSize: 13, color: "var(--ink-3)", marginBottom: 12 }}>No income streams yet.</p>
-                ) : (
-                  <div style={{ display: "flex", flexDirection: "column", gap: 14, marginBottom: 12 }}>
-                    {incomeRows.map((b, i) => (
-                      <div key={i} style={{ padding: "12px 14px", border: "1px solid var(--border)", borderRadius: 12, background: "var(--surface)" }}>
-                        <div className="fety-onboarding-schedule-grid" style={{ display: "grid", gridTemplateColumns: "1.2fr 100px 1fr auto", gap: 8, marginBottom: 10 }}>
-                          <input value={b.name} onChange={(e) => { const n = [...incomeRows]; n[i].name = e.target.value; setIncomeRows(n); }} style={inputStyle} placeholder="Paycheck" />
-                          <CurrencyInput
-                            compact
-                            value={b.amount}
-                            onChange={(amount) => {
-                              const n = [...incomeRows];
-                              n[i].amount = amount;
-                              setIncomeRows(n);
-                            }}
-                            placeholder="0.00"
-                          />
-                          <div>
-                            <label className="fety-label" style={{ display: "block", marginBottom: 4 }}>Category</label>
-                            <SetupCategorySelect
-                              value={b.category}
-                              categoryNames={categoryNames}
-                              onChange={(category) => {
-                                const n = [...incomeRows];
-                                n[i].category = category;
-                                setIncomeRows(n);
-                              }}
-                            />
-                          </div>
-                          <button type="button" onClick={() => setIncomeRows(incomeRows.filter((_, j) => j !== i))} style={{ border: "none", background: "transparent", cursor: "pointer", color: "var(--ink-3)" }}>×</button>
-                        </div>
-                        <IncomeScheduleFields
-                          compact
-                          frequency={b.frequency}
-                          dueDay={b.dueDay}
-                          semiMonthlyDays={b.semiMonthlyDays}
-                          startDateISO={b.startDateISO}
-                          endDateISO={b.endDateISO}
-                          onFrequencyChange={(frequency) => {
-                            const n = [...incomeRows];
-                            n[i].frequency = frequency;
-                            setIncomeRows(n);
-                          }}
-                          onDueDayChange={(dueDay) => {
-                            const n = [...incomeRows];
-                            n[i].dueDay = dueDay;
-                            setIncomeRows(n);
-                          }}
-                          onSemiMonthlyDaysChange={(semiMonthlyDays) => {
-                            const n = [...incomeRows];
-                            n[i].semiMonthlyDays = semiMonthlyDays;
-                            setIncomeRows(n);
-                          }}
-                          onStartDateISOChange={(startDateISO) => {
-                            const n = [...incomeRows];
-                            n[i].startDateISO = startDateISO;
-                            setIncomeRows(n);
-                          }}
-                          onEndDateISOChange={(endDateISO) => {
-                            const n = [...incomeRows];
-                            n[i].endDateISO = endDateISO;
-                            setIncomeRows(n);
-                          }}
-                          inputStyle={inputStyle}
-                        />
-                      </div>
-                    ))}
-                  </div>
-                )}
-                <button
-                  type="button"
-                  style={btnSecondary}
-                  onClick={() =>
-                    setIncomeRows((r) => [
-                      ...r,
-                      {
-                        name: "",
-                        amount: "",
-                        dueDay: 1,
-                        frequency: "biweekly",
-                        category: "",
-                        semiMonthlyDays: [1, 15],
-                        startDateISO: "",
-                        endDateISO: "",
-                      },
-                    ])
-                  }
-                >
-                  + Add income stream
-                </button>
-                <div className="fety-onboarding-actions"
-                  style={{ display: "flex", gap: 10, marginTop: 24 }}>
-                  <button type="button" style={btnSecondary} onClick={goBack}>Back</button>
-                  <button type="button" style={btnSecondary} onClick={() => { onReplaceIncomeStreams([]); goNext(); }}>Skip</button>
-                  <button type="button" style={btnPrimary} onClick={saveIncomeStreams}>Continue</button>
-                </div>
-              </>
-            )}
-
-            {step === "recurring" && (
-              <>
-                <h2 style={{ fontSize: 22, fontWeight: 600, marginBottom: 8 }}>Recurring transactions</h2>
-                <p style={{ fontSize: 14, color: "var(--ink-2)", marginBottom: 16 }}>
-                  Optional — subscriptions, gym memberships, transfers, or anything else that repeats but is not a bill. Pick the transaction type so amounts flow the right way.
-                </p>
-                {recurringRows.length === 0 ? (
-                  <p style={{ fontSize: 13, color: "var(--ink-3)", marginBottom: 12 }}>No recurring transactions yet.</p>
-                ) : (
-                  <div style={{ display: "flex", flexDirection: "column", gap: 14, marginBottom: 12 }}>
-                    {recurringRows.map((b, i) => (
-                      <div key={i} style={{ padding: "12px 14px", border: "1px solid var(--border)", borderRadius: 12, background: "var(--surface)" }}>
-                        <div className="fety-onboarding-schedule-grid fety-onboarding-schedule-grid--wide" style={{ display: "grid", gridTemplateColumns: "1.2fr 100px 1fr 140px auto", gap: 8, marginBottom: 10 }}>
-                          <input value={b.name} onChange={(e) => { const n = [...recurringRows]; n[i].name = e.target.value; setRecurringRows(n); }} style={inputStyle} placeholder="Gym" />
-                          <CurrencyInput
-                            compact
-                            value={b.amount}
-                            onChange={(amount) => {
-                              const n = [...recurringRows];
-                              n[i].amount = amount;
-                              setRecurringRows(n);
-                            }}
-                            placeholder="0.00"
-                          />
-                          <div>
-                            <label className="fety-label" style={{ display: "block", marginBottom: 4 }}>Category</label>
-                            <SetupCategorySelect
-                              value={b.category}
-                              categoryNames={categoryNames}
-                              onChange={(category) => {
-                                const n = [...recurringRows];
-                                n[i].category = category;
-                                setRecurringRows(n);
-                              }}
-                            />
-                          </div>
-                          <select
-                            value={b.transactionType}
-                            onChange={(e) => {
-                              const n = [...recurringRows];
-                              n[i].transactionType = e.target.value;
-                              setRecurringRows(n);
-                            }}
-                            style={inputStyle}
-                          >
-                            {recurringTypeOptions.map((t) => (
-                              <option key={t.id} value={t.id}>
-                                {t.icon} {t.name}
-                              </option>
-                            ))}
-                          </select>
-                          <button type="button" onClick={() => setRecurringRows(recurringRows.filter((_, j) => j !== i))} style={{ border: "none", background: "transparent", cursor: "pointer", color: "var(--ink-3)" }}>×</button>
-                        </div>
-                        <BillScheduleFields
-                          compact
-                          frequency={b.frequency}
-                          dueDay={b.dueDay}
-                          onFrequencyChange={(frequency) => {
-                            const n = [...recurringRows];
-                            n[i].frequency = frequency;
-                            setRecurringRows(n);
-                          }}
-                          onDueDayChange={(dueDay) => {
-                            const n = [...recurringRows];
-                            n[i].dueDay = dueDay;
-                            setRecurringRows(n);
-                          }}
-                          inputStyle={inputStyle}
-                        />
-                      </div>
-                    ))}
-                  </div>
-                )}
-                <button
-                  type="button"
-                  style={btnSecondary}
-                  onClick={() =>
-                    setRecurringRows((r) => [
-                      ...r,
-                      { name: "", amount: "", dueDay: 1, frequency: "monthly", category: "", transactionType: "expense" },
-                    ])
-                  }
-                >
-                  + Add recurring transaction
-                </button>
-                <div className="fety-onboarding-actions"
-                  style={{ display: "flex", gap: 10, marginTop: 24 }}>
-                  <button type="button" style={btnSecondary} onClick={goBack}>Back</button>
-                  <button type="button" style={btnSecondary} onClick={() => { onReplaceRecurringTransactions([]); goNext(); }}>Skip</button>
-                  <button type="button" style={btnPrimary} onClick={saveRecurringTransactions}>Continue</button>
-                </div>
-              </>
-            )}
-
-            {step === "import" && (
-              <>
-                <h2 style={{ fontSize: 22, fontWeight: 600, marginBottom: 8 }}>Import CSV</h2>
-                <p style={{ fontSize: 14, color: "var(--ink-2)", marginBottom: 16, lineHeight: 1.55 }}>
-                  Bank exports and custom spreadsheets both work. Save your sheet as CSV, then map your columns on the next step — daily cash-flow trackers, separate In/Out columns, and odd header names are fine.
-                </p>
-                <label
-                  style={{
-                    display: "flex",
-                    flexDirection: "column",
-                    alignItems: "center",
-                    justifyContent: "center",
-                    gap: 8,
-                    padding: 32,
-                    border: "2px dashed var(--border)",
-                    borderRadius: 14,
-                    cursor: "pointer",
-                    background: "var(--bg)",
-                  }}
-                >
-                  <span style={{ fontSize: 13, fontWeight: 600, color: "var(--ink)" }}>Choose CSV file</span>
-                  <span style={{ fontSize: 11, color: "var(--ink-3)" }}>.csv or tab-separated export from Excel / Sheets</span>
-                  <input
-                    type="file"
-                    accept=".csv,text/csv"
-                    style={{ display: "none" }}
-                    onChange={(e) => {
-                      const f = e.target.files?.[0];
-                      if (f) void handleCsvFile(f);
-                      e.target.value = "";
-                    }}
-                  />
+              ) : currentIncome.frequency !== "weekly" && currentIncome.frequency !== "biweekly" ? (
+                <label className="fety-talk-field">
+                  <span className="fety-label">When do you usually receive it?</span>
+                  <input type="number" min={1} max={31} value={currentIncome.dueDay} onChange={(e) => setIncomes((rows) => rows.map((r, i) => (i === incomeIndex ? { ...r, dueDay: Number(e.target.value) || 1 } : r)))} />
                 </label>
-                {importError && <p style={{ color: "var(--trouble-dk)", fontSize: 12, marginTop: 12 }}>{importError}</p>}
-                {parsedCsv && parsedCsv.headers.length > 0 && step === "import" && (
-                  <p style={{ fontSize: 11, color: "var(--ink-3)", marginTop: 12 }}>
-                    Detected columns: {parsedCsv.headers.join(", ")}
-                  </p>
-                )}
-                <div className="fety-onboarding-actions"
-                  style={{ display: "flex", gap: 10, marginTop: 24 }}>
-                  <button type="button" style={btnSecondary} onClick={goBack}>Back</button>
-                  <button type="button" style={btnSecondary} onClick={skipImport}>Skip import</button>
-                  {parsedCsv && (
-                    <button type="button" style={btnPrimary} onClick={() => setStep("map")}>
-                      Map columns
-                    </button>
-                  )}
-                </div>
-              </>
-            )}
+              ) : (
+                <p className="fety-talk-hint">Weekly pay is tracked from the start of each week.</p>
+              )}
+              {actions({
+                skip: () => {
+                  if (incomeIndex + 1 < incomes.length) setIncomeIndex((n) => n + 1);
+                  else go("obligations-pick");
+                },
+                nextLabel: incomeIndex + 1 < incomes.length ? "Next income" : "Continue",
+                onNext: () => {
+                  if (incomeIndex + 1 < incomes.length) setIncomeIndex((n) => n + 1);
+                  else go("obligations-pick");
+                },
+              })}
+            </>
+          )}
 
-            {step === "map" && parsedCsv && rawCsvText && (
-              <>
-                <h2 style={{ fontSize: 22, fontWeight: 600, marginBottom: 8 }}>Match your columns</h2>
-                <p style={{ fontSize: 14, color: "var(--ink-2)", marginBottom: 16, lineHeight: 1.55 }}>
-                  Tell Fety which column is the date, what happened, and where money in/out lives. We guessed from your headers — adjust anything that does not match your sheet.
-                </p>
-                <CsvColumnMapper
-                  parsed={parsedCsv}
-                  headerRowIndex={headerRowIndex}
-                  onHeaderRowIndexChange={(idx) => {
-                    setHeaderRowIndex(idx);
-                    reparseCsv(rawCsvText, idx);
-                  }}
-                  columnAssignments={columnAssignments}
-                  onColumnAssignmentsChange={setColumnAssignments}
-                />
-                {importError && <p style={{ color: "var(--trouble-dk)", fontSize: 12, marginTop: 12 }}>{importError}</p>}
-                <div className="fety-onboarding-actions"
-                  style={{ display: "flex", gap: 10, marginTop: 24 }}>
-                  <button type="button" style={btnSecondary} onClick={() => setStep("import")}>Back</button>
-                  <button
-                    type="button"
-                    style={btnPrimary}
-                    onClick={() => {
-                      if (applyMappingAndPreview()) setStep("review");
-                    }}
-                  >
-                    Preview rows
-                  </button>
-                </div>
-              </>
-            )}
+          {phase === "obligations-pick" && (
+            <>
+              <Prompt title="What do you have to pay regularly?" body="Housing, utilities, insurance, subscriptions — anything you're committed to. Add your own if it isn't listed." />
+              <div className="fety-talk-chips">
+                {OBLIGATION_PRESETS.map((p) => (
+                  <Chip key={p.name} icon={p.icon} label={p.name} active={obligations.some((r) => r.name === p.name)} onClick={() => toggleObligation(p)} />
+                ))}
+              </div>
+              <div className="fety-talk-custom">
+                <input value={customObligation} onChange={(e) => setCustomObligation(e.target.value)} placeholder="Add your own" onKeyDown={(e) => e.key === "Enter" && addCustomObligation()} />
+                <button type="button" className="fety-splash-btn-ghost" onClick={addCustomObligation}>Add</button>
+              </div>
+              {actions({
+                skip: () => { setObligations([]); go("everyday-pick"); },
+                nextLabel: obligations.length ? "Next" : "I'll add these later",
+                onNext: () => {
+                  if (obligations.length === 0) go("everyday-pick");
+                  else { setObligationIndex(0); go("obligation-edit"); }
+                },
+              })}
+            </>
+          )}
 
-            {step === "review" && (
-              <>
-                <h2 style={{ fontSize: 22, fontWeight: 600, marginBottom: 8 }}>Review import</h2>
-                <p style={{ fontSize: 14, color: "var(--ink-2)", marginBottom: 12 }}>
-                  Uncheck rows to exclude. Edit fields to fix dates, amounts, or categories before saving.
-                </p>
-                <p style={{ fontSize: 12, color: "var(--ink-3)", marginBottom: 12 }}>
-                  {importDrafts.filter((d) => d.include).length} of {importDrafts.length} rows selected
-                </p>
-                <div className="fety-onboarding-table-wrap" style={{ maxHeight: 360, overflow: "auto", border: "1px solid var(--border)", borderRadius: 12 }}>
-                  <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 11 }}>
-                    <thead>
-                      <tr style={{ background: "var(--bg)", textAlign: "left" }}>
-                        <th style={{ padding: 8, width: 32 }} />
-                        <th style={{ padding: 8 }}>Date</th>
-                        <th style={{ padding: 8 }}>Description</th>
-                        <th style={{ padding: 8 }}>Type</th>
-                        <th style={{ padding: 8 }}>Category</th>
-                        <th style={{ padding: 8 }}>Amount</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {importDrafts.map((row) => (
-                        <tr key={row.draftId} style={{ borderTop: "1px solid var(--border)" }}>
-                          <td style={{ padding: 6, textAlign: "center" }}>
-                            <input
-                              type="checkbox"
-                              checked={row.include}
-                              onChange={(e) =>
-                                setImportDrafts((rows) =>
-                                  rows.map((r) => (r.draftId === row.draftId ? { ...r, include: e.target.checked } : r)),
-                                )
-                              }
-                            />
-                          </td>
-                          <td style={{ padding: 4 }}>
-                            <input
-                              type="date"
-                              value={row.dateISO}
-                              onChange={(e) =>
-                                setImportDrafts((rows) =>
-                                  rows.map((r) => (r.draftId === row.draftId ? { ...r, dateISO: e.target.value } : r)),
-                                )
-                              }
-                              style={{ ...inputStyle, padding: "4px 6px", fontSize: 11 }}
-                            />
-                          </td>
-                          <td style={{ padding: 4 }}>
-                            <input
-                              value={row.desc}
-                              onChange={(e) =>
-                                setImportDrafts((rows) =>
-                                  rows.map((r) => (r.draftId === row.draftId ? { ...r, desc: e.target.value } : r)),
-                                )
-                              }
-                              style={{ ...inputStyle, padding: "4px 6px", fontSize: 11 }}
-                            />
-                          </td>
-                          <td style={{ padding: 4 }}>
-                            <select
-                              value={row.type}
-                              onChange={(e) => {
-                                const type = e.target.value as TransactionType;
-                                setImportDrafts((rows) =>
-                                  rows.map((r) =>
-                                    r.draftId === row.draftId
-                                      ? {
-                                          ...r,
-                                          type,
-                                          amount: type === "income" ? Math.abs(r.amount) : -Math.abs(r.amount),
-                                        }
-                                      : r,
-                                  ),
-                                );
-                              }}
-                              style={{ ...inputStyle, padding: "4px 6px", fontSize: 11 }}
-                            >
-                              <option value="expense">Expense</option>
-                              <option value="income">Income</option>
-                              <option value="bill">Bill</option>
-                              <option value="transfer">Transfer</option>
-                            </select>
-                          </td>
-                          <td style={{ padding: 4 }}>
-                            <input
-                              value={row.category}
-                              onChange={(e) =>
-                                setImportDrafts((rows) =>
-                                  rows.map((r) => (r.draftId === row.draftId ? { ...r, category: e.target.value } : r)),
-                                )
-                              }
-                              style={{ ...inputStyle, padding: "4px 6px", fontSize: 11 }}
-                            />
-                          </td>
-                          <td style={{ padding: 4 }}>
-                            <CurrencyInput
-                              compact
-                              value={row.amount === 0 ? "" : String(Math.abs(row.amount))}
-                              placeholder="0.00"
-                              onChange={(v) => {
-                                const n = v === "" || v === "." ? 0 : parseFloat(v);
-                                if (v !== "" && v !== "." && !Number.isFinite(n)) return;
-                                setImportDrafts((rows) =>
-                                  rows.map((r) =>
-                                    r.draftId === row.draftId
-                                      ? {
-                                          ...r,
-                                          amount:
-                                            r.type === "income"
-                                              ? Math.abs(n)
-                                              : -Math.abs(n),
-                                        }
-                                      : r,
-                                  ),
-                                );
-                              }}
-                              style={{ padding: "4px 6px", fontSize: 11, width: 90, borderRadius: 6 }}
-                            />
-                          </td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
-                <div className="fety-onboarding-actions"
-                  style={{ display: "flex", gap: 10, marginTop: 24 }}>
-                  <button type="button" style={btnSecondary} onClick={() => setStep("map")}>Back</button>
-                  <button type="button" style={btnPrimary} onClick={commitImport}>Import selected</button>
-                </div>
-              </>
-            )}
+          {phase === "obligation-edit" && currentObligation && (
+            <>
+              <Prompt title={`What's your ${currentObligation.name.toLowerCase()} payment?`} body={`${obligationIndex + 1} of ${obligations.length}. Skip if you're not sure.`} />
+              <label className="fety-talk-field">
+                <span className="fety-label">Amount</span>
+                <CurrencyInput value={currentObligation.amount} onChange={(v) => setObligations((rows) => rows.map((r, i) => (i === obligationIndex ? { ...r, amount: v } : r)))} placeholder="0.00" />
+              </label>
+              <p className="fety-label" style={{ marginBottom: 8 }}>How often?</p>
+              <div className="fety-talk-chips">
+                {BILL_FREQ.map((f) => (
+                  <Chip key={f.id} label={f.label} active={currentObligation.frequency === f.id} onClick={() => setObligations((rows) => rows.map((r, i) => (i === obligationIndex ? { ...r, frequency: f.id } : r)))} />
+                ))}
+              </div>
+              {currentObligation.frequency !== "weekly" && currentObligation.frequency !== "biweekly" ? (
+                <label className="fety-talk-field">
+                  <span className="fety-label">Which day of the month?</span>
+                  <input type="number" min={1} max={31} value={currentObligation.dueDay} onChange={(e) => setObligations((rows) => rows.map((r, i) => (i === obligationIndex ? { ...r, dueDay: Number(e.target.value) || 1 } : r)))} />
+                </label>
+              ) : null}
+              {actions({
+                skip: () => {
+                  if (obligationIndex + 1 < obligations.length) setObligationIndex((n) => n + 1);
+                  else go("everyday-pick");
+                },
+                nextLabel: obligationIndex + 1 < obligations.length ? "Next payment" : "Continue",
+                onNext: () => {
+                  if (obligationIndex + 1 < obligations.length) setObligationIndex((n) => n + 1);
+                  else go("everyday-pick");
+                },
+              })}
+            </>
+          )}
 
-            {step === "finish" && (
-              <>
-                <h2 style={{ fontSize: 22, fontWeight: 600, marginBottom: 8 }}>You are ready</h2>
-                <p style={{ fontSize: 14, color: "var(--ink-2)", lineHeight: 1.55, marginBottom: 20 }}>
-                  Your profile, budget, scheduled bills and income{importDrafts.length ? ", and imported transactions" : ""} are saved locally.
-                  Use the chat to log new spending, or open Transactions and Calendar anytime.
-                </p>
-                <button type="button" style={btnPrimary} onClick={finishSetup}>
-                  Open Fety
-                </button>
-              </>
-            )}
-          </div>
+          {phase === "everyday-pick" && (
+            <>
+              <Prompt
+                title="Now let's think about everyday spending."
+                body="Things you buy regularly that aren't bills — coffee, eating out, gas, shopping, hobbies. Don't see yours? Add your own."
+              />
+              <div className="fety-talk-chips">
+                {EVERYDAY_PRESETS.map((p) => (
+                  <Chip key={p.name} icon={p.icon} label={p.name} active={everyday.some((r) => r.name === p.name)} onClick={() => toggleEveryday(p)} />
+                ))}
+              </div>
+              <div className="fety-talk-custom">
+                <input value={customEveryday} onChange={(e) => setCustomEveryday(e.target.value)} placeholder="Add your own" onKeyDown={(e) => e.key === "Enter" && addCustomEveryday()} />
+                <button type="button" className="fety-splash-btn-ghost" onClick={addCustomEveryday}>Add</button>
+              </div>
+              {actions({
+                skip: () => { setEveryday([]); go("goals"); },
+                nextLabel: everyday.length ? "Next" : "I'll add this later",
+                onNext: () => {
+                  if (everyday.length === 0) go("goals");
+                  else { setEverydayIndex(0); go("everyday-edit"); }
+                },
+              })}
+            </>
+          )}
+
+          {phase === "everyday-edit" && currentEveryday && (
+            <>
+              <Prompt title={`About how much do you usually spend on ${currentEveryday.name.toLowerCase()}?`} body={`${everydayIndex + 1} of ${everyday.length}. An estimate is plenty.`} />
+              <label className="fety-talk-field">
+                <span className="fety-label">Amount</span>
+                <CurrencyInput value={currentEveryday.amount} onChange={(v) => setEveryday((rows) => rows.map((r, i) => (i === everydayIndex ? { ...r, amount: v } : r)))} placeholder="0.00" />
+              </label>
+              <p className="fety-label" style={{ marginBottom: 8 }}>How often?</p>
+              <div className="fety-talk-chips">
+                {EVERYDAY_FREQ.map((f) => (
+                  <Chip key={f.id} label={f.label} active={currentEveryday.frequency === f.id} onClick={() => setEveryday((rows) => rows.map((r, i) => (i === everydayIndex ? { ...r, frequency: f.id } : r)))} />
+                ))}
+              </div>
+              {actions({
+                skip: () => {
+                  if (everydayIndex + 1 < everyday.length) setEverydayIndex((n) => n + 1);
+                  else go("goals");
+                },
+                nextLabel: everydayIndex + 1 < everyday.length ? "Next habit" : "Continue",
+                onNext: () => {
+                  if (everydayIndex + 1 < everyday.length) setEverydayIndex((n) => n + 1);
+                  else go("goals");
+                },
+              })}
+            </>
+          )}
+
+          {phase === "goals" && (
+            <>
+              <Prompt title="Is there something you'd like your money to help you accomplish?" body="A goal gives the rest of your picture a destination. You can skip this." />
+              <div className="fety-talk-chips">
+                {GOAL_PRESETS.map((p) => (
+                  <Chip key={p.name} icon={p.icon} label={p.name} active={goalName === p.name} onClick={() => { setGoalName(p.name); setGoalIcon(p.icon); }} />
+                ))}
+                <Chip label="Nothing right now" active={goalName === ""} onClick={() => setGoalName("")} />
+              </div>
+              <div className="fety-talk-custom">
+                <input value={customGoal} onChange={(e) => setCustomGoal(e.target.value)} placeholder="Add your own goal" onKeyDown={(e) => {
+                  if (e.key === "Enter" && customGoal.trim()) {
+                    setGoalName(customGoal.trim());
+                    setGoalIcon("🎯");
+                    setCustomGoal("");
+                  }
+                }} />
+                <button type="button" className="fety-splash-btn-ghost" onClick={() => {
+                  if (!customGoal.trim()) return;
+                  setGoalName(customGoal.trim());
+                  setGoalIcon("🎯");
+                  setCustomGoal("");
+                }}>Add</button>
+              </div>
+              {actions({
+                skip: () => { setGoalName(""); go("starting"); },
+                onNext: () => {
+                  if (goalName) go("goal-edit");
+                  else go("starting");
+                },
+              })}
+            </>
+          )}
+
+          {phase === "goal-edit" && (
+            <>
+              <Prompt title={`How much would you like to save for ${goalName.toLowerCase()}?`} />
+              <label className="fety-talk-field">
+                <span className="fety-label">Target</span>
+                <CurrencyInput value={goalTarget} onChange={setGoalTarget} placeholder={amountToEditString(5000)} />
+              </label>
+              {actions({ skip: () => go("starting"), onNext: () => go("starting") })}
+            </>
+          )}
+
+          {phase === "starting" && (
+            <>
+              <Prompt
+                title="About how much money do you have available right now?"
+                body="This is your starting point — the date matters so Fety can look backward and forward from the same place."
+              />
+              <label className="fety-talk-field">
+                <span className="fety-label">Available now</span>
+                <CurrencyInput value={startingBalance} onChange={setStartingBalance} placeholder="0.00" />
+              </label>
+              <label className="fety-talk-field">
+                <span className="fety-label">What date does that balance represent?</span>
+                <input type="date" value={balanceAsOfISO} onChange={(e) => setBalanceAsOfISO(e.target.value)} />
+              </label>
+              {actions({
+                skip: () => finish(),
+                nextLabel: "See what I found",
+                onNext: () => finish(),
+              })}
+            </>
+          )}
         </div>
       </div>
     </div>

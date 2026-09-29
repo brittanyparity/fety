@@ -24,7 +24,10 @@ import {
   NetWorthManageView,
 } from "./views/ManageViews";
 import { OnboardingView } from "./views/OnboardingView";
+import AnalysisReportView from "./views/AnalysisReportView";
+import ProductTour from "./components/ProductTour";
 import SplashView from "./views/SplashView";
+import { analyzeStore } from "./lib/financialAnalysis";
 import {
   AreaChart, Area, BarChart, Bar,
   XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer,
@@ -2403,7 +2406,7 @@ export default function App() {
     replaceBills,
     replaceIncomeStreams,
     replaceRecurringTransactions,
-    importTransactionsBulk,
+    replaceGoals,
     addTransactionType,
     updateTransactionType,
     deleteTransactionType,
@@ -2427,6 +2430,8 @@ export default function App() {
   const [chatProcessing, setChatProcessing] = useState(false);
   /** Shown before onboarding for first-time users. */
   const [showSplash, setShowSplash] = useState(true);
+  const [postSetup, setPostSetup] = useState<"analysis" | "tour" | null>(null);
+  const analysis = useMemo(() => analyzeStore(store), [store]);
   const isNarrow = useIsNarrow();
   const pendingConfirmations = useRef<Map<string, ToolAction>>(new Map());
 
@@ -2632,18 +2637,35 @@ export default function App() {
       return <SplashView onSignUp={() => setShowSplash(false)} />;
     }
     return (
-      <>
-        <OnboardingView
-          store={store}
-          onUpdateProfile={updateProfile}
-          onReplaceCategories={replaceCategories}
-          onReplaceBills={replaceBills}
-          onReplaceIncomeStreams={replaceIncomeStreams}
-          onReplaceRecurringTransactions={replaceRecurringTransactions}
-          onImportTransactionsBulk={importTransactionsBulk}
-          onComplete={completeOnboarding}
-        />
-      </>
+      <OnboardingView
+        onUpdateProfile={updateProfile}
+        onReplaceCategories={replaceCategories}
+        onReplaceBills={replaceBills}
+        onReplaceIncomeStreams={replaceIncomeStreams}
+        onReplaceRecurringTransactions={replaceRecurringTransactions}
+        onReplaceGoals={replaceGoals}
+        onComplete={() => {
+          completeOnboarding();
+          setPostSetup("analysis");
+        }}
+      />
+    );
+  }
+
+  if (postSetup === "analysis") {
+    return (
+      <AnalysisReportView
+        analysis={analysis}
+        onExplore={(target) => {
+          setPage(target);
+          setPostSetup(null);
+        }}
+        onTakeTour={() => {
+          setPage("dashboard");
+          setPostSetup("tour");
+        }}
+        onSkip={() => setPostSetup(null)}
+      />
     );
   }
 
@@ -2763,6 +2785,13 @@ export default function App() {
           />
         )}
       </div>
+
+      {postSetup === "tour" && (
+        <ProductTour
+          onGo={setPage}
+          onDismiss={() => setPostSetup(null)}
+        />
+      )}
     </div>
   );
 }

@@ -1038,6 +1038,342 @@ html, body, #root {
   min-width: 560px;
 }
 
+.fety-talk {
+  background:
+    radial-gradient(120% 80% at 100% 0%, rgba(228, 255, 63, 0.16) 0%, transparent 55%),
+    var(--bg);
+}
+
+.fety-talk-inner {
+  width: 100%;
+  max-width: 640px;
+  margin: 0 auto;
+  padding: 28px 20px 48px;
+}
+
+.fety-talk-prompt h2 {
+  font-size: clamp(26px, 4vw, 36px);
+  font-weight: 600;
+  letter-spacing: -0.03em;
+  line-height: 1.15;
+  margin: 0 0 12px;
+}
+
+.fety-talk-prompt p {
+  margin: 0 0 28px;
+  font-size: 16px;
+  line-height: 1.55;
+  color: var(--ink-2);
+}
+
+.fety-talk-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-bottom: 18px;
+}
+
+.fety-talk-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 44px;
+  padding: 8px 14px;
+  border-radius: 99px;
+  border: 1px solid var(--border);
+  background: var(--surface);
+  color: var(--ink);
+  font-size: 14px;
+  cursor: pointer;
+}
+
+.fety-talk-chip-active {
+  background: var(--ink);
+  border-color: var(--ink);
+  color: #fff;
+}
+
+.fety-talk-field {
+  display: grid;
+  gap: 6px;
+  margin-bottom: 16px;
+}
+
+.fety-talk-field input {
+  width: 100%;
+  min-height: 48px;
+  padding: 12px 14px;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: var(--surface);
+  font-family: var(--font-sans);
+  font-size: 16px;
+}
+
+.fety-talk-custom {
+  display: flex;
+  gap: 8px;
+  margin-bottom: 20px;
+}
+
+.fety-talk-custom input {
+  flex: 1;
+  min-height: 44px;
+  padding: 10px 12px;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: var(--surface);
+  font-size: 15px;
+}
+
+.fety-talk-two {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+}
+
+.fety-talk-hint {
+  margin: 0 0 16px;
+  font-size: 13px;
+  color: var(--ink-3);
+}
+
+.fety-talk-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px;
+  margin-top: 28px;
+}
+
+.fety-talk-skip {
+  border: none;
+  background: transparent;
+  color: var(--ink-3);
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+  min-height: 44px;
+  padding: 0 8px;
+}
+
+.fety-talk-actions .fety-splash-btn-primary {
+  margin-left: auto;
+}
+
+.fety-analysis {
+  min-height: 100%;
+  overflow-y: auto;
+  background:
+    radial-gradient(100% 70% at 0% 0%, rgba(145, 216, 182, 0.22) 0%, transparent 50%),
+    var(--bg);
+}
+
+.fety-analysis-inner {
+  width: 100%;
+  max-width: 720px;
+  margin: 0 auto;
+  padding: 36px 20px 64px;
+}
+
+.fety-analysis-inner > h1 {
+  font-size: clamp(32px, 5vw, 44px);
+  font-weight: 600;
+  letter-spacing: -0.035em;
+  margin: 8px 0 12px;
+}
+
+.fety-analysis-lede {
+  margin: 0 0 28px;
+  font-size: 16px;
+  line-height: 1.55;
+  color: var(--ink-2);
+}
+
+.fety-analysis-card {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 16px;
+  padding: 22px 20px;
+  margin-bottom: 16px;
+}
+
+.fety-analysis-card h2 {
+  font-size: 13px;
+  font-family: var(--font-mono);
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--ink-3);
+  margin: 0 0 12px;
+}
+
+.fety-analysis-headline {
+  font-size: 20px;
+  font-weight: 600;
+  letter-spacing: -0.03em;
+  line-height: 1.3;
+  margin: 0 0 16px;
+}
+
+.fety-analysis-stats {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 14px 16px;
+  margin: 0;
+}
+
+.fety-analysis-stats dt {
+  font-size: 12px;
+  color: var(--ink-3);
+  margin-bottom: 4px;
+}
+
+.fety-analysis-stats dd {
+  margin: 0;
+  font-size: 22px;
+  font-weight: 600;
+  letter-spacing: -0.03em;
+}
+
+.fety-analysis-viz {
+  display: grid;
+  gap: 12px;
+}
+
+.fety-analysis-legend {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 8px;
+}
+
+.fety-analysis-legend li {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 13px;
+}
+
+.fety-analysis-legend strong {
+  margin-left: auto;
+  font-weight: 600;
+}
+
+.fety-analysis-swatch {
+  width: 8px;
+  height: 8px;
+  border-radius: 2px;
+  flex-shrink: 0;
+}
+
+.fety-analysis-insights {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 18px;
+}
+
+.fety-analysis-insights h3 {
+  font-size: 17px;
+  font-weight: 600;
+  margin: 0 0 6px;
+  letter-spacing: -0.02em;
+}
+
+.fety-analysis-insights p {
+  margin: 0;
+  font-size: 14px;
+  line-height: 1.5;
+  color: var(--ink-2);
+}
+
+.fety-analysis-link {
+  margin-top: 8px;
+  border: none;
+  background: none;
+  color: var(--ink);
+  font-weight: 600;
+  font-size: 13px;
+  cursor: pointer;
+  padding: 8px 0;
+  min-height: 44px;
+}
+
+.fety-analysis-cta {
+  margin-top: 28px;
+  display: grid;
+  gap: 10px;
+  justify-items: start;
+}
+
+.fety-analysis-cta p {
+  margin: 0;
+  font-size: 16px;
+  font-weight: 600;
+}
+
+.fety-tour {
+  position: fixed;
+  inset: 0;
+  z-index: 40;
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+  padding: 20px;
+}
+
+.fety-tour-backdrop {
+  position: absolute;
+  inset: 0;
+  border: none;
+  background: rgba(17, 17, 17, 0.28);
+  cursor: pointer;
+}
+
+.fety-tour-card {
+  position: relative;
+  width: min(100%, 440px);
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 16px;
+  padding: 20px;
+  box-shadow: 0 20px 50px rgba(17, 17, 17, 0.12);
+}
+
+.fety-tour-card h2 {
+  font-size: 22px;
+  margin: 8px 0 8px;
+  letter-spacing: -0.03em;
+}
+
+.fety-tour-card p {
+  margin: 0 0 16px;
+  color: var(--ink-2);
+  line-height: 1.5;
+}
+
+.fety-tour-actions {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+@media (max-width: 768px) {
+  .fety-talk-two,
+  .fety-analysis-stats {
+    grid-template-columns: 1fr;
+  }
+
+  .fety-talk-actions .fety-splash-btn-primary,
+  .fety-analysis-cta .fety-splash-btn-primary {
+    width: 100%;
+    margin-left: 0;
+  }
+}
+
 /* ─── Calendar layout hooks ──────────────────────────────────────────────── */
 
 .fety-calendar-root {
