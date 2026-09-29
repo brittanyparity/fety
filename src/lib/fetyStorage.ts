@@ -74,7 +74,6 @@ const DEFAULT_ACCOUNTS: Account[] = [
 
 /** Former dashboard hero blocks — available in picker, not pinned by default. */
 export const OPTIONAL_HERO_WIDGET_IDS = [
-  "spending-power-hero",
   "weekly-power",
   "stat-balance",
   "stat-money-in",
@@ -82,7 +81,17 @@ export const OPTIONAL_HERO_WIDGET_IDS = [
   "stat-savings",
 ];
 
-export const DEFAULT_PINNED = [
+/** Widgets removed from the product; strip from saved pin lists. */
+export const REMOVED_WIDGET_IDS = [
+  "spending-power-hero",
+  "today-balance",
+  "money-in",
+  "money-out",
+  "monthly-net",
+] as const;
+
+/** Pre-curation defaults — used to detect stores still on the old starter set. */
+export const LEGACY_DEFAULT_PINNED = [
   "balance-chart",
   "monthly-spend-chart",
   "budget-remaining",
@@ -92,6 +101,44 @@ export const DEFAULT_PINNED = [
   "biggest-bill",
 ];
 
+/** First curated set (included spending-power hero). */
+export const CURATED_V2_DEFAULT_PINNED = [
+  "spending-power-hero",
+  "stat-balance",
+  "stat-money-in",
+  "stat-money-out",
+  "balance-chart",
+  "budget-remaining",
+  "spending-breakdown",
+  "monthly-spend-chart",
+  "next-paycheck",
+  "biggest-bill",
+];
+
+/**
+ * Curated starter dashboard: cash snapshot, filterable trends,
+ * budget health, and upcoming money. Other widgets stay in Customise.
+ */
+export const DEFAULT_PINNED = [
+  "stat-balance",
+  "stat-money-in",
+  "stat-money-out",
+  "balance-chart",
+  "budget-remaining",
+  "spending-breakdown",
+  "monthly-spend-chart",
+  "next-paycheck",
+  "biggest-bill",
+];
+
+function pinnedEquals(a: string[], b: string[]): boolean {
+  return a.length === b.length && a.every((id, i) => id === b[i]);
+}
+
+function stripRemovedWidgets(pinned: string[]): string[] {
+  const removed = new Set<string>(REMOVED_WIDGET_IDS);
+  return pinned.filter((id) => !removed.has(id));
+}
 export function createEmptyStore(): FetyStore {
   return {
     version: 1,
@@ -121,6 +168,8 @@ export function createEmptyStore(): FetyStore {
     typeIcons: { ...DEFAULT_TYPE_ICONS },
     transactionTypes: defaultTransactionTypes(),
     heroBlocksOptional: true,
+    widgetsCuratedV2: true,
+    widgetsCuratedV3: true,
   };
 }
 
@@ -144,6 +193,8 @@ export function createDefaultStore(): FetyStore {
     typeIcons: { ...DEFAULT_TYPE_ICONS },
     transactionTypes: defaultTransactionTypes(),
     heroBlocksOptional: true,
+    widgetsCuratedV2: true,
+    widgetsCuratedV3: true,
   };
 }
 
@@ -173,6 +224,28 @@ function migrateStore(store: FetyStore): FetyStore {
   }
   if (!next.lockedDashboardWidgets) {
     next = { ...next, lockedDashboardWidgets: [] };
+  }
+  if (!next.widgetsCuratedV2) {
+    const stillOnLegacyDefaults = pinnedEquals(next.pinnedWidgets, LEGACY_DEFAULT_PINNED);
+    next = {
+      ...next,
+      pinnedWidgets: stillOnLegacyDefaults || !next.onboardingCompleted ? DEFAULT_PINNED : next.pinnedWidgets,
+      widgetsCuratedV2: true,
+    };
+  }
+  if (!next.widgetsCuratedV3) {
+    const onPriorStarter =
+      pinnedEquals(next.pinnedWidgets, LEGACY_DEFAULT_PINNED) ||
+      pinnedEquals(next.pinnedWidgets, CURATED_V2_DEFAULT_PINNED);
+    next = {
+      ...next,
+      pinnedWidgets: onPriorStarter || !next.onboardingCompleted
+        ? DEFAULT_PINNED
+        : stripRemovedWidgets(next.pinnedWidgets),
+      widgetsCuratedV3: true,
+    };
+  } else {
+    next = { ...next, pinnedWidgets: stripRemovedWidgets(next.pinnedWidgets) };
   }
   if (!next.incomeStreams) next = { ...next, incomeStreams: [] };
   if (!next.recurringTransactions) next = { ...next, recurringTransactions: [] };
