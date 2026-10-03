@@ -518,13 +518,22 @@ function SpendingBreakdownWidget() {
           </PieChart>
         </ResponsiveContainer>
         <div className="fety-breakdown-legend">
-          {(donutLive.length ? donutLive : [{ name: "No spend yet", value: 0 }]).map((d, i) => (
-            <div key={d.name} style={{ display: "flex", alignItems: "center", gap: 7 }}>
-              <div style={{ width: 7, height: 7, borderRadius: 2, background: DONUT_COLORS[i % DONUT_COLORS.length], flexShrink: 0 }} />
-              <span style={{ fontSize: 11, color: "var(--ink-2)", flex: 1 }}>{d.name}</span>
-              <span style={{ fontSize: 11, fontWeight: 600, color: "var(--ink)", fontFamily: "var(--font-sans)" }}>{d.value}%</span>
+          {donutLive.length ? (
+            donutLive.map((d, i) => (
+              <div key={d.name} style={{ display: "flex", alignItems: "center", gap: 7 }}>
+                <div style={{ width: 7, height: 7, borderRadius: 2, background: DONUT_COLORS[i % DONUT_COLORS.length], flexShrink: 0 }} />
+                <span style={{ fontSize: 11, color: "var(--ink-2)", flex: 1 }}>{d.name}</span>
+                <span style={{ fontSize: 11, fontWeight: 600, color: "var(--ink)", fontFamily: "var(--font-sans)" }}>{d.value}%</span>
+              </div>
+            ))
+          ) : (
+            <div>
+              <p style={{ fontSize: 12, color: "var(--ink)", lineHeight: 1.4 }}>No spending in this period yet.</p>
+              <p style={{ fontSize: 11, color: "var(--ink-3)", marginTop: 4, lineHeight: 1.4 }}>
+                This widget shows where your money goes across categories — add transactions to see your mix.
+              </p>
             </div>
-          ))}
+          )}
         </div>
       </div>
     </div>
@@ -760,6 +769,20 @@ const ALL_WIDGETS: WidgetDef[] = [
     render: () => {
       const { store } = widgetLive();
       const goalRows = store.goals;
+      if (goalRows.length === 0) {
+        return (
+          <div>
+            <p style={{ fontSize: 12, fontWeight: 600, color: "var(--ink)", marginBottom: 10 }}>Savings Goals</p>
+            <p style={{ fontSize: 14, color: "var(--ink)", lineHeight: 1.45, marginBottom: 8 }}>
+              You don&apos;t have a financial goal yet.
+            </p>
+            <p style={{ fontSize: 12, color: "var(--ink-2)", lineHeight: 1.45, marginBottom: 14 }}>
+              Goals help you give your money a purpose and track progress toward something you want to accomplish.
+            </p>
+            <p style={{ fontSize: 11, color: "var(--ink-3)" }}>Open Goals in the navigation to create one.</p>
+          </div>
+        );
+      }
       return (
       <div>
         <p style={{ fontSize: 12, fontWeight: 600, color: "var(--ink)", marginBottom: 16 }}>Savings Goals</p>
@@ -887,9 +910,12 @@ function WidgetEducationCard({
           </div>
           <p style={{ fontSize: 9, color: "var(--ink-3)", marginTop: 2 }}>{short}</p>
           {reasons.length > 0 ? (
-            <p style={{ fontSize: 9, color: "var(--ink-2)", marginTop: 4 }}>
-              Recommended: {reasons.slice(0, 2).join(" · ")}
-            </p>
+            <div style={{ marginTop: 6 }}>
+              <p style={{ fontSize: 9, fontWeight: 600, color: "var(--ink-3)", textTransform: "uppercase", letterSpacing: "0.06em" }}>Why you&apos;re seeing this</p>
+              <p style={{ fontSize: 9, color: "var(--ink-2)", marginTop: 2 }}>
+                {reasons.slice(0, 2).join(" · ")}
+              </p>
+            </div>
           ) : null}
         </div>
       </div>
@@ -1016,16 +1042,14 @@ function WidgetPicker({
         height: "100%", overflow: "hidden",
       }}
     >
-      <div className="fety-widget-picker-header" style={inline ? undefined : { display: "flex", alignItems: "center", justifyContent: "space-between", padding: "16px 18px", borderBottom: "1px solid var(--border)", flexShrink: 0 }}>
+      <div className="fety-widget-picker-header" style={inline ? undefined : { display: "flex", alignItems: "flex-start", justifyContent: "space-between", padding: "16px 18px", borderBottom: "1px solid var(--border)", flexShrink: 0 }}>
         <div>
-          <p style={{ fontSize: 13, fontWeight: 600, color: "var(--ink)" }}>Customize Dashboard</p>
-          <p style={{ fontSize: 10, color: "var(--ink-3)", marginTop: 2 }}>
-            {inline
-              ? "Toggle widgets below, then drag them into place on this screen."
-              : `${pinned.length} widget${pinned.length !== 1 ? "s" : ""} active · Fety curates, you decide`}
+          <p style={{ fontSize: 14, fontWeight: 600, color: "var(--ink)", letterSpacing: "-0.01em" }}>Make Fety work the way you want</p>
+          <p style={{ fontSize: 11, color: "var(--ink-2)", marginTop: 6, lineHeight: 1.45 }}>
+            Fety has a collection of financial tools designed to help you understand, organize, and plan your money. We&apos;ve highlighted the ones we think may be most useful for you, but you can add any widget you want.
           </p>
         </div>
-        <button type="button" onClick={onClose} className="fety-widget-picker-done" style={inline ? undefined : { width: 28, height: 28, borderRadius: 8, border: "1px solid var(--border)", background: "var(--bg)", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center" }}>
+        <button type="button" onClick={onClose} className="fety-widget-picker-done" style={inline ? undefined : { width: 28, height: 28, borderRadius: 8, border: "1px solid var(--border)", background: "var(--bg)", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0, marginLeft: 10 }}>
           {inline ? "Done" : (
             <svg width="11" height="11" viewBox="0 0 11 11" fill="none"><path d="M2 2l7 7M9 2l-7 7" stroke="var(--ink-3)" strokeWidth="1.5" strokeLinecap="round"/></svg>
           )}
@@ -1048,20 +1072,26 @@ function WidgetPicker({
               cursor: "pointer",
             }}
           >
-            Restore recommended widgets
+            Restore recommended layout
           </button>
-          {assessment.financialStory.summary ? (
-            <p style={{ fontSize: 10, color: "var(--ink-3)", marginTop: 8, lineHeight: 1.4 }}>
-              {assessment.financialStory.summary}
-            </p>
-          ) : null}
         </div>
 
         {recommendedIds.length > 0 ? (
           <div className="fety-widget-picker-group" style={inline ? undefined : { marginBottom: 18 }}>
-            <p className="fety-widget-picker-group-label" style={inline ? undefined : { fontSize: 10, fontWeight: 400, color: "var(--ink-3)", fontFamily: "var(--font-mono)", textTransform: "uppercase", letterSpacing: "0.08em", marginBottom: 8 }}>
+            <p className="fety-widget-picker-group-label" style={inline ? undefined : { fontSize: 10, fontWeight: 400, color: "var(--ink-3)", fontFamily: "var(--font-mono)", textTransform: "uppercase", letterSpacing: "0.08em", marginBottom: 6 }}>
               Recommended for you
             </p>
+            <div style={{ marginBottom: 10, padding: "10px 12px", borderRadius: 10, background: "var(--bg)", border: "1px solid var(--border)" }}>
+              <p style={{ fontSize: 10, fontWeight: 600, color: "var(--ink-3)", textTransform: "uppercase", letterSpacing: "0.08em" }}>Why you&apos;re seeing this</p>
+              <p style={{ fontSize: 11, color: "var(--ink-2)", marginTop: 4, lineHeight: 1.45 }}>
+                {assessment.financialStory.summary || "Based on what you've told me, these are the things I think will be most useful for you."}
+              </p>
+              {assessment.needs[0] ? (
+                <p style={{ fontSize: 11, color: "var(--ink-2)", marginTop: 6, lineHeight: 1.4 }}>
+                  We noticed that {assessment.needs[0].label.toLowerCase()} is one of the areas that may be most useful for you to monitor.
+                </p>
+              ) : null}
+            </div>
             <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
               {recommendedIds.map(renderCard)}
             </div>
@@ -1071,6 +1101,9 @@ function WidgetPicker({
         <div className="fety-widget-picker-group" style={inline ? undefined : { marginBottom: 8 }}>
           <p className="fety-widget-picker-group-label" style={inline ? undefined : { fontSize: 10, fontWeight: 400, color: "var(--ink-3)", fontFamily: "var(--font-mono)", textTransform: "uppercase", letterSpacing: "0.08em", marginBottom: 8 }}>
             All financial widgets
+          </p>
+          <p style={{ fontSize: 10, color: "var(--ink-3)", marginBottom: 8, lineHeight: 1.4 }}>
+            Browse the complete toolkit — recommendations never hide widgets from you.
           </p>
         </div>
 
@@ -2346,12 +2379,15 @@ function DashboardView({
 
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
-      <AnalysisReportView
-        analysis={analysis}
-        firstLook={firstLook}
-        highlightTarget={highlightTarget}
-        onAction={onTipAction}
-      />
+      {/* During first-use walkthrough, widgets ARE the story — skip the duplicate briefing panel. */}
+      {!firstLook ? (
+        <AnalysisReportView
+          analysis={analysis}
+          firstLook={firstLook}
+          highlightTarget={highlightTarget}
+          onAction={onTipAction}
+        />
+      ) : null}
       {pinned.length === 0 ? (
         <button
           onClick={onCustomize}
@@ -2620,7 +2656,10 @@ export default function App() {
   const [focusAction, setFocusAction] = useState<FetyActionTarget | null>(null);
   const analysis = useMemo(() => analyzeStore(store), [store]);
   const assessment = useMemo(() => assessFinancialNeeds(store), [store]);
-  const tourSteps = useMemo(() => buildPersonalizedTour(store, analysis), [store, analysis]);
+  const tourSteps = useMemo(
+    () => buildPersonalizedTour(store, analysis, assessment),
+    [store, analysis, assessment],
+  );
 
   const applyFetyAction = useCallback((action: FetyActionTarget) => {
     setFocusAction(action);
@@ -2902,10 +2941,10 @@ export default function App() {
                     </h1>
                     <p style={{ fontSize: 15, color: "var(--ink-2)", marginTop: 4, lineHeight: 1.45 }}>
                       {pickerOpen && page === "dashboard"
-                        ? (isNarrow
+                        ? "Make Fety work the way you want — add any widget from the full library."
+                        : (isNarrow
                           ? "Turn widgets on or off, then drag them into place here."
-                          : PAGE_META[page].sub)
-                        : PAGE_META[page].sub}
+                          : PAGE_META[page].sub)}
                     </p>
                   </div>
                   {page === "dashboard" && !pickerOpen && (

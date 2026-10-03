@@ -172,6 +172,7 @@ export function createEmptyStore(): FetyStore {
     widgetsCuratedV2: true,
     widgetsCuratedV3: true,
     widgetsPersonalizedV1: false,
+    widgetsPersonalizedV2: true,
     dashboardCustomizedByUser: false,
   };
 }
@@ -198,8 +199,9 @@ export function createDefaultStore(): FetyStore {
     heroBlocksOptional: true,
     widgetsCuratedV2: true,
     widgetsCuratedV3: true,
-    // Demo seed keeps curated pins; mark personalized so assessment does not reshuffle seed data.
-    widgetsPersonalizedV1: true,
+    // Demo seed: allow needs assessment to curate pins on first load.
+    widgetsPersonalizedV1: false,
+    widgetsPersonalizedV2: true,
     dashboardCustomizedByUser: false,
   };
 }
@@ -258,12 +260,17 @@ function migrateStore(store: FetyStore): FetyStore {
   if (next.dashboardCustomizedByUser === undefined) {
     next = { ...next, dashboardCustomizedByUser: false };
   }
-  // Existing stores that already have pins are treated as personalized so we never
-  // unexpectedly reshuffle a user's dashboard on upgrade.
-  if (next.widgetsPersonalizedV1 === undefined) {
+  // One-time upgrade: re-apply need-driven pins for users who have not customized.
+  if (!next.widgetsPersonalizedV2) {
     next = {
       ...next,
-      widgetsPersonalizedV1: next.onboardingCompleted || (next.pinnedWidgets?.length ?? 0) > 0,
+      widgetsPersonalizedV2: true,
+      widgetsPersonalizedV1: next.dashboardCustomizedByUser ? true : false,
+    };
+  } else if (next.widgetsPersonalizedV1 === undefined) {
+    next = {
+      ...next,
+      widgetsPersonalizedV1: next.dashboardCustomizedByUser === true,
     };
   }
   next = {

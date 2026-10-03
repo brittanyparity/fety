@@ -18,6 +18,7 @@ import {
   type RuleCondition,
 } from "./financialKnowledge";
 import { DEFAULT_PINNED } from "./fetyStorage";
+import { buildDashboardWidgetStates } from "./dashboardPreferences";
 import { getWidgetDefinition } from "./widgetCatalog";
 
 type AssessmentSignals = {
@@ -169,6 +170,9 @@ function buildWidgetRecommendations(
 
   const bump = (widgetId: string, priority: number, reason: string) => {
     if (!getWidgetDefinition(widgetId)) return;
+    // Never recommend goal widgets without goals, or bill widgets without bills.
+    if ((widgetId === "savings-goal" || widgetId === "stat-savings") && signals.goals === 0) return;
+    if (widgetId === "biggest-bill" && signals.bills === 0) return;
     const cur = scores.get(widgetId);
     if (!cur) {
       scores.set(widgetId, { priority, reasons: [reason] });
@@ -178,11 +182,6 @@ function buildWidgetRecommendations(
     if (!cur.reasons.includes(reason)) cur.reasons.push(reason);
   };
 
-  // Core always recommended at lower urgency so the dashboard is never empty of essentials.
-  for (const id of ["stat-balance", "stat-money-in", "stat-money-out", "balance-chart"]) {
-    bump(id, 20, "Core cash snapshot");
-  }
-
   for (const rule of matched) {
     const reason = NEED_LABELS[rule.assessment.need];
     for (const widgetId of rule.relevantWidgets) {
@@ -190,10 +189,26 @@ function buildWidgetRecommendations(
     }
   }
 
-  if (signals.goals > 0) bump("savings-goal", 3, NEED_LABELS.goal_planning);
-  if (signals.bills > 0) bump("biggest-bill", 3, NEED_LABELS.expense_planning);
+  // Story-critical widgets when the data supports them.
   if (!signals.missing.income || !signals.missing.obligations) {
-    bump("weekly-power", 2, NEED_LABELS.cash_flow_visibility);
+    bump("weekly-power", 1, NEED_LABELS.cash_flow_visibility);
+  }
+  if (!signals.missing.flexible || signals.topCategoryShare > 0) {
+    bump("spending-breakdown", 2, NEED_LABELS.spending_awareness);
+  }
+  if (signals.goals > 0) bump("savings-goal", 2, NEED_LABELS.goal_planning);
+  if (signals.bills > 0) bump("biggest-bill", 3, NEED_LABELS.expense_planning);
+  if (signals.hasBudgets) bump("budget-remaining", 4, NEED_LABELS.budget_organization);
+  if (signals.incomeStreams >= 1) bump("next-paycheck", 4, NEED_LABELS.income_organization);
+  if (!signals.missing.income || signals.bills > 0) {
+    bump("balance-chart", 5, NEED_LABELS.cash_flow_visibility);
+  }
+
+  // Getting started: keep a tiny orientation set, not the full curated default.
+  if (signals.patterns.has("missing_fundamentals")) {
+    bump("stat-balance", 1, NEED_LABELS.getting_started);
+    bump("weekly-power", 2, NEED_LABELS.getting_started);
+    bump("balance-chart", 3, NEED_LABELS.getting_started);
   }
 
   return [...scores.entries()]
@@ -207,48 +222,56 @@ function buildWidgetRecommendations(
 }
 
 /**
- * Suggested pin order: assessment priorities first, then remaining default pins,
- * without inventing widgets outside the catalog.
+ * Need-driven pin list — divergent by profile, not a clone of DEFAULT_PINNED.
+ * Story widgets lead; Customize still exposes the full library.
  */
-export function buildRecommendedPinned(recommendations: WidgetRecommendation[]): string[] {
-  const ranked = recommendations
-    .filter((r) => r.recommended)
-    .sort((a, b) => a.priority - b.priority);
-  const seen = new Set<string>();
+export function buildRecommendedPinned(
+  recommendations: WidgetRecommendation[],
+  story: { beats: { widgetId?: string }[] },
+  signals: AssessmentSignals,
+): string[] {
   const result: string[] = [];
+  const seen = new Set<string>();
 
-  // Prefer a stable, useful starter: spending power + cash snapshot + key planning widgets.
-  const preferredOrder = [
-    "weekly-power",
-    "stat-balance",
-    "stat-money-in",
-    "stat-money-out",
-    "balance-chart",
-    "spending-breakdown",
-    "budget-remaining",
-    "monthly-spend-chart",
-    "savings-goal",
-    "next-paycheck",
-    "biggest-bill",
-  ];
+  const canInclude = (id: string) => {
+    if (!getWidgetDefinition(id)) return false;
+    if ((id === "savings-goal" || id === "stat-savings") && signals.goals === 0) return false;
+    if (id === "biggest-bill" && signals.bills === 0) return false;
+    return true;
+  };
 
-  const recommendedIds = new Set(ranked.map((r) => r.widgetId));
-  for (const id of preferredOrder) {
-    if (recommendedIds.has(id) && !seen.has(id)) {
-      seen.add(id);
-      result.push(id);
-    }
+  const add = (id: string | undefined) => {
+    if (!id || seen.has(id) || !canInclude(id)) return;
+    seen.add(id);
+    result.push(id);
+  };
+
+  // 1. Financial story widgets first — physical representation of the narrative.
+  for (const beat of story.beats) {
+    add(beat.widgetId);
+    if (result.length >= 5) break;
   }
-  for (const r of ranked) {
-    if (!seen.has(r.widgetId)) {
-      seen.add(r.widgetId);
-      result.push(r.widgetId);
-    }
+
+  // 2. High-priority recommendations (priority 1–3).
+  for (const r of recommendations.filter((x) => x.recommended && x.priority <= 3)) {
+    add(r.widgetId);
+    if (result.length >= 6) break;
   }
-  // Cap dashboard density; Customize still exposes the full library.
-  const capped = result.slice(0, 10);
-  if (capped.length === 0) return [...DEFAULT_PINNED];
-  return capped;
+
+  // 3. One medium-priority supplement if room.
+  for (const r of recommendations.filter((x) => x.recommended && x.priority > 3 && x.priority <= 5)) {
+    add(r.widgetId);
+    if (result.length >= 7) break;
+  }
+
+  // 4. Minimal orientation fallback.
+  if (result.length === 0) {
+    add("weekly-power");
+    add("stat-balance");
+    add("balance-chart");
+  }
+
+  return result.slice(0, 7);
 }
 
 function buildFinancialStory(
@@ -258,37 +281,26 @@ function buildFinancialStory(
 ): FinancialStory {
   const beats: FinancialStoryBeat[] = [];
   let order = 1;
+  const hasPosition = !analysis.missing.income || !analysis.missing.obligations;
 
-  beats.push({
-    id: "position",
-    order: order++,
-    title: "Overall position",
-    explanation: analysis.missing.income && analysis.missing.obligations
-      ? "Once income and regular expenses are on file, Fety can show what matters first."
-      : `Based on what you've entered, about ${formatRough(analysis.expectedMonthlyIncome)} comes in each month with about ${formatRough(analysis.regularObligations)} in regular expenses.`,
-    widgetId: "weekly-power",
-    needId: needs[0]?.id,
-  });
-
-  if (!analysis.missing.income) {
+  if (hasPosition) {
     beats.push({
-      id: "income",
+      id: "position",
       order: order++,
-      title: "Income",
-      explanation: `Income on file totals about ${formatRough(analysis.expectedMonthlyIncome)} a month.`,
-      widgetId: "next-paycheck",
-      needId: "income_organization",
+      title: "Overall position",
+      explanation:
+        `Based on what you've entered, about ${formatRough(analysis.expectedMonthlyIncome)} comes in each month with about ${formatRough(analysis.regularObligations)} in regular expenses. That leaves about ${formatRough(Math.max(0, analysis.expectedMonthlyIncome - analysis.regularObligations))} before everyday spending and other priorities.`,
+      widgetId: "weekly-power",
+      needId: needs.find((n) => n.id === "cash_flow_visibility")?.id ?? needs[0]?.id,
     });
-  }
-
-  if (!analysis.missing.obligations) {
+  } else {
     beats.push({
-      id: "obligations",
+      id: "position",
       order: order++,
-      title: "Regular obligations",
-      explanation: `Regular bills come to about ${formatRough(analysis.regularObligations)} a month.`,
-      widgetId: "biggest-bill",
-      needId: "expense_planning",
+      title: "Overall position",
+      explanation: "Once income and regular expenses are on file, Fety can show what matters first.",
+      widgetId: "weekly-power",
+      needId: "getting_started",
     });
   }
 
@@ -317,6 +329,17 @@ function buildFinancialStory(
     });
   }
 
+  if (!analysis.missing.obligations) {
+    beats.push({
+      id: "obligations",
+      order: order++,
+      title: "Regular obligations",
+      explanation: `Regular bills come to about ${formatRough(analysis.regularObligations)} a month.`,
+      widgetId: "biggest-bill",
+      needId: "expense_planning",
+    });
+  }
+
   const pattern = patterns.find((p) => p.id !== "missing_fundamentals") ?? patterns[0];
   if (pattern) {
     beats.push({
@@ -335,21 +358,21 @@ function buildFinancialStory(
       order: order++,
       title: primaryNeed.label,
       explanation: primaryNeed.explanation,
-      widgetId: primaryNeed.relatedWidgets[0],
+      widgetId: primaryNeed.relatedWidgets.find((id) => getWidgetDefinition(id)) ?? primaryNeed.relatedWidgets[0],
       needId: primaryNeed.id,
     });
     beats.push({
       id: "next-action",
       order: order++,
       title: "Recommended next step",
-      explanation: `Start with ${primaryNeed.relatedTools[0] ?? "your dashboard"} — Fety curated widgets for ${primaryNeed.label.toLowerCase()}, and you can change that anytime.`,
+      explanation: `Start with ${primaryNeed.relatedTools[0] ?? "your dashboard"} — Fety curated widgets for ${primaryNeed.label.toLowerCase()}, and you can change that anytime in Customize.`,
       widgetId: primaryNeed.relatedWidgets[0],
       needId: primaryNeed.id,
     });
   }
 
   const summary = primaryNeed
-    ? `Fety found that ${primaryNeed.label.toLowerCase()} may be most useful right now.`
+    ? `Based on what you've told me, ${primaryNeed.label.toLowerCase()} may be most useful for you right now.`
     : "Fety is ready to show your financial picture as you add information.";
 
   return { summary, beats };
@@ -381,7 +404,7 @@ export function assessFinancialNeeds(store: FetyStore, ref = new Date()): Financ
   const prioritizedWidgets = buildWidgetRecommendations(matched, signals);
   const patterns = detectedPatterns(signals);
   const financialStory = buildFinancialStory(analysis, needs, patterns);
-  const recommendedPinned = buildRecommendedPinned(prioritizedWidgets);
+  const recommendedPinned = buildRecommendedPinned(prioritizedWidgets, financialStory, signals);
 
   return {
     needs,
@@ -418,9 +441,11 @@ export function shouldApplyPersonalizedPins(store: FetyStore): boolean {
 export function withPersonalizedPins(store: FetyStore, assessment?: FinancialAssessment): FetyStore {
   if (!shouldApplyPersonalizedPins(store)) return store;
   const result = assessment ?? assessFinancialNeeds(store);
+  const pinned = result.recommendedPinned.length > 0 ? result.recommendedPinned : [...DEFAULT_PINNED];
   return {
     ...store,
-    pinnedWidgets: result.recommendedPinned,
+    pinnedWidgets: pinned,
+    dashboardWidgetStates: buildDashboardWidgetStates(pinned, result, store.dashboardWidgetStates),
     widgetsPersonalizedV1: true,
   };
 }
