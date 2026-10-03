@@ -837,14 +837,12 @@ function WidgetEducationCard({
   recommended,
   reasons,
   onToggle,
-  compact,
 }: {
   widgetId: string;
   active: boolean;
   recommended: boolean;
   reasons: string[];
   onToggle: () => void;
-  compact?: boolean;
 }) {
   const def = getWidgetDefinition(widgetId);
   const widget = ALL_WIDGETS.find((w) => w.id === widgetId);
@@ -852,20 +850,6 @@ function WidgetEducationCard({
   if (!widget) return null;
   const name = def?.name ?? widget.label;
   const short = def?.shortDescription ?? (widget.size === "full" ? "Full width" : widget.size === "half" ? "Half width" : "Stat card");
-
-  if (compact) {
-    return (
-      <button
-        type="button"
-        className={`fety-widget-chip${active ? " fety-widget-chip-active" : ""}`}
-        aria-pressed={active}
-        onClick={onToggle}
-      >
-        <span>{name}{recommended ? " · For you" : ""}</span>
-        <span className="fety-widget-chip-mark">{active ? "On" : "Off"}</span>
-      </button>
-    );
-  }
 
   return (
     <div
@@ -1013,13 +997,12 @@ function WidgetPicker({
     const rec = recommendationForWidget(assessment, id);
     return (
       <WidgetEducationCard
-        key={id}
+        key={`${inline ? "inline" : "side"}-${id}`}
         widgetId={id}
         active={pinned.includes(id)}
         recommended={isWidgetRecommended(assessment, id)}
         reasons={rec?.reasons ?? []}
         onToggle={() => onDashboardToggle(id)}
-        compact={inline}
       />
     );
   };
@@ -1079,7 +1062,7 @@ function WidgetPicker({
             <p className="fety-widget-picker-group-label" style={inline ? undefined : { fontSize: 10, fontWeight: 400, color: "var(--ink-3)", fontFamily: "var(--font-mono)", textTransform: "uppercase", letterSpacing: "0.08em", marginBottom: 8 }}>
               Recommended for you
             </p>
-            <div className={inline ? "fety-widget-picker-chips" : undefined} style={inline ? undefined : { display: "flex", flexDirection: "column", gap: 6 }}>
+            <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
               {recommendedIds.map(renderCard)}
             </div>
           </div>
@@ -1100,7 +1083,7 @@ function WidgetPicker({
               <p className="fety-widget-picker-group-label" style={inline ? undefined : { fontSize: 10, fontWeight: 400, color: "var(--ink-3)", fontFamily: "var(--font-mono)", textTransform: "uppercase", letterSpacing: "0.08em", marginBottom: 8 }}>
                 {WIDGET_CATEGORY_LABELS[category]}
               </p>
-              <div className={inline ? "fety-widget-picker-chips" : undefined} style={inline ? undefined : { display: "flex", flexDirection: "column", gap: 6 }}>
+              <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
                 {ids.map(renderCard)}
               </div>
             </div>
