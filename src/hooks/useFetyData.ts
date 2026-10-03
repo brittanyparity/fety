@@ -10,6 +10,7 @@ import {
   normalizeSkippedOccurrences,
 } from "../lib/billScheduling";
 import { loadStore, newId, saveStore, resetStore as resetStored, resetToEmptyStore } from "../lib/fetyStorage";
+import { assessFinancialNeeds, withPersonalizedPins } from "../lib/needsAssessment";
 import { toggleWidgetPositionLock } from "../lib/widgetLayout";
 import { normalizeAccountRecord } from "../lib/ledger";
 import {
@@ -357,10 +358,23 @@ export function useFetyData() {
           typeof pinnedWidgets === "function"
             ? pinnedWidgets(prev.pinnedWidgets)
             : pinnedWidgets,
+        dashboardCustomizedByUser: true,
       }));
     },
     [patch],
   );
+
+  const restoreRecommendedWidgets = useCallback(() => {
+    patch((prev) => {
+      const assessment = assessFinancialNeeds(prev);
+      return {
+        ...prev,
+        pinnedWidgets: assessment.recommendedPinned,
+        widgetsPersonalizedV1: true,
+        dashboardCustomizedByUser: false,
+      };
+    });
+  }, [patch]);
 
   const toggleDashboardWidgetLock = useCallback(
     (id: string) => {
@@ -462,7 +476,10 @@ export function useFetyData() {
   }, []);
 
   const completeOnboarding = useCallback(() => {
-    patch((prev) => ({ ...prev, onboardingCompleted: true }));
+    patch((prev) => {
+      const completed = { ...prev, onboardingCompleted: true };
+      return withPersonalizedPins(completed);
+    });
   }, [patch]);
 
   const replaceCategories = useCallback((categories: BudgetCategory[]) => {
@@ -525,6 +542,7 @@ export function useFetyData() {
     deleteAccount,
     addMessage,
     setPinnedWidgets,
+    restoreRecommendedWidgets,
     toggleDashboardWidgetLock,
     setLockedDashboardWidgets,
     resetAll,

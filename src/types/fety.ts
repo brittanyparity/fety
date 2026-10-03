@@ -150,6 +150,13 @@ export interface FetyStore {
   widgetsCuratedV2?: boolean;
   /** Strip removed widgets + apply latest curated defaults when still on a prior starter set. */
   widgetsCuratedV3?: boolean;
+  /**
+   * One-time: apply needs-assessment recommended pins.
+   * Once set, reassessment must not change the dashboard unless the user asks to restore recommendations.
+   */
+  widgetsPersonalizedV1?: boolean;
+  /** Explicit user customization of pins/order — takes precedence over assessment recommendations. */
+  dashboardCustomizedByUser?: boolean;
 }
 
 export interface CategoryWithSpent extends BudgetCategory {

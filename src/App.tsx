@@ -28,7 +28,15 @@ import AnalysisReportView from "./views/AnalysisReportView";
 import ProductTour from "./components/ProductTour";
 import SplashView from "./views/SplashView";
 import { analyzeStore, buildPersonalizedTour, pageForAction } from "./lib/financialAnalysis";
+import { assessFinancialNeeds, isWidgetRecommended, recommendationForWidget } from "./lib/needsAssessment";
+import {
+  WIDGET_CATALOG,
+  WIDGET_CATEGORY_LABELS,
+  WIDGET_CATEGORY_ORDER,
+  getWidgetDefinition,
+} from "./lib/widgetCatalog";
 import type { FetyActionTarget } from "./types/analysis";
+import type { FinancialAssessment } from "./types/widgets";
 import {
   AreaChart, Area, BarChart, Bar,
   XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer,
@@ -823,26 +831,187 @@ const ALL_WIDGETS: WidgetDef[] = [
 ];
 
 // ─── Widget Picker Panel (push sidebar) ─────────────────────────────────────────
-const SIZE_GROUPS: { label: string; sizes: WidgetDef["size"][] }[] = [
-  { label: "Stat Cards", sizes: ["small"] },
-  { label: "Detail Cards", sizes: ["half"] },
-  { label: "Full-Width", sizes: ["full"] },
-];
+function WidgetEducationCard({
+  widgetId,
+  active,
+  recommended,
+  reasons,
+  onToggle,
+}: {
+  widgetId: string;
+  active: boolean;
+  recommended: boolean;
+  reasons: string[];
+  onToggle: () => void;
+}) {
+  const def = getWidgetDefinition(widgetId);
+  const widget = ALL_WIDGETS.find((w) => w.id === widgetId);
+  const [open, setOpen] = useState(false);
+  if (!widget) return null;
+  const name = def?.name ?? widget.label;
+  const short = def?.shortDescription ?? (widget.size === "full" ? "Full width" : widget.size === "half" ? "Half width" : "Stat card");
+
+  return (
+    <div
+      style={{
+        borderRadius: 12,
+        border: `1.5px solid ${active ? "var(--ink)" : "var(--border)"}`,
+        overflow: "hidden",
+        background: active ? "var(--bg)" : "var(--surface)",
+        transition: "all 0.13s",
+      }}
+    >
+      <div
+        role="button"
+        tabIndex={0}
+        onClick={onToggle}
+        onKeyDown={(e) => {
+          if (e.key === "Enter" || e.key === " ") {
+            e.preventDefault();
+            onToggle();
+          }
+        }}
+        style={{ cursor: "pointer" }}
+      >
+        <div style={{ padding: "10px 12px", borderBottom: `1px solid ${active ? "rgba(0,0,0,0.08)" : "var(--border)"}` }}>
+          {widget.preview()}
+        </div>
+        <div style={{ padding: "8px 12px" }}>
+          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8 }}>
+            <p style={{ fontSize: 11, fontWeight: 600, color: "var(--ink)" }}>{name}</p>
+            {recommended ? (
+              <span style={{ fontSize: 9, fontWeight: 600, color: "var(--ink-2)", background: "var(--amber)", borderRadius: 99, padding: "2px 7px", flexShrink: 0 }}>
+                For you
+              </span>
+            ) : null}
+          </div>
+          <p style={{ fontSize: 9, color: "var(--ink-3)", marginTop: 2 }}>{short}</p>
+          {reasons.length > 0 ? (
+            <p style={{ fontSize: 9, color: "var(--ink-2)", marginTop: 4 }}>
+              Recommended: {reasons.slice(0, 2).join(" · ")}
+            </p>
+          ) : null}
+        </div>
+      </div>
+      {def ? (
+        <div style={{ borderTop: "1px solid var(--border)" }}>
+          <button
+            type="button"
+            onClick={(e) => {
+              e.stopPropagation();
+              setOpen((v) => !v);
+            }}
+            style={{
+              width: "100%",
+              textAlign: "left",
+              padding: "8px 12px",
+              border: "none",
+              background: "transparent",
+              cursor: "pointer",
+              fontSize: 10,
+              fontWeight: 600,
+              color: "var(--ink-2)",
+            }}
+          >
+            {open ? "Hide details" : "What is this?"}
+          </button>
+          {open ? (
+            <div style={{ padding: "0 12px 12px", display: "flex", flexDirection: "column", gap: 8 }}>
+              <div>
+                <p style={{ fontSize: 9, fontWeight: 600, color: "var(--ink-3)", textTransform: "uppercase", letterSpacing: "0.08em" }}>What is this?</p>
+                <p style={{ fontSize: 11, color: "var(--ink-2)", marginTop: 2 }}>{def.shortDescription}</p>
+              </div>
+              <div>
+                <p style={{ fontSize: 9, fontWeight: 600, color: "var(--ink-3)", textTransform: "uppercase", letterSpacing: "0.08em" }}>What does it show?</p>
+                <p style={{ fontSize: 11, color: "var(--ink-2)", marginTop: 2 }}>{def.whatItShows}</p>
+              </div>
+              <div>
+                <p style={{ fontSize: 9, fontWeight: 600, color: "var(--ink-3)", textTransform: "uppercase", letterSpacing: "0.08em" }}>Why does it matter?</p>
+                <p style={{ fontSize: 11, color: "var(--ink-2)", marginTop: 2 }}>{def.whyItMatters}</p>
+              </div>
+              <div>
+                <p style={{ fontSize: 9, fontWeight: 600, color: "var(--ink-3)", textTransform: "uppercase", letterSpacing: "0.08em" }}>How can I use it?</p>
+                <ul style={{ margin: "4px 0 0", paddingLeft: 16 }}>
+                  {def.financialPlanningUses.map((use) => (
+                    <li key={use} style={{ fontSize: 11, color: "var(--ink-2)", marginBottom: 2 }}>{use}</li>
+                  ))}
+                </ul>
+              </div>
+              {def.dataRequirements.length > 0 ? (
+                <div>
+                  <p style={{ fontSize: 9, fontWeight: 600, color: "var(--ink-3)", textTransform: "uppercase", letterSpacing: "0.08em" }}>Data source</p>
+                  <p style={{ fontSize: 11, color: "var(--ink-2)", marginTop: 2 }}>{def.dataRequirements.join(", ")}</p>
+                </div>
+              ) : null}
+              <button
+                type="button"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  onToggle();
+                }}
+                style={{
+                  marginTop: 4,
+                  padding: "8px 10px",
+                  borderRadius: 8,
+                  border: "1px solid var(--ink)",
+                  background: active ? "var(--ink)" : "var(--surface)",
+                  color: active ? "#fff" : "var(--ink)",
+                  fontSize: 11,
+                  fontWeight: 600,
+                  cursor: "pointer",
+                }}
+              >
+                {active ? "Remove from dashboard" : "Add to dashboard"}
+              </button>
+            </div>
+          ) : null}
+        </div>
+      ) : null}
+    </div>
+  );
+}
 
 function WidgetPicker({
-  pinned, onDashboardToggle, onClose, variant = "sidebar",
+  pinned,
+  assessment,
+  onDashboardToggle,
+  onRestoreRecommended,
+  onClose,
+  variant = "sidebar",
 }: {
   pinned: string[];
+  assessment: FinancialAssessment;
   onDashboardToggle: (id: string) => void;
+  onRestoreRecommended: () => void;
   onClose: () => void;
   variant?: "sidebar" | "inline";
 }) {
   const inline = variant === "inline";
+  const recommendedIds = assessment.prioritizedWidgets
+    .filter((r) => r.recommended)
+    .sort((a, b) => a.priority - b.priority)
+    .map((r) => r.widgetId)
+    .filter((id) => ALL_WIDGETS.some((w) => w.id === id));
+
+  const renderCard = (id: string) => {
+    const rec = recommendationForWidget(assessment, id);
+    return (
+      <WidgetEducationCard
+        key={`${inline ? "inline" : "side"}-${id}`}
+        widgetId={id}
+        active={pinned.includes(id)}
+        recommended={isWidgetRecommended(assessment, id)}
+        reasons={rec?.reasons ?? []}
+        onToggle={() => onDashboardToggle(id)}
+      />
+    );
+  };
+
   return (
     <div
       className={inline ? "fety-widget-picker fety-widget-picker-inline" : "fety-widget-picker fety-widget-picker-sidebar"}
       style={inline ? undefined : {
-        width: 300, flexShrink: 0, borderLeft: "1px solid var(--border)",
+        width: 320, flexShrink: 0, borderLeft: "1px solid var(--border)",
         background: "var(--surface)", display: "flex", flexDirection: "column",
         height: "100%", overflow: "hidden",
       }}
@@ -853,7 +1022,7 @@ function WidgetPicker({
           <p style={{ fontSize: 10, color: "var(--ink-3)", marginTop: 2 }}>
             {inline
               ? "Toggle widgets below, then drag them into place on this screen."
-              : `${pinned.length} widget${pinned.length !== 1 ? "s" : ""} active`}
+              : `${pinned.length} widget${pinned.length !== 1 ? "s" : ""} active · Fety curates, you decide`}
           </p>
         </div>
         <button type="button" onClick={onClose} className="fety-widget-picker-done" style={inline ? undefined : { width: 28, height: 28, borderRadius: 8, border: "1px solid var(--border)", background: "var(--bg)", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center" }}>
@@ -863,62 +1032,59 @@ function WidgetPicker({
         </button>
       </div>
       <div className="fety-widget-picker-body" style={inline ? undefined : { flex: 1, overflowY: "auto", padding: "10px 14px" }}>
-        {SIZE_GROUPS.map(group => {
-          const groupWidgets = ALL_WIDGETS.filter(w => group.sizes.includes(w.size));
-          if (groupWidgets.length === 0) return null;
+        <div style={{ marginBottom: 14 }}>
+          <button
+            type="button"
+            onClick={onRestoreRecommended}
+            style={{
+              width: "100%",
+              padding: "8px 10px",
+              borderRadius: 8,
+              border: "1px solid var(--border)",
+              background: "var(--bg)",
+              color: "var(--ink-2)",
+              fontSize: 11,
+              fontWeight: 600,
+              cursor: "pointer",
+            }}
+          >
+            Restore recommended widgets
+          </button>
+          {assessment.financialStory.summary ? (
+            <p style={{ fontSize: 10, color: "var(--ink-3)", marginTop: 8, lineHeight: 1.4 }}>
+              {assessment.financialStory.summary}
+            </p>
+          ) : null}
+        </div>
+
+        {recommendedIds.length > 0 ? (
+          <div className="fety-widget-picker-group" style={inline ? undefined : { marginBottom: 18 }}>
+            <p className="fety-widget-picker-group-label" style={inline ? undefined : { fontSize: 10, fontWeight: 400, color: "var(--ink-3)", fontFamily: "var(--font-mono)", textTransform: "uppercase", letterSpacing: "0.08em", marginBottom: 8 }}>
+              Recommended for you
+            </p>
+            <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+              {recommendedIds.map(renderCard)}
+            </div>
+          </div>
+        ) : null}
+
+        <div className="fety-widget-picker-group" style={inline ? undefined : { marginBottom: 8 }}>
+          <p className="fety-widget-picker-group-label" style={inline ? undefined : { fontSize: 10, fontWeight: 400, color: "var(--ink-3)", fontFamily: "var(--font-mono)", textTransform: "uppercase", letterSpacing: "0.08em", marginBottom: 8 }}>
+            All financial widgets
+          </p>
+        </div>
+
+        {WIDGET_CATEGORY_ORDER.map((category) => {
+          const ids = WIDGET_CATALOG.filter((w) => w.category === category).map((w) => w.id)
+            .filter((id) => ALL_WIDGETS.some((w) => w.id === id));
+          if (ids.length === 0) return null;
           return (
-            <div key={group.label} className="fety-widget-picker-group" style={inline ? undefined : { marginBottom: 18 }}>
-              <p className="fety-widget-picker-group-label" style={inline ? undefined : { fontSize: 10, fontWeight: 400, color: "var(--ink-3)", fontFamily: "var(--font-mono)", textTransform: "uppercase", letterSpacing: "0.08em", marginBottom: 8 }}>{group.label}</p>
-              <div className={inline ? "fety-widget-picker-chips" : undefined} style={inline ? undefined : { display: "flex", flexDirection: "column", gap: 6 }}>
-                {groupWidgets.map(w => {
-                  const active = pinned.includes(w.id);
-                  if (inline) {
-                    return (
-                      <button
-                        key={w.id}
-                        type="button"
-                        className={`fety-widget-chip${active ? " fety-widget-chip-active" : ""}`}
-                        aria-pressed={active}
-                        onClick={() => onDashboardToggle(w.id)}
-                      >
-                        <span>{w.label}</span>
-                        <span className="fety-widget-chip-mark">{active ? "On" : "Off"}</span>
-                      </button>
-                    );
-                  }
-                  return (
-                    <div
-                      key={w.id}
-                      role="button"
-                      tabIndex={0}
-                      onClick={() => onDashboardToggle(w.id)}
-                      onKeyDown={(e) => {
-                        if (e.key === "Enter" || e.key === " ") {
-                          e.preventDefault();
-                          onDashboardToggle(w.id);
-                        }
-                      }}
-                      style={{
-                        borderRadius: 12,
-                        border: `1.5px solid ${active ? "var(--ink)" : "var(--border)"}`,
-                        overflow: "hidden",
-                        background: active ? "var(--bg)" : "var(--surface)",
-                        transition: "all 0.13s",
-                        cursor: "pointer",
-                      }}
-                    >
-                      <div style={{ padding: "10px 12px", borderBottom: `1px solid ${active ? "rgba(0,0,0,0.08)" : "var(--border)"}` }}>
-                        {w.preview()}
-                      </div>
-                      <div style={{ padding: "8px 12px" }}>
-                        <p style={{ fontSize: 11, fontWeight: 600, color: "var(--ink)" }}>{w.label}</p>
-                        <p style={{ fontSize: 9, color: "var(--ink-3)", marginTop: 1 }}>
-                          {w.size === "full" ? "Full width" : w.size === "half" ? "Half width" : "Stat card"}
-                        </p>
-                      </div>
-                    </div>
-                  );
-                })}
+            <div key={category} className="fety-widget-picker-group" style={inline ? undefined : { marginBottom: 18 }}>
+              <p className="fety-widget-picker-group-label" style={inline ? undefined : { fontSize: 10, fontWeight: 400, color: "var(--ink-3)", fontFamily: "var(--font-mono)", textTransform: "uppercase", letterSpacing: "0.08em", marginBottom: 8 }}>
+                {WIDGET_CATEGORY_LABELS[category]}
+              </p>
+              <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+                {ids.map(renderCard)}
               </div>
             </div>
           );
@@ -2415,6 +2581,7 @@ export default function App() {
     deleteAccount,
     addMessage,
     setPinnedWidgets,
+    restoreRecommendedWidgets,
     toggleDashboardWidgetLock,
     setLockedDashboardWidgets,
     resetAll,
@@ -2452,6 +2619,7 @@ export default function App() {
   const [tourTarget, setTourTarget] = useState<string | null>(null);
   const [focusAction, setFocusAction] = useState<FetyActionTarget | null>(null);
   const analysis = useMemo(() => analyzeStore(store), [store]);
+  const assessment = useMemo(() => assessFinancialNeeds(store), [store]);
   const tourSteps = useMemo(() => buildPersonalizedTour(store, analysis), [store, analysis]);
 
   const applyFetyAction = useCallback((action: FetyActionTarget) => {
@@ -2764,7 +2932,9 @@ export default function App() {
                   <WidgetPicker
                     variant="inline"
                     pinned={pinned}
+                    assessment={assessment}
                     onDashboardToggle={(id) => setPinnedWidgets((prev) => toggleWidgetOnDashboard(prev, id))}
+                    onRestoreRecommended={restoreRecommendedWidgets}
                     onClose={() => setPickerOpen(false)}
                   />
                 )}
@@ -2774,7 +2944,9 @@ export default function App() {
                 <WidgetPicker
                   variant="sidebar"
                   pinned={pinned}
+                  assessment={assessment}
                   onDashboardToggle={(id) => setPinnedWidgets((prev) => toggleWidgetOnDashboard(prev, id))}
+                  onRestoreRecommended={restoreRecommendedWidgets}
                   onClose={() => setPickerOpen(false)}
                 />
               )}

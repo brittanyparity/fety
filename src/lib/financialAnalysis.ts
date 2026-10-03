@@ -373,53 +373,80 @@ export function buildPersonalizedTour(store: FetyStore, analysis: FinancialAnaly
   const flexInsight = analysis.insights.find((i) => i.type === "spending_pattern");
   const goalInsight = analysis.insights.find((i) => i.type === "goal_opportunity");
   const goal = store.goals[0];
+  const hasSpendingPower = !analysis.missing.income || !analysis.missing.obligations;
 
-  steps.push({
-    id: "snapshot",
-    title: "Here's what I found",
-    explanation: analysis.missing.income && analysis.missing.obligations
-      ? "Let's start with your dashboard. As you add income and expenses, this snapshot will fill in."
-      : `${greeting} what I found. You have about ${formatUsd(analysis.expectedMonthlyIncome)} coming in each month, with about ${formatUsd(analysis.regularObligations)} going toward regular expenses. That leaves about ${formatUsd(Math.max(0, analysis.expectedMonthlyIncome - analysis.regularObligations))} before everyday spending and other priorities. This snapshot is where you'll keep an eye on that picture.`,
-    page: "dashboard",
-    target: "snapshot",
-  });
-
-  if (!analysis.missing.income) {
+  // ── Financial walkthrough: explain what Fety found using real dashboard widgets ──
+  if (hasSpendingPower) {
     steps.push({
-      id: "income",
-      title: "Income",
-      explanation:
-        store.incomeStreams && store.incomeStreams.length > 1
-          ? `This is where the income you told me about is reflected — ${store.incomeStreams.length} streams totaling about ${formatUsd(analysis.expectedMonthlyIncome)} a month.`
-          : `This is where the income you told me about is reflected: about ${formatUsd(analysis.expectedMonthlyIncome)} a month.`,
+      id: "spending-power",
+      title: "Your spending power",
+      explanation: `${greeting} what I found. After the regular expenses on file, you have about ${formatUsd(Math.max(0, analysis.estimatedAvailable))} of monthly room before other priorities — and this widget turns that into a practical weekly number. It answers: how much room do you have right now?`,
       page: "dashboard",
-      target: "snapshot-income",
-      relatedInsightId: "income-summary",
+      target: "widget-weekly-power",
+      relatedInsightId: analysis.insights.find((i) => i.type === "cash_flow_pattern" || i.type === "positive_pattern")?.id,
     });
-  }
-
-  if (!analysis.missing.obligations) {
+  } else {
     steps.push({
-      id: "obligations",
-      title: "Regular expenses",
-      explanation: `These are the expenses you said you need to pay regularly — about ${formatUsd(analysis.regularObligations)} a month.`,
+      id: "snapshot",
+      title: "Here's what I found",
+      explanation:
+        "Let's start with your dashboard. As you add income and expenses, spending power and the rest of these widgets will fill in with your numbers.",
       page: "dashboard",
-      target: "snapshot-obligations",
-      relatedInsightId: "obligations-summary",
-      action: { type: "bills" },
+      target: "snapshot",
     });
   }
 
   if (!analysis.missing.flexible && flexInsight) {
     const cat = String(flexInsight.supportingData.topCategory ?? "everyday spending");
     steps.push({
-      id: "spending",
-      title: "Where money goes",
-      explanation: `This is where you can see flexible spending. ${cat} is one of your larger everyday categories.`,
+      id: "spending-breakdown",
+      title: "Where your money goes",
+      explanation: `This is your spending breakdown — the same widget on your dashboard. ${cat} is one of your larger everyday categories. Understanding where money goes helps you decide what to protect, trim, or redirect toward goals.`,
       page: "dashboard",
       target: "widget-spending-breakdown",
       relatedInsightId: "flexible-spending",
       action: { type: "spending", categoryName: cat },
+    });
+  } else if (!analysis.missing.obligations || analysis.categoryShares.length > 0) {
+    const top = analysis.categoryShares[0];
+    steps.push({
+      id: "spending-breakdown",
+      title: "Where your money goes",
+      explanation: top
+        ? `This spending breakdown shows where money is going. ${top.name} currently accounts for about ${top.value}% of tracked spending.`
+        : "This spending breakdown is where you'll see category shares as expenses land.",
+      page: "dashboard",
+      target: "widget-spending-breakdown",
+      action: { type: "spending" },
+    });
+  }
+
+  if (goal) {
+    const saved = goal.saved;
+    const pct = goal.target > 0 ? Math.round((saved / goal.target) * 100) : 0;
+    steps.push({
+      id: "goal-progress",
+      title: "Goal progress",
+      explanation: `You told me you want to work toward ${goal.name}. You're at about ${pct}% of ${formatUsd(goal.target)}.${goalInsight ? " You currently have room in monthly cash flow that could support it." : ""} This is the same Goals widget on your dashboard.`,
+      page: "dashboard",
+      target: "widget-savings-goal",
+      relatedInsightId: "goal-opportunity",
+      action: { type: "goals", goalId: goal.id },
+    });
+  }
+
+  // ── Product tour: how Fety works beyond the dashboard widgets ──
+  if (!analysis.missing.income) {
+    steps.push({
+      id: "income",
+      title: "Income on the dashboard",
+      explanation:
+        store.incomeStreams && store.incomeStreams.length > 1
+          ? `Your income summary reflects ${store.incomeStreams.length} streams totaling about ${formatUsd(analysis.expectedMonthlyIncome)} a month.`
+          : `Your income on file is about ${formatUsd(analysis.expectedMonthlyIncome)} a month — you'll also see the next paycheck widget when it's pinned.`,
+      page: "dashboard",
+      target: store.pinnedWidgets.includes("next-paycheck") ? "widget-next-paycheck" : "snapshot-income",
+      relatedInsightId: "income-summary",
     });
   }
 
@@ -430,7 +457,7 @@ export function buildPersonalizedTour(store: FetyStore, analysis: FinancialAnaly
       id: "budget",
       title: "Budget",
       explanation: cat
-        ? `You told me that ${cat} is one of your larger flexible expenses. This is your Budget area. You can use it to decide how much you want to allow yourself to spend on ${cat} each month.`
+        ? `You told me that ${cat} is one of your larger flexible expenses. This is your Budget area — decide how much you want to allow yourself to spend on ${cat} each month.`
         : "This is where you can decide how much you want to spend in each category.",
       page: "budget",
       target: catId ? `budget-category-${catId}` : "budget-summary",
@@ -441,9 +468,9 @@ export function buildPersonalizedTour(store: FetyStore, analysis: FinancialAnaly
 
   if (goal) {
     steps.push({
-      id: "goals",
-      title: "Goals",
-      explanation: `You told me you want to work toward ${goal.name}. That's what this section is for.${goalInsight ? ` You currently have room in your monthly cash flow that could potentially support it.` : ""}`,
+      id: "goals-tools",
+      title: "Goals tools",
+      explanation: `Beyond the dashboard widget, this Goals page is where you adjust targets and contributions for ${goal.name}.`,
       page: "goals",
       target: `goal-${goal.id}`,
       relatedInsightId: "goal-opportunity",
