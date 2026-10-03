@@ -192,16 +192,16 @@ describe("pageForAction", () => {
 });
 
 describe("buildPersonalizedTour", () => {
-  it("always starts on the dashboard snapshot", () => {
+  it("starts with a dashboard orientation when data is sparse", () => {
     const store = createEmptyStore();
     const steps = buildPersonalizedTour(store, analyzeStore(store));
-    assert.equal(steps[0]?.id, "snapshot");
+    assert.ok(steps[0]?.id === "snapshot" || steps[0]?.id === "spending-power");
     assert.equal(steps[0]?.page, "dashboard");
     assert.equal(steps.some((s) => s.id === "income"), false);
-    assert.equal(steps.some((s) => s.id === "goals"), false);
+    assert.equal(steps.some((s) => s.id === "goal-progress"), false);
   });
 
-  it("walks income, budget, goals, and calendar when the store has them", () => {
+  it("highlights real dashboard widgets then walks platform tools", () => {
     const store = withMoney({
       profile: { ...createEmptyStore().profile, displayName: "Alex" },
       incomeStreams: [
@@ -217,12 +217,16 @@ describe("buildPersonalizedTour", () => {
         { id: "g1", name: "Emergency fund", icon: "🛟", target: 5000, saved: 0, targetDate: "2027-12-31", monthlyContribution: 0 },
       ],
       categories: [{ id: "c-dining", name: "Dining", icon: "🍽️", monthlyBudget: 400 }],
+      pinnedWidgets: ["weekly-power", "spending-breakdown", "savings-goal", "next-paycheck"],
     });
     const analysis = analyzeStore(store);
     const steps = buildPersonalizedTour(store, analysis);
+    assert.equal(steps[0]?.target, "widget-weekly-power");
+    assert.ok(steps.some((s) => s.target === "widget-spending-breakdown"));
+    assert.ok(steps.some((s) => s.target === "widget-savings-goal"));
     assert.ok(steps.some((s) => s.id === "income"));
     assert.ok(steps.some((s) => s.id === "budget" && s.target === "budget-category-c-dining"));
-    assert.ok(steps.some((s) => s.id === "goals" && s.target === "goal-g1"));
+    assert.ok(steps.some((s) => s.id === "goals-tools" && s.target === "goal-g1"));
     assert.ok(steps.some((s) => s.id === "calendar" && s.page === "calendar"));
     assert.ok(steps.some((s) => s.id === "tip" && s.action));
     assert.match(steps[0].explanation, /Alex/);

@@ -116,17 +116,18 @@ export const CURATED_V2_DEFAULT_PINNED = [
 ];
 
 /**
- * Curated starter dashboard: cash snapshot, filterable trends,
- * budget health, and upcoming money. Other widgets stay in Customise.
+ * Curated starter dashboard: spending power, cash snapshot, trends,
+ * budget health, goals, and upcoming money. Other widgets stay in Customise.
  */
 export const DEFAULT_PINNED = [
+  "weekly-power",
   "stat-balance",
   "stat-money-in",
   "stat-money-out",
   "balance-chart",
-  "budget-remaining",
   "spending-breakdown",
-  "monthly-spend-chart",
+  "budget-remaining",
+  "savings-goal",
   "next-paycheck",
   "biggest-bill",
 ];
@@ -170,6 +171,8 @@ export function createEmptyStore(): FetyStore {
     heroBlocksOptional: true,
     widgetsCuratedV2: true,
     widgetsCuratedV3: true,
+    widgetsPersonalizedV1: false,
+    dashboardCustomizedByUser: false,
   };
 }
 
@@ -195,6 +198,9 @@ export function createDefaultStore(): FetyStore {
     heroBlocksOptional: true,
     widgetsCuratedV2: true,
     widgetsCuratedV3: true,
+    // Demo seed keeps curated pins; mark personalized so assessment does not reshuffle seed data.
+    widgetsPersonalizedV1: true,
+    dashboardCustomizedByUser: false,
   };
 }
 
@@ -249,6 +255,17 @@ function migrateStore(store: FetyStore): FetyStore {
   }
   if (!next.incomeStreams) next = { ...next, incomeStreams: [] };
   if (!next.recurringTransactions) next = { ...next, recurringTransactions: [] };
+  if (next.dashboardCustomizedByUser === undefined) {
+    next = { ...next, dashboardCustomizedByUser: false };
+  }
+  // Existing stores that already have pins are treated as personalized so we never
+  // unexpectedly reshuffle a user's dashboard on upgrade.
+  if (next.widgetsPersonalizedV1 === undefined) {
+    next = {
+      ...next,
+      widgetsPersonalizedV1: next.onboardingCompleted || (next.pinnedWidgets?.length ?? 0) > 0,
+    };
+  }
   next = {
     ...next,
     accounts: (next.accounts ?? []).map((a) => normalizeAccountRecord(a, next)),
