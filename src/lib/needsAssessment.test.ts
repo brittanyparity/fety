@@ -42,11 +42,11 @@ describe("assessFinancialNeeds", () => {
   it("asks for fundamentals when the store is empty", () => {
     const assessment = assessFinancialNeeds(createEmptyStore());
     assert.ok(assessment.needs.some((n) => n.id === "getting_started"));
-    assert.ok(assessment.recommendedPinned.includes("stat-balance"));
+    assert.ok(assessment.recommendedPinned.includes("weekly-power") || assessment.recommendedPinned.includes("stat-balance"));
     assert.ok(assessment.financialStory.beats.length > 0);
   });
 
-  it("recommends spending and cash-flow widgets for the PRD example profile", () => {
+  it("curates a PRD-style high-priority set for the example profile", () => {
     const store = withMoney({
       incomeStreams: [
         {
@@ -111,29 +111,56 @@ describe("assessFinancialNeeds", () => {
     });
 
     const assessment = assessFinancialNeeds(store);
-    assert.ok(assessment.needs.some((n) => n.id === "spending_awareness" || n.id === "cash_flow_visibility"));
-    assert.ok(assessment.needs.some((n) => n.id === "goal_planning"));
+    // High-priority story widgets from the PRD example experience
     assert.ok(assessment.recommendedPinned.includes("weekly-power"));
     assert.ok(assessment.recommendedPinned.includes("spending-breakdown"));
     assert.ok(assessment.recommendedPinned.includes("savings-goal"));
-
-    const spendRec = assessment.prioritizedWidgets.find((r) => r.widgetId === "spending-breakdown");
-    assert.ok(spendRec?.recommended);
-    assert.ok((spendRec?.reasons.length ?? 0) > 0);
+    // Need-driven set stays focused — not a clone of the full default library
+    assert.ok(assessment.recommendedPinned.length <= 7);
+    assert.ok(assessment.financialStory.beats.some((b) => b.widgetId === "weekly-power"));
+    assert.ok(assessment.financialStory.beats.some((b) => b.widgetId === "spending-breakdown"));
   });
 
-  it("flags negative cash flow without inventing numbers", () => {
+  it("does not pin goal widgets when the user has no goals", () => {
     const store = withMoney({
       incomeStreams: [
-        { id: "i1", name: "Pay", amount: 1000, dueDay: 1, frequency: "monthly", category: "Income", icon: "💵" },
+        { id: "i1", name: "Pay", amount: 5000, dueDay: 1, frequency: "monthly", category: "Income", icon: "💵" },
       ],
       bills: [
         { id: "b1", name: "Rent", amount: 1200, dueDay: 1, frequency: "monthly", category: "Housing", icon: "🏠" },
       ],
+      recurringTransactions: [
+        { id: "r1", name: "Dining", amount: 800, dueDay: 1, frequency: "monthly", category: "Dining", icon: "🍽️", transactionType: "expense" },
+      ],
+      goals: [],
     });
     const assessment = assessFinancialNeeds(store);
-    assert.ok(assessment.needs.some((n) => n.id === "cash_flow_visibility" || n.id === "recurring_expense_review"));
-    assert.ok(assessment.recommendedPinned.includes("biggest-bill") || assessment.recommendedPinned.includes("weekly-power"));
+    assert.equal(assessment.recommendedPinned.includes("savings-goal"), false);
+    assert.equal(assessment.recommendedPinned.includes("stat-savings"), false);
+  });
+
+  it("diverges pin sets across different financial profiles", () => {
+    const goalHeavy = assessFinancialNeeds(
+      withMoney({
+        incomeStreams: [{ id: "i1", name: "Pay", amount: 4000, dueDay: 1, frequency: "monthly", category: "Income", icon: "💵" }],
+        bills: [{ id: "b1", name: "Rent", amount: 1000, dueDay: 1, frequency: "monthly", category: "Housing", icon: "🏠" }],
+        goals: [{ id: "g1", name: "Emergency", icon: "🛡️", target: 5000, saved: 500, targetDate: "2027", monthlyContribution: 200 }],
+      }),
+    );
+    const billHeavy = assessFinancialNeeds(
+      withMoney({
+        incomeStreams: [{ id: "i1", name: "Pay", amount: 2000, dueDay: 1, frequency: "monthly", category: "Income", icon: "💵" }],
+        bills: [
+          { id: "b1", name: "Rent", amount: 1500, dueDay: 1, frequency: "monthly", category: "Housing", icon: "🏠" },
+          { id: "b2", name: "Car", amount: 400, dueDay: 5, frequency: "monthly", category: "Bills", icon: "🚗" },
+        ],
+        goals: [],
+      }),
+    );
+    assert.ok(goalHeavy.recommendedPinned.includes("savings-goal"));
+    assert.equal(billHeavy.recommendedPinned.includes("savings-goal"), false);
+    assert.ok(billHeavy.recommendedPinned.includes("biggest-bill"));
+    assert.notDeepEqual(goalHeavy.recommendedPinned, billHeavy.recommendedPinned);
   });
 
   it("does not override pins when the user has customized", () => {
@@ -162,7 +189,7 @@ describe("assessFinancialNeeds", () => {
     const next = withPersonalizedPins(store);
     assert.equal(next.widgetsPersonalizedV1, true);
     assert.ok(next.pinnedWidgets.includes("weekly-power"));
-    // Second pass must not reshuffle
+    assert.ok((next.dashboardWidgetStates?.length ?? 0) > 0);
     const again = withPersonalizedPins(next);
     assert.deepEqual(again.pinnedWidgets, next.pinnedWidgets);
   });

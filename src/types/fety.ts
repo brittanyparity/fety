@@ -155,8 +155,12 @@ export interface FetyStore {
    * Once set, reassessment must not change the dashboard unless the user asks to restore recommendations.
    */
   widgetsPersonalizedV1?: boolean;
+  /** One-time: re-run need-driven personalization for the PRD v3 pin model when user has not customized. */
+  widgetsPersonalizedV2?: boolean;
   /** Explicit user customization of pins/order — takes precedence over assessment recommendations. */
   dashboardCustomizedByUser?: boolean;
+  /** Per-widget source/preference metadata (core | recommended | user-added). */
+  dashboardWidgetStates?: import("./widgets").DashboardWidgetState[];
 }
 
 export interface CategoryWithSpent extends BudgetCategory {

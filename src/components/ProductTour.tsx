@@ -1,6 +1,13 @@
 import { useEffect, useState } from "react";
 import type { AnalysisTourStep } from "../types/analysis";
 
+function phaseLabel(phase: AnalysisTourStep["phase"]): string {
+  if (phase === "financial") return "Your finances";
+  if (phase === "bridge") return "Next";
+  if (phase === "product") return "How Fety works";
+  return "Tour";
+}
+
 export default function ProductTour({
   steps,
   onStep,
@@ -27,7 +34,7 @@ export default function ProductTour({
     <div className="fety-tour fety-tour--dock" role="dialog" aria-modal="true" aria-labelledby="fety-tour-title">
       <div className="fety-tour-card">
         <p className="fety-label">
-          {index + 1} of {steps.length}
+          {phaseLabel(step.phase)} · {index + 1} of {steps.length}
         </p>
         <h2 id="fety-tour-title">{step.title}</h2>
         <p>{step.explanation}</p>

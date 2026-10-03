@@ -10,7 +10,8 @@ import {
   normalizeSkippedOccurrences,
 } from "../lib/billScheduling";
 import { loadStore, newId, saveStore, resetStore as resetStored, resetToEmptyStore } from "../lib/fetyStorage";
-import { assessFinancialNeeds, withPersonalizedPins } from "../lib/needsAssessment";
+import { assessFinancialNeeds, shouldApplyPersonalizedPins, withPersonalizedPins } from "../lib/needsAssessment";
+import { buildDashboardWidgetStates, markWidgetUserModified } from "../lib/dashboardPreferences";
 import { toggleWidgetPositionLock } from "../lib/widgetLayout";
 import { normalizeAccountRecord } from "../lib/ledger";
 import {
@@ -40,7 +41,10 @@ function normalizeSkipped(prev: FetyStore): string[] {
 }
 
 export function useFetyData() {
-  const [store, setStore] = useState<FetyStore>(() => loadStore());
+  const [store, setStore] = useState<FetyStore>(() => {
+    const loaded = loadStore();
+    return shouldApplyPersonalizedPins(loaded) ? withPersonalizedPins(loaded) : loaded;
+  });
 
   useEffect(() => {
     saveStore(store);
@@ -352,14 +356,33 @@ export function useFetyData() {
 
   const setPinnedWidgets = useCallback(
     (pinnedWidgets: string[] | ((prev: string[]) => string[])) => {
-      patch((prev) => ({
-        ...prev,
-        pinnedWidgets:
+      patch((prev) => {
+        const nextPinned =
           typeof pinnedWidgets === "function"
             ? pinnedWidgets(prev.pinnedWidgets)
-            : pinnedWidgets,
-        dashboardCustomizedByUser: true,
-      }));
+            : pinnedWidgets;
+        const added = nextPinned.find((id) => !prev.pinnedWidgets.includes(id));
+        const removed = prev.pinnedWidgets.find((id) => !nextPinned.includes(id));
+        const changedId = added ?? removed;
+        return {
+          ...prev,
+          pinnedWidgets: nextPinned,
+          dashboardCustomizedByUser: true,
+          dashboardWidgetStates: changedId
+            ? markWidgetUserModified(
+                prev.dashboardWidgetStates,
+                changedId,
+                Boolean(added),
+                nextPinned,
+              )
+            : (prev.dashboardWidgetStates ?? []).map((s, i) => ({
+                ...s,
+                position: nextPinned.indexOf(s.widgetId),
+                enabled: nextPinned.includes(s.widgetId),
+                userModified: true,
+              })),
+        };
+      });
     },
     [patch],
   );
@@ -367,9 +390,11 @@ export function useFetyData() {
   const restoreRecommendedWidgets = useCallback(() => {
     patch((prev) => {
       const assessment = assessFinancialNeeds(prev);
+      const pinned = assessment.recommendedPinned;
       return {
         ...prev,
-        pinnedWidgets: assessment.recommendedPinned,
+        pinnedWidgets: pinned,
+        dashboardWidgetStates: buildDashboardWidgetStates(pinned, assessment),
         widgetsPersonalizedV1: true,
         dashboardCustomizedByUser: false,
       };

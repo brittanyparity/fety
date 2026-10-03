@@ -51,12 +51,16 @@ export type FinancialInsight = {
   tip?: FinancialTip;
 };
 
+export type TourPhase = "financial" | "bridge" | "product";
+
 export type AnalysisTourStep = {
   id: string;
   title: string;
   explanation: string;
   page: TourPage;
   target: string;
+  /** financial = your results on real widgets; product = how Fety works; bridge = transition */
+  phase?: TourPhase;
   relatedInsightId?: string;
   relatedTipId?: string;
   action?: FetyActionTarget;
