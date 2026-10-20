@@ -1,4 +1,5 @@
 import type { Bill, BudgetCategory, ChatMessage, FetyStore, Goal, Transaction, Account, TransactionType, TypeIconMap } from "../types/fety";
+import { normalizeCalendarNotes } from "./calendarNotes";
 import { applyBillScheduleToStore, dedupeBills, isScheduledTransaction } from "./billScheduling";
 import { normalizeAccountRecord } from "./ledger";
 import { roundMoney } from "./scheduleAmounts";
@@ -13,15 +14,7 @@ export const DEFAULT_TYPE_ICONS: TypeIconMap = {
 
 const STORAGE_KEY = "fety-store-v1";
 
-const SEED_MESSAGES: ChatMessage[] = [
-  { id: 1, role: "system", text: "Morning. You've got $140 of spending power this week — after every bill I know about.", time: "8:00 AM" },
-  { id: 2, role: "user", text: "Just paid the electric bill, $142.", time: "8:14 AM" },
-  { id: 3, role: "system", text: "Logged to Bills. $10 left in that budget, and nothing else due this month.", time: "8:14 AM", tag: "Budget updated" },
-  { id: 4, role: "user", text: "Groceries at Whole Foods, about $52.", time: "9:31 AM" },
-  { id: 5, role: "system", text: "Added $52 to Groceries. $128 left in that budget for September.", time: "9:31 AM", tag: "Transaction added" },
-  { id: 6, role: "user", text: "Freelance payment of $350 came in today.", time: "11:02 AM" },
-  { id: 7, role: "system", text: "Recorded +$350 income. Spending power this week is now $140.", time: "11:02 AM", tag: "Income recorded" },
-];
+const SEED_MESSAGES: ChatMessage[] = [];
 
 function isoDaysAgo(days: number): string {
   const d = new Date();
@@ -162,7 +155,7 @@ export function createEmptyStore(): FetyStore {
       {
         id: 1,
         role: "system",
-        text: "Welcome to Fety. Tell me about money in or out — include amounts — and I will update your books.",
+        text: "Welcome to Fety. Use Insights, Budget, and Transactions to stay on top of your money.",
         time: new Date().toLocaleTimeString([], { hour: "numeric", minute: "2-digit" }),
       },
     ],
@@ -175,6 +168,8 @@ export function createEmptyStore(): FetyStore {
     widgetsPersonalizedV1: false,
     widgetsPersonalizedV2: true,
     dashboardCustomizedByUser: false,
+    calendarNotes: {},
+    insightTipProgress: { doneIds: [], archivedIds: [] },
   };
 }
 
@@ -277,7 +272,13 @@ function migrateStore(store: FetyStore): FetyStore {
   }
   if (!next.incomeStreams) next = { ...next, incomeStreams: [] };
   if (!next.recurringTransactions) next = { ...next, recurringTransactions: [] };
-  if (!next.calendarNotes) next = { ...next, calendarNotes: {} };
+  next = {
+    ...next,
+    calendarNotes: normalizeCalendarNotes(next.calendarNotes as Record<string, string | import("../types/fety").CalendarDayNote> | undefined),
+  };
+  if (!next.insightTipProgress) {
+    next = { ...next, insightTipProgress: { doneIds: [], archivedIds: [] } };
+  }
   if (next.onboardingCompleted && !next.profile.balanceAsOfISO) {
     next = {
       ...next,

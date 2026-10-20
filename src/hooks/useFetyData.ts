@@ -9,6 +9,7 @@ import {
   skipKeyForOccurrence,
   normalizeSkippedOccurrences,
 } from "../lib/billScheduling";
+import { archiveInsightTip, markInsightTipDone } from "../lib/insightTips";
 import { createEmptyStore, loadStore, newId, saveStore, resetStore as resetStored, resetToEmptyStore } from "../lib/fetyStorage";
 import { assessFinancialNeeds, shouldApplyPersonalizedPins, withPersonalizedPins } from "../lib/needsAssessment";
 import { buildDashboardWidgetStates, markWidgetUserModified } from "../lib/dashboardPreferences";
@@ -520,11 +521,39 @@ export function useFetyData() {
     const trimmed = text.trim();
     patch((prev) => {
       const notes = { ...(prev.calendarNotes ?? {}) };
-      if (trimmed) notes[dateISO] = text;
-      else delete notes[dateISO];
+      if (!trimmed) {
+        delete notes[dateISO];
+      } else {
+        const existing = notes[dateISO];
+        const createdISO =
+          existing && typeof existing === "object" && existing.createdISO
+            ? existing.createdISO
+            : dateISO;
+        notes[dateISO] = { text: trimmed, createdISO };
+      }
       return { ...prev, calendarNotes: notes };
     });
   }, [patch]);
+
+  const markTipDone = useCallback(
+    (tipId: string) => {
+      patch((prev) => ({
+        ...prev,
+        insightTipProgress: markInsightTipDone(prev, tipId),
+      }));
+    },
+    [patch],
+  );
+
+  const archiveTip = useCallback(
+    (tipId: string) => {
+      patch((prev) => ({
+        ...prev,
+        insightTipProgress: archiveInsightTip(prev, tipId),
+      }));
+    },
+    [patch],
+  );
 
   const completeOnboarding = useCallback(() => {
     patch((prev) => {
@@ -626,6 +655,8 @@ export function useFetyData() {
     resetAll,
     startFreshSetup,
     updateCalendarNote,
+    markTipDone,
+    archiveTip,
     completeOnboarding,
     completeSetup,
     replaceCategories,

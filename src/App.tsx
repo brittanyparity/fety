@@ -1,6 +1,7 @@
 import { useState, useRef, useEffect, useCallback, useMemo } from "react";
 import { FetyLogo } from "./FetyLogo";
 import { useFetyData } from "./hooks/useFetyData";
+import { calendarNotePreview, calendarNoteText, hasCalendarNote, noteForCalendarDay } from "./lib/calendarNotes";
 import { buildCalendarMap, endingBalanceOnDate, endingBalancesForRange, formatNavDate, monthsSpending, categorySpendSharesForPeriod, todayISO, type BalanceChartRange, type CategorySpendPeriod, type SpendTrendMonths } from "./lib/fetyCalculations";
 import { formatTransactionDetailLine, goalSavedTotal, accountBalanceWithTransactions, accountBalanceAsOfISO, formatAccountBalanceDisplay, isDebtAccount, netWorthTotalsOnDate } from "./lib/ledger";
 import { flowForTransactionType, getTransactionTypes, isTransferTransactionType } from "./lib/transactionTypes";
@@ -9,13 +10,10 @@ import { CalendarPeriodMenu } from "./components/CalendarPeriodMenu";
 import EmojiIconPicker from "./components/EmojiIconPicker";
 import CurrencyInput, { amountToEditString } from "./components/CurrencyInput";
 import { flattenRowsAfterMoveRespectingLocks, isWidgetInFirstRow, isWidgetPositionLocked, packWidgetsIntoRows, pruneWidgetLocksToFirstRow, reorderWidgetRespectingLocks, toggleWidgetOnDashboard, unpinWidget } from "./lib/widgetLayout";
-import { ChatPanel, ChatExpandIcon } from "./components/ChatPanel";
-import { useIsNarrow, FETY_NARROW_MQ } from "./hooks/useIsNarrow";
+import { useIsNarrow } from "./hooks/useIsNarrow";
 import WidgetPeriodFilter from "./components/WidgetPeriodFilter";
 import WidgetPinIcon from "./components/WidgetPinIcon";
-import { confirmAssistantAction, handleAssistantMessageWithDeps } from "./assistant/router";
-import type { ToolAction } from "./assistant/types";
-import type { BudgetCategory, CalDay, CalendarMap, ChatMessage, FetyStore, FetyTransactionType, FinanceSummary, Transaction, TransactionType } from "./types/fety";
+import type { BudgetCategory, CalDay, CalendarMap, FetyStore, FetyTransactionType, FinanceSummary, Transaction, TransactionType } from "./types/fety";
 import {
   BudgetManageView,
   TransactionsManageView,
@@ -25,13 +23,7 @@ import {
 } from "./views/ManageViews";
 import { OnboardingView } from "./views/OnboardingView";
 import SplashView from "./views/SplashView";
-import {
-  analyzeStore,
-  buildChatBriefingIntro,
-  buildChatBriefingTips,
-  buildPersonalizedTour,
-  pageForAction,
-} from "./lib/financialAnalysis";
+import { analyzeStore, buildPersonalizedTour, pageForAction } from "./lib/financialAnalysis";
 import { assessFinancialNeeds, isWidgetRecommended, recommendationForWidget } from "./lib/needsAssessment";
 import {
   getWidgetDefinition,
@@ -39,8 +31,9 @@ import {
   WIDGET_CATEGORY_LABELS,
   WIDGET_CATEGORY_ORDER,
 } from "./lib/widgetCatalog";
-import DashboardBriefing from "./views/AnalysisReportView";
-import type { ChatTipCard, ChatWorkflow, FetyActionTarget, FinancialAnalysis } from "./types/analysis";
+import InsightsBriefing, { IncomeAllocationChart } from "./views/InsightsBriefing";
+import InsightsFeedSections from "./views/InsightsFeedSections";
+import type { FetyActionTarget, FinancialAnalysis } from "./types/analysis";
 import type { FinancialAssessment } from "./types/widgets";
 import {
   AreaChart, Area, BarChart, Bar,
@@ -94,23 +87,144 @@ function DayNoteField({
   onSave: (dateISO: string, text: string) => void;
 }) {
   const [draft, setDraft] = useState(value);
+  const [composerBaseline, setComposerBaseline] = useState(value);
+  const [savedNotice, setSavedNotice] = useState<string | null>(null);
+  const skipValueSyncRef = useRef(false);
+  const savedNoticeTimerRef = useRef<number | null>(null);
+
   useEffect(() => {
     setDraft(value);
-  }, [dateISO, value]);
+    setComposerBaseline(value);
+    setSavedNotice(null);
+  }, [dateISO]);
+
+  useEffect(() => {
+    if (skipValueSyncRef.current) {
+      skipValueSyncRef.current = false;
+      return;
+    }
+    setDraft(value);
+    setComposerBaseline(value);
+  }, [value]);
+
+  useEffect(
+    () => () => {
+      if (savedNoticeTimerRef.current != null) window.clearTimeout(savedNoticeTimerRef.current);
+    },
+    [],
+  );
+
+  const dirty = draft.trim() !== composerBaseline.trim();
+  const storedNote = value.trim();
+  const dateLabel = new Date(`${dateISO}T12:00:00`).toLocaleDateString("en-US", {
+    month: "short",
+    day: "numeric",
+    year: "numeric",
+  });
+
+  const flashSaved = (message: string) => {
+    setSavedNotice(message);
+    if (savedNoticeTimerRef.current != null) window.clearTimeout(savedNoticeTimerRef.current);
+    savedNoticeTimerRef.current = window.setTimeout(() => {
+      setSavedNotice(null);
+      savedNoticeTimerRef.current = null;
+    }, 5000);
+  };
+
+  const save = () => {
+    const trimmed = draft.trim();
+    onSave(dateISO, draft);
+    skipValueSyncRef.current = true;
+    setDraft("");
+    setComposerBaseline("");
+    if (trimmed) {
+      flashSaved(`Note saved for ${dateLabel}. It will show on this date in every calendar view.`);
+    } else {
+      flashSaved(`Note removed for ${dateLabel}.`);
+    }
+  };
+
+  const loadStoredIntoComposer = () => {
+    setDraft(value);
+    setComposerBaseline(value);
+    setSavedNotice(null);
+  };
 
   return (
-    <label className="fety-cal-note">
-      <span className="fety-label">Notes</span>
-      <textarea
-        value={draft}
-        onChange={(e) => setDraft(e.target.value)}
-        onBlur={() => {
-          if (draft !== value) onSave(dateISO, draft);
-        }}
-        placeholder="What should you remember about this day?"
-        rows={4}
-      />
-    </label>
+    <div className="fety-cal-note">
+      {savedNotice ? (
+        <div className="fety-cal-note-toast" role="status" aria-live="polite">
+          <svg width="16" height="16" viewBox="0 0 16 16" fill="none" aria-hidden>
+            <circle cx="8" cy="8" r="7" stroke="currentColor" strokeWidth="1.4" />
+            <path d="M5 8l2 2 4-4" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round" />
+          </svg>
+          <span>{savedNotice}</span>
+        </div>
+      ) : null}
+
+      {storedNote && !dirty ? (
+        <div className="fety-cal-note-saved">
+          <div className="fety-cal-note-saved-head">
+            <span className="fety-label">Saved on this day</span>
+            <button type="button" className="fety-cal-note-edit" onClick={loadStoredIntoComposer}>
+              Edit
+            </button>
+          </div>
+          <p className="fety-cal-note-saved-text">{value}</p>
+        </div>
+      ) : null}
+
+      <label>
+        <span className="fety-label">{storedNote && !dirty ? "Add or replace" : `Notes for ${dateLabel}`}</span>
+        <textarea
+          value={draft}
+          onChange={(e) => {
+            setDraft(e.target.value);
+            setSavedNotice(null);
+          }}
+          placeholder={
+            storedNote && !dirty
+              ? "Write a new note for this day…"
+              : "What should you remember about this day?"
+          }
+          rows={4}
+        />
+      </label>
+      <div className="fety-cal-note-footer">
+        <span className="fety-cal-note-meta">
+          {dirty
+            ? "Unsaved changes — save to attach to this calendar day."
+            : storedNote
+              ? "Your saved note appears above. The field is ready for a new entry."
+              : "Save attaches this note to this date."}
+        </span>
+        <button type="button" className="fety-cal-note-save" disabled={!dirty} onClick={save}>
+          Save note
+        </button>
+      </div>
+    </div>
+  );
+}
+
+function CalDayNotePreview({
+  notes,
+  dateISO,
+  selected,
+}: {
+  notes: FetyStore["calendarNotes"];
+  dateISO: string;
+  selected?: boolean;
+}) {
+  const preview = calendarNotePreview(notes, dateISO, 32);
+  if (!preview) return null;
+  return (
+    <p
+      className="fety-cal-day-note-preview"
+      style={selected ? { color: "rgba(255,255,255,0.75)" } : undefined}
+      title={noteForCalendarDay(notes, dateISO)?.text}
+    >
+      {preview}
+    </p>
   );
 }
 
@@ -220,11 +334,11 @@ const MONTHS = ["January","February","March","April","May","June","July","August
 const DAYS_SHORT = ["Sun","Mon","Tue","Wed","Thu","Fri","Sat"];
 
 const NAV_ITEMS: { id: Page; label: string }[] = [
+  { id: "dashboard", label: "Insights"     },
   { id: "calendar",  label: "Calendar"     },
   { id: "spending",  label: "Transactions" },
   { id: "budget",    label: "Budget"       },
   { id: "goals",     label: "Goals"        },
-  { id: "dashboard", label: "Insights"     },
 ];
 
 type LiveWidgetBundle = { store: FetyStore; summary: FinanceSummary };
@@ -805,6 +919,20 @@ const ALL_WIDGETS: WidgetDef[] = [
     render: () => <MonthlySpendChartWidget />,
   },
   {
+    id: "income-allocation", label: "Income Allocation", color: "var(--surface)", size: "half",
+    preview: () => statPreview("var(--ink)", "Income Allocation", "3 slices", "Monthly income split"),
+    render: () => {
+      const { store } = widgetLive();
+      const insight = analyzeStore(store);
+      return (
+        <div>
+          <p style={{ fontSize: 12, fontWeight: 600, color: "var(--ink)", marginBottom: 8 }}>Income allocation</p>
+          <IncomeAllocationChart analysis={insight} size={180} />
+        </div>
+      );
+    },
+  },
+  {
     id: "spending-breakdown", label: "Spending Breakdown", color: "var(--surface)", size: "half",
     preview: () => statPreview("var(--ink-3)", "Spending Breakdown", "5 categories", "Donut · week / month / 30D / 90D"),
     render: () => <SpendingBreakdownWidget />,
@@ -1239,10 +1367,9 @@ function WidgetPicker({
 
 // ─── Right Icon Panel ──────────────────────────────────────────────────────────
 function RightPanel({
-  viewMode, setViewMode, chatCollapsed, setChatCollapsed, onCalendar,
+  viewMode, setViewMode, onCalendar,
 }: {
   viewMode: ViewMode; setViewMode: (v: ViewMode) => void;
-  chatCollapsed: boolean; setChatCollapsed: (v: boolean) => void;
   onCalendar: () => void;
 }) {
   const [activeFilter, setActiveFilter] = useState(false);
@@ -1464,7 +1591,15 @@ function CalendarView({
             className={`fety-calendar-scroll${calView === "yearly" ? " fety-yearly-scroll" : ""}`}
             style={{ flex: 1, overflowY: "auto", padding: calView === "yearly" ? "8px 16px 0" : "16px 20px", minHeight: 0 }}
           >
-            {calView === "monthly" && <MonthlyCalGrid month={focusDate} calendarMap={calendarMap} selected={selected} onSelect={selectDay} />}
+            {calView === "monthly" && (
+              <MonthlyCalGrid
+                month={focusDate}
+                calendarMap={calendarMap}
+                calendarNotes={store.calendarNotes}
+                selected={selected}
+                onSelect={selectDay}
+              />
+            )}
             {calView === "weekly" && (
               <WeeklyCalGrid
                 anchor={focusDate}
@@ -1492,6 +1627,7 @@ function CalendarView({
               <YearlyCalGrid
                 year={year}
                 calendarMap={calendarMap}
+                calendarNotes={store.calendarNotes}
                 selected={selected}
                 onSelect={selectDay}
                 registerDayRef={registerDayRef}
@@ -1510,7 +1646,7 @@ function CalendarView({
             categories={store.categories}
             ledgerStore={store}
             transactionTypes={transactionTypes}
-            note={panelISO ? store.calendarNotes?.[panelISO] ?? "" : ""}
+            note={panelISO ? calendarNoteText(store.calendarNotes, panelISO) : ""}
             onSaveNote={onUpdateCalendarNote}
             onJumpToDate={jumpToDateISO}
             onClose={() => setSelected(null)}
@@ -1528,12 +1664,14 @@ function CalendarView({
 function YearlyCalGrid({
   year,
   calendarMap,
+  calendarNotes,
   selected,
   onSelect,
   registerDayRef,
 }: {
   year: number;
   calendarMap: CalendarMap;
+  calendarNotes?: FetyStore["calendarNotes"];
   selected: string | null;
   onSelect: (k: string) => void;
   registerDayRef?: (key: string, el: HTMLButtonElement | null) => void;
@@ -1592,7 +1730,13 @@ function YearlyCalGrid({
                 <span style={{ fontSize: 10, fontWeight: 600, color: isSelected ? calSignedColor(net, true) : isToday ? "var(--clear-dk)" : "var(--ink)" }}>
                   {date.getDate()}
                 </span>
+                {hasCalendarNote(calendarNotes, key) ? (
+                  <span className="fety-cal-day-note-dot" style={isSelected ? { background: "#fff", opacity: 0.85 } : undefined} aria-hidden />
+                ) : null}
               </div>
+              {hasCalendarNote(calendarNotes, key) ? (
+                <CalDayNotePreview notes={calendarNotes ?? {}} dateISO={key} selected={isSelected} />
+              ) : null}
               {data && (
                 <div className="fety-cal-year-bal" style={{ display: "flex", flexDirection: "column", gap: 1, marginTop: "auto" }}>
                   <div style={{ fontSize: 7.5, lineHeight: 1.2, color: isSelected ? "rgba(255,255,255,0.55)" : "var(--ink-3)" }}>
@@ -1656,7 +1800,19 @@ function YearlyCalLegend() {
 }
 
 // ─── Monthly Calendar Grid ─────────────────────────────────────────────────────
-function MonthlyCalGrid({ month, calendarMap, selected, onSelect }: { month: Date; calendarMap: CalendarMap; selected: string | null; onSelect: (k: string) => void }) {
+function MonthlyCalGrid({
+  month,
+  calendarMap,
+  calendarNotes,
+  selected,
+  onSelect,
+}: {
+  month: Date;
+  calendarMap: CalendarMap;
+  calendarNotes?: FetyStore["calendarNotes"];
+  selected: string | null;
+  onSelect: (k: string) => void;
+}) {
   const narrow = useIsNarrow();
   const money = narrow ? compactUsd : usd;
   const y = month.getFullYear(), m = month.getMonth();
@@ -1709,11 +1865,15 @@ function MonthlyCalGrid({ month, calendarMap, selected, onSelect }: { month: Dat
                 <span className="fety-cal-day-num" style={{ fontSize: 13, fontWeight: 600, color: isSelected ? calSignedColor(net, true) : isToday ? "var(--lime-dk)" : "var(--ink)", lineHeight: 1 }}>
                   {date.getDate()}
                 </span>
+                {hasCalendarNote(calendarNotes, key) ? (
+                  <span className="fety-cal-day-note-dot" style={isSelected ? { background: "#fff", opacity: 0.85 } : undefined} aria-hidden />
+                ) : null}
               </div>
 
               {data && (
                 <div className="fety-cal-day-sheet" style={{ flex: 1, display: "flex", flexDirection: "column", justifyContent: "space-between", gap: 4, minHeight: 0 }}>
                   <DayActivityCopy data={data} money={money} selected={isSelected} />
+                  <CalDayNotePreview notes={calendarNotes ?? {}} dateISO={key} selected={isSelected} />
                   <div className="fety-cal-day-end" style={{ fontSize: 10, color: isSelected ? "rgba(255,255,255,0.6)" : "var(--ink-3)" }}>
                     <span className="fety-cal-day-end-label">End </span>
                     <span style={{ fontFamily: "var(--font-sans)", fontWeight: 600, color: calBalanceColor(data.endBal, isSelected) }}>{money(data.endBal)}</span>
@@ -1811,6 +1971,7 @@ function WeeklyCalGrid({
         ) : (
           <div style={{ fontSize: 9, color: isSelected ? "rgba(255,255,255,0.4)" : "var(--ink-3)" }}>No activity</div>
         )}
+        <CalDayNotePreview notes={store.calendarNotes ?? {}} dateISO={key} selected={isSelected} />
       </button>
     );
   };
@@ -2418,16 +2579,20 @@ function DashboardView({
   store,
   summary,
   analysis,
-  firstLook,
   onTipAction,
+  onPinWidget,
+  onMarkTipDone,
+  onArchiveTip,
   highlightTarget,
-  pinned, setPinned, lockedWidgets, onToggleWidgetLock, onSetLockedWidgets, onCustomize, customizing,
+  pinned, setPinned, lockedWidgets, onToggleWidgetLock, onSetLockedWidgets, onCustomize, onCloseCustomize, customizing,
 }: {
   store: FetyStore;
   summary: FinanceSummary;
   analysis: FinancialAnalysis;
-  firstLook: boolean;
   onTipAction: (action: FetyActionTarget) => void;
+  onPinWidget: (widgetId: string) => void;
+  onMarkTipDone: (tipId: string) => void;
+  onArchiveTip: (tipId: string) => void;
   highlightTarget?: string | null;
   pinned: string[];
   setPinned: React.Dispatch<React.SetStateAction<string[]>>;
@@ -2435,9 +2600,32 @@ function DashboardView({
   onToggleWidgetLock: (id: string) => void;
   onSetLockedWidgets: React.Dispatch<React.SetStateAction<string[]>>;
   onCustomize: () => void;
+  onCloseCustomize: () => void;
   customizing: boolean;
 }) {
   liveWidgets = { store, summary };
+
+  const CHARTS_COLLAPSE_KEY = "fety-insights-charts-collapsed";
+  const [chartsCollapsed, setChartsCollapsed] = useState(() => {
+    if (typeof window === "undefined") return false;
+    try {
+      return localStorage.getItem(CHARTS_COLLAPSE_KEY) === "1";
+    } catch {
+      return false;
+    }
+  });
+
+  const toggleChartsCollapsed = useCallback(() => {
+    setChartsCollapsed((prev) => {
+      const next = !prev;
+      try {
+        localStorage.setItem(CHARTS_COLLAPSE_KEY, next ? "1" : "0");
+      } catch {
+        /* ignore */
+      }
+      return next;
+    });
+  }, []);
 
   const [dragRowIndex, setDragRowIndex] = useState<number | null>(null);
   const [overRowIndex, setOverRowIndex] = useState<number | null>(null);
@@ -2486,22 +2674,73 @@ function DashboardView({
 
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
-      <DashboardBriefing
+      <InsightsBriefing
+        store={store}
         analysis={analysis}
-        firstLook={firstLook}
-        highlightTarget={highlightTarget}
         onAction={onTipAction}
+        pinnedWidgets={pinned}
+        onPinWidget={onPinWidget}
+        onMarkTipDone={onMarkTipDone}
+        onArchiveTip={onArchiveTip}
       />
-      {pinned.length === 0 ? (
-        <button
-          onClick={onCustomize}
-          style={{ width: "100%", padding: "48px 0", borderRadius: "var(--radius-card)", border: "2px dashed var(--border)", background: "transparent", cursor: "pointer", display: "flex", flexDirection: "column", alignItems: "center", gap: 10 }}
-        >
-          <svg width="28" height="28" viewBox="0 0 28 28" fill="none"><path d="M14 4v20M4 14h20" stroke="var(--ink-3)" strokeWidth="2.2" strokeLinecap="round"/></svg>
-          <p style={{ fontSize: 14, fontWeight: 600, color: "var(--ink-3)" }}>Add widgets to Insights</p>
-          <p style={{ fontSize: 12, color: "var(--ink-3)" }}>Click Customize to choose what you want to see</p>
-        </button>
-      ) : (
+
+      <InsightsFeedSections store={store} onAction={onTipAction} />
+
+      <section
+        className={`fety-insights-charts-section${chartsCollapsed ? " fety-insights-charts-section--collapsed" : ""}`}
+        aria-label="Your charts"
+      >
+        <div className="fety-insights-charts-header">
+          <button
+            type="button"
+            className="fety-insights-collapse"
+            aria-expanded={!chartsCollapsed}
+            aria-label={chartsCollapsed ? "Expand your charts" : "Collapse your charts"}
+            onClick={toggleChartsCollapsed}
+          >
+            <svg
+              width="14"
+              height="14"
+              viewBox="0 0 14 14"
+              fill="none"
+              className={chartsCollapsed ? "fety-insights-chevron" : "fety-insights-chevron fety-insights-chevron-open"}
+              aria-hidden
+            >
+              <path d="M3 5l4 4 4-4" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" />
+            </svg>
+          </button>
+          <h2 className="fety-insights-charts-title">Your Charts</h2>
+          <div className="fety-insights-charts-header-spacer" />
+          {customizing ? (
+            <button
+              type="button"
+              className="fety-insights-charts-action fety-insights-charts-action-primary"
+              onClick={onCloseCustomize}
+            >
+              Done
+            </button>
+          ) : (
+            <button type="button" className="fety-insights-charts-action" onClick={onCustomize}>
+              Customise
+            </button>
+          )}
+        </div>
+
+        {!chartsCollapsed ? (
+          pinned.length === 0 ? (
+            <button
+              type="button"
+              className="fety-insights-charts-empty"
+              onClick={onCustomize}
+            >
+              <svg width="28" height="28" viewBox="0 0 28 28" fill="none" aria-hidden>
+                <path d="M14 4v20M4 14h20" stroke="var(--ink-3)" strokeWidth="2.2" strokeLinecap="round" />
+              </svg>
+              <p>Add widgets to Insights</p>
+              <span>Click Customise to choose what you want to see</span>
+            </button>
+          ) : (
+        <div className="fety-insights-charts-body">
         <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
           {rows.map((rowIds, rowIndex) => {
             const isRowDragging = dragRowIndex === rowIndex;
@@ -2677,14 +2916,17 @@ function DashboardView({
             );
           })}
         </div>
-      )}
+        </div>
+          )
+        ) : null}
+      </section>
     </div>
   );
 }
 
 // ─── Page Header ───────────────────────────────────────────────────────────────
 const PAGE_META: Record<Page, { title: string; sub: string }> = {
-  dashboard: { title: "Insights", sub: "Charts and patterns from the same numbers Fety talks through in chat." },
+  dashboard: { title: "Insights", sub: "Your financial picture, spending mix, and ideas — then the widgets you choose below." },
   spending:  { title: "Transactions", sub: "Every dollar in and out of your accounts." },
   budget:    { title: "Budget", sub: "Tracks are ink; coral marks the category that's over." },
   goals:     { title: "Goals", sub: "Money you're holding for later." },
@@ -2719,8 +2961,6 @@ export default function App() {
     updateAccount,
     addAccount,
     deleteAccount,
-    addMessage,
-    updateMessage,
     setPinnedWidgets,
     restoreRecommendedWidgets,
     toggleDashboardWidgetLock,
@@ -2729,6 +2969,8 @@ export default function App() {
     startFreshSetup,
     completeSetup,
     updateCalendarNote,
+    markTipDone,
+    archiveTip,
     addTransactionType,
     updateTransactionType,
     deleteTransactionType,
@@ -2742,17 +2984,12 @@ export default function App() {
     [store.transactions, store.recurringTransactions],
   );
 
-  const [page, setPage] = useState<Page>("calendar");
+  const [page, setPage] = useState<Page>("dashboard");
   const [viewMode, setViewMode] = useState<ViewMode>("cards");
   const [transactionsAccountFilter, setTransactionsAccountFilter] = useState<string | null>(null);
-  const [chatCollapsed, setChatCollapsed] = useState(() =>
-    typeof window !== "undefined" ? window.matchMedia(FETY_NARROW_MQ).matches : false,
-  );
   const [pickerOpen, setPickerOpen] = useState(false);
-  const [chatProcessing, setChatProcessing] = useState(false);
   /** Shown before onboarding for first-time users. */
   const [showSplash, setShowSplash] = useState(true);
-  const [postSetup, setPostSetup] = useState<"briefing" | null>(null);
   const [tourTarget, setTourTarget] = useState<string | null>(null);
   const [focusAction, setFocusAction] = useState<FetyActionTarget | null>(null);
   const analysis = useMemo(() => analyzeStore(store), [store]);
@@ -2762,7 +2999,6 @@ export default function App() {
   const applyFetyAction = useCallback((action: FetyActionTarget) => {
     setFocusAction(action);
     setPage(pageForAction(action));
-    setChatCollapsed(false);
     if (action.type === "calendar") setTourTarget("calendar");
     else if (action.type === "transactions" || action.type === "spending") setTourTarget("transactions");
     else if (action.type === "goals") setTourTarget(action.goalId ? `goal-${action.goalId}` : null);
@@ -2771,100 +3007,12 @@ export default function App() {
     else setTourTarget(null);
   }, []);
 
-  const startTipWorkflow = useCallback((card: ChatTipCard, status: ChatWorkflow["status"]) => {
-    if (status === "active") applyFetyAction(card.action);
-    addMessage({
-      id: Date.now() + Math.floor(Math.random() * 1000),
-      role: "system",
-      time: clock(),
-      text: status === "active"
-        ? `Let's walk through this on ${card.featureLabel}. You can stop anytime and pick it up later.`
-        : `Saved “${card.title}” for later. Resume it here whenever you want to explore ${card.featureLabel}.`,
-      workflow: {
-        tipId: card.id,
-        title: card.title,
-        featureLabel: card.featureLabel,
-        action: card.action,
-        steps: card.workflow,
-        stepIndex: 0,
-        status,
-      },
-    });
-  }, [addMessage, applyFetyAction]);
-
-  const handleWorkflowAction = useCallback((messageId: number, action: "next" | "back" | "later" | "done" | "resume") => {
-    const msg = store.messages.find((m) => m.id === messageId);
-    const workflow = msg?.workflow;
-    if (!workflow) return;
-    if (action === "resume") {
-      applyFetyAction(workflow.action);
-      updateMessage(messageId, { workflow: { ...workflow, status: "active" } });
-      return;
-    }
-    if (action === "later") {
-      updateMessage(messageId, { workflow: { ...workflow, status: "later" } });
-      return;
-    }
-    if (action === "done") {
-      updateMessage(messageId, { workflow: { ...workflow, status: "done" } });
-      addMessage({
-        id: Date.now() + Math.floor(Math.random() * 1000),
-        role: "system",
-        time: clock(),
-        text: "That's one down. You can explore another card whenever you're ready, or save it for later.",
-      });
-      return;
-    }
-    const nextIndex = action === "next"
-      ? Math.min(workflow.stepIndex + 1, workflow.steps.length - 1)
-      : Math.max(workflow.stepIndex - 1, 0);
-    updateMessage(messageId, { workflow: { ...workflow, stepIndex: nextIndex } });
-  }, [addMessage, applyFetyAction, store.messages, updateMessage]);
-
-  useEffect(() => {
-    if (postSetup !== "briefing") return;
-    let cancelled = false;
-    setChatCollapsed(false);
-    setChatProcessing(true);
-    let intro: string;
-    let cards: ChatTipCard[];
-    try {
-      intro = buildChatBriefingIntro(store, analysis);
-      cards = buildChatBriefingTips(store, analysis);
-    } catch {
-      setChatProcessing(false);
-      setPostSetup(null);
-      return;
-    }
-    const t1 = window.setTimeout(() => {
-      if (cancelled) return;
-      addMessage({
-        id: Date.now(),
-        role: "system",
-        time: clock(),
-        text: intro,
-      });
-    }, 450);
-    const t2 = window.setTimeout(() => {
-      if (cancelled) return;
-      addMessage({
-        id: Date.now() + 1,
-        role: "system",
-        time: clock(),
-        text: "I picked three places to start. Hover a card to explore that part of Fety — or save it and come back later.",
-        tipCards: cards,
-      });
-      setChatProcessing(false);
-      setPostSetup(null);
-    }, 1400);
-    return () => {
-      cancelled = true;
-      window.clearTimeout(t1);
-      window.clearTimeout(t2);
-    };
-    // Play once when setup finishes; store/analysis are read from that render.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [postSetup]);
+  const handlePinInsightWidget = useCallback(
+    (widgetId: string) => {
+      setPinnedWidgets((prev) => toggleWidgetOnDashboard(prev, widgetId));
+    },
+    [setPinnedWidgets],
+  );
 
   useEffect(() => {
     if (!tourTarget) return;
@@ -2875,92 +3023,9 @@ export default function App() {
     return () => window.clearTimeout(id);
   }, [tourTarget, page]);
   const isNarrow = useIsNarrow();
-  const pendingConfirmations = useRef<Map<string, ToolAction>>(new Map());
 
   const pinned = store.pinnedWidgets;
-  const messages = store.messages;
   const navDate = formatNavDate();
-
-  const assistantDeps = useMemo(
-    () => ({
-      addTransaction,
-      updateTransaction,
-      deleteTransaction,
-      addGoal,
-      updateProfile,
-    }),
-    [addTransaction, updateTransaction, deleteTransaction, addGoal, updateProfile],
-  );
-
-  const pushAssistantReply = useCallback(
-    (reply: ReturnType<typeof handleAssistantMessageWithDeps>) => {
-      const now = new Date();
-      if (reply.confirmation) {
-        pendingConfirmations.current.set(reply.confirmation.id, reply.confirmation.action);
-      }
-      addMessage({
-        id: Date.now() + Math.floor(Math.random() * 1000),
-        role: "system",
-        time: now.toLocaleTimeString([], { hour: "numeric", minute: "2-digit" }),
-        text: reply.text,
-        tag: reply.tag,
-        resultCard: reply.resultCard,
-        confirmationId: reply.confirmation?.id,
-        confirmationTitle: reply.confirmation?.title,
-      });
-    },
-    [addMessage],
-  );
-
-  const recentUserText = useMemo(
-    () =>
-      messages
-        .filter((m) => m.role === "user")
-        .slice(-5)
-        .map((m) => m.text),
-    [messages],
-  );
-
-  const handleSend = useCallback(
-    (text: string) => {
-      const now = new Date();
-      const timeStr = now.toLocaleTimeString([], { hour: "numeric", minute: "2-digit" });
-      addMessage({ id: Date.now(), role: "user", text, time: timeStr });
-      setChatProcessing(true);
-      window.setTimeout(() => {
-        const reply = handleAssistantMessageWithDeps(
-          text,
-          { store, summary, recentUserText },
-          assistantDeps,
-        );
-        pushAssistantReply(reply);
-        setChatProcessing(false);
-      }, 400);
-    },
-    [addMessage, assistantDeps, pushAssistantReply, recentUserText, store, summary],
-  );
-
-  const handleConfirmAction = useCallback(
-    (confirmationId: string) => {
-      const action = pendingConfirmations.current.get(confirmationId);
-      if (!action) {
-        pushAssistantReply({ text: "That confirmation expired. Please ask again." });
-        return;
-      }
-      pendingConfirmations.current.delete(confirmationId);
-      const reply = confirmAssistantAction(action, assistantDeps, summary);
-      pushAssistantReply(reply);
-    },
-    [assistantDeps, pushAssistantReply, summary],
-  );
-
-  const handleCancelConfirm = useCallback(
-    (confirmationId: string) => {
-      pendingConfirmations.current.delete(confirmationId);
-      pushAssistantReply({ text: "Cancelled — nothing was changed." });
-    },
-    [pushAssistantReply],
-  );
 
   const pageTitle = useMemo(() => {
     if (page === "dashboard") return PAGE_META.dashboard.title;
@@ -3069,8 +3134,10 @@ export default function App() {
             store={store}
             summary={summary}
             analysis={analysis}
-            firstLook={!store.dashboardCustomizedByUser}
             onTipAction={applyFetyAction}
+            onPinWidget={handlePinInsightWidget}
+            onMarkTipDone={markTipDone}
+            onArchiveTip={archiveTip}
             highlightTarget={tourTarget}
             pinned={pinned}
             setPinned={setPinnedWidgets}
@@ -3078,6 +3145,7 @@ export default function App() {
             onToggleWidgetLock={toggleDashboardWidgetLock}
             onSetLockedWidgets={setLockedDashboardWidgets}
             onCustomize={() => setPickerOpen(true)}
+            onCloseCustomize={() => setPickerOpen(false)}
             customizing={pickerOpen}
           />
         );
@@ -3092,9 +3160,7 @@ export default function App() {
       <OnboardingView
         onFinishSetup={(payload) => {
           completeSetup(payload);
-          setPage("calendar");
-          setChatCollapsed(false);
-          setPostSetup("briefing");
+          setPage("dashboard");
         }}
       />
     );
@@ -3141,25 +3207,6 @@ export default function App() {
                           : PAGE_META[page].sub)}
                     </p>
                   </div>
-                  {page === "dashboard" && !pickerOpen && (
-                    <button
-                      type="button"
-                      onClick={() => setPickerOpen(true)}
-                      style={{ display: "flex", alignItems: "center", gap: 7, padding: "7px 14px", borderRadius: 99, border: "1px solid var(--ink)", background: "var(--surface)", color: "var(--ink)", cursor: "pointer", fontSize: 12, fontWeight: 600, flexShrink: 0, marginTop: 2 }}
-                    >
-                      Customise
-                    </button>
-                  )}
-                  {page === "dashboard" && pickerOpen && (
-                    <button
-                      type="button"
-                      className="fety-customise-done-desktop"
-                      onClick={() => setPickerOpen(false)}
-                      style={{ display: "flex", alignItems: "center", gap: 7, padding: "7px 14px", borderRadius: 99, border: "1px solid var(--ink)", background: "var(--ink)", color: "#fff", cursor: "pointer", fontSize: 12, fontWeight: 600, flexShrink: 0, marginTop: 2 }}
-                    >
-                      Done
-                    </button>
-                  )}
                 </div>
                 {page === "dashboard" && pickerOpen && (
                   <WidgetPicker
@@ -3187,45 +3234,6 @@ export default function App() {
           )}
         </div>
       </div>
-
-      <div className={`fety-chat-dock${chatCollapsed ? " fety-chat-dock-collapsed" : " fety-chat-dock-open"}`}>
-        {!chatCollapsed && (
-          <button
-            type="button"
-            className="fety-chat-mobile-backdrop"
-            aria-label="Close chat"
-            onClick={() => setChatCollapsed(true)}
-          />
-        )}
-        {chatCollapsed ? (
-          <div
-            className="fety-assistant-rail"
-            title="Show chat"
-            onClick={() => setChatCollapsed(false)}
-            onKeyDown={(e) => e.key === "Enter" && setChatCollapsed(false)}
-            role="button"
-            tabIndex={0}
-          >
-            <div className="fety-assistant-rail-inner">
-              <ChatExpandIcon />
-              <span className="fety-assistant-rail-label">Chat</span>
-            </div>
-          </div>
-        ) : (
-          <ChatPanel
-            messages={messages}
-            processing={chatProcessing}
-            onSend={handleSend}
-            onCollapse={() => setChatCollapsed(true)}
-            onConfirm={handleConfirmAction}
-            onCancelConfirm={handleCancelConfirm}
-            onExploreTip={(card) => startTipWorkflow(card, "active")}
-            onSaveTipLater={(card) => startTipWorkflow(card, "later")}
-            onWorkflowAction={handleWorkflowAction}
-          />
-        )}
-      </div>
-
     </div>
   );
 }

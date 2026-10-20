@@ -113,6 +113,12 @@ export interface ChatMessage {
   workflow?: import("./analysis").ChatWorkflow;
 }
 
+export type CalendarDayNote = {
+  text: string;
+  /** Calendar date this note belongs to (usually matches the storage key). */
+  createdISO: string;
+};
+
 export interface UserProfile {
   displayName: string;
   email: string;
@@ -153,7 +159,12 @@ export interface FetyStore {
   /** Strip removed widgets + apply latest curated defaults when still on a prior starter set. */
   widgetsCuratedV3?: boolean;
   /** Freeform notes keyed by calendar date (YYYY-MM-DD). */
-  calendarNotes?: Record<string, string>;
+  calendarNotes?: Record<string, CalendarDayNote>;
+  /** Things to try — done and archived tip ids. */
+  insightTipProgress?: {
+    doneIds: string[];
+    archivedIds: string[];
+  };
   /**
    * One-time: apply needs-assessment recommended pins.
    * Once set, reassessment must not change the dashboard unless the user asks to restore recommendations.

@@ -585,7 +585,7 @@ function workflowForAction(action: FetyActionTarget): TipWorkflowStep[] {
     ];
   }
   return [
-    { id: "i1", title: "Read the charts", instruction: "These widgets use the same numbers as chat. Look for the category or goal we just talked about." },
+    { id: "i1", title: "Read the charts", instruction: "These widgets use the same numbers as Budget and Transactions. Look for the category or goal you care about." },
     { id: "i2", title: "Pin what matters", instruction: "Use Customise to keep the charts you actually check on this page." },
     { id: "i3", title: "Come back after a change", instruction: "After you adjust a budget or goal, this page should reflect it." },
   ];

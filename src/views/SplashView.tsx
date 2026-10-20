@@ -14,9 +14,9 @@ const FEATURES = [
     visual: "calendar" as const,
   },
   {
-    title: "Conversational books",
-    body: "Log spending in plain language. Fety confirms before it writes — you stay in control.",
-    visual: "chat" as const,
+    title: "Insights that guide you",
+    body: "Your picture, spending mix, and practical tips — pin charts to your dashboard when you find ones you use.",
+    visual: "insights" as const,
   },
   {
     title: "Budgets that stick",
@@ -80,14 +80,26 @@ function FeatureVisual({ kind }: { kind: (typeof FEATURES)[number]["visual"] }) 
     );
   }
 
-  if (kind === "chat") {
+  if (kind === "insights") {
     return (
-      <div className="fety-splash-viz fety-splash-viz-chat" aria-hidden>
-        <div className="fety-splash-viz-bubble fety-splash-viz-bubble--user">Groceries at Whole Foods, about $52.</div>
-        <div className="fety-splash-viz-bubble fety-splash-viz-bubble--bot">
-          Logged to Groceries. Confirm?
-          <span className="fety-splash-viz-chip">Confirm</span>
+      <div className="fety-splash-viz fety-splash-viz-insights" aria-hidden>
+        <div className="fety-splash-viz-insights-tabs">
+          <span className="fety-splash-viz-insights-tab fety-splash-viz-insights-tab--on">Your picture</span>
+          <span className="fety-splash-viz-insights-tab">Spending mix</span>
+          <span className="fety-splash-viz-insights-tab">Things to try</span>
         </div>
+        <svg viewBox="0 0 280 100" fill="none" xmlns="http://www.w3.org/2000/svg">
+          <circle cx="72" cy="58" r="36" stroke="var(--border)" strokeWidth="8" />
+          <path d="M72 22 A36 36 0 0 1 108 58" stroke="var(--ink)" strokeWidth="8" strokeLinecap="round" />
+          <path d="M108 58 A36 36 0 0 1 72 94" stroke="var(--clear-dk)" strokeWidth="8" strokeLinecap="round" />
+          <path d="M72 94 A36 36 0 0 1 36 58" stroke="var(--lime)" strokeWidth="8" strokeLinecap="round" opacity="0.85" />
+          <rect x="132" y="28" width="128" height="10" rx="5" fill="var(--surface)" stroke="var(--border)" />
+          <rect x="132" y="28" width="88" height="10" rx="5" fill="var(--ink)" opacity="0.12" />
+          <rect x="132" y="48" width="128" height="10" rx="5" fill="var(--surface)" stroke="var(--border)" />
+          <rect x="132" y="48" width="64" height="10" rx="5" fill="var(--clear-dk)" opacity="0.35" />
+          <rect x="132" y="68" width="128" height="10" rx="5" fill="var(--surface)" stroke="var(--border)" />
+          <rect x="132" y="68" width="104" height="10" rx="5" fill="var(--lime)" opacity="0.4" />
+        </svg>
       </div>
     );
   }
