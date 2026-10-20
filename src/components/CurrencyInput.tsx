@@ -59,7 +59,7 @@ export default function CurrencyInput({
   };
 
   return (
-    <div style={wrapStyle}>
+    <div className="fety-currency-input" style={wrapStyle}>
       <span style={prefixStyle} aria-hidden>
         $
       </span>
@@ -82,5 +82,5 @@ export default function CurrencyInput({
 export function amountToEditString(amount: number): string {
   const n = Math.abs(amount);
   if (!Number.isFinite(n) || n === 0) return "";
-  return String(n);
+  return (Math.round(n * 100) / 100).toFixed(2);
 }

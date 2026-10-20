@@ -10,6 +10,7 @@ import {
   normalizeSkippedOccurrences,
 } from "../lib/billScheduling";
 import { loadStore, newId, saveStore, resetStore as resetStored, resetToEmptyStore } from "../lib/fetyStorage";
+import { roundMoney } from "../lib/scheduleAmounts";
 import { toggleWidgetPositionLock } from "../lib/widgetLayout";
 import { normalizeAccountRecord } from "../lib/ledger";
 import {
@@ -67,9 +68,11 @@ export function useFetyData() {
       patch((prev) => {
         const flow = flowForTransactionType(prev, input.type);
         const icon = input.icon ?? iconForTransactionType(prev, input.type);
+        const asOf = prev.profile.balanceAsOfISO;
+        const rawDate = input.dateISO ?? new Date().toISOString().slice(0, 10);
         const tx: Transaction = {
           id: newId("tx"),
-          dateISO: input.dateISO ?? new Date().toISOString().slice(0, 10),
+          dateISO: asOf && rawDate < asOf ? asOf : rawDate,
           desc: input.desc,
           category: input.category,
           amount: signAmountForFlow(flow, input.amount),
@@ -120,6 +123,8 @@ export function useFetyData() {
             next.amount = signAmountForFlow(flow, raw);
             next.type = type;
           }
+          const asOf = prev.profile.balanceAsOfISO;
+          if (asOf && next.dateISO < asOf) next.dateISO = asOf;
           if (updates.fromAccountId === "") next.fromAccountId = undefined;
           if (updates.toAccountId === "") next.toAccountId = undefined;
           if (updates.goalId === "") next.goalId = undefined;
@@ -145,7 +150,7 @@ export function useFetyData() {
       patch((prev) => ({
         ...prev,
         categories: prev.categories.map((c) =>
-          c.id === id ? { ...c, monthlyBudget } : c,
+          c.id === id ? { ...c, monthlyBudget: roundMoney(monthlyBudget) } : c,
         ),
       }));
     },
@@ -158,7 +163,7 @@ export function useFetyData() {
         id: newId("cat"),
         name: input.name,
         icon: input.icon || "📁",
-        monthlyBudget: input.monthlyBudget,
+        monthlyBudget: roundMoney(input.monthlyBudget),
       };
       patch((prev) => ({ ...prev, categories: [...prev.categories, cat] }));
     },
@@ -349,6 +354,13 @@ export function useFetyData() {
     patch((prev) => ({ ...prev, messages: [...prev.messages, msg] }));
   }, [patch]);
 
+  const updateMessage = useCallback((id: number, updates: Partial<ChatMessage>) => {
+    patch((prev) => ({
+      ...prev,
+      messages: prev.messages.map((m) => (m.id === id ? { ...m, ...updates } : m)),
+    }));
+  }, [patch]);
+
   const setPinnedWidgets = useCallback(
     (pinnedWidgets: string[] | ((prev: string[]) => string[])) => {
       patch((prev) => ({
@@ -461,6 +473,16 @@ export function useFetyData() {
     setStore(resetToEmptyStore());
   }, []);
 
+  const updateCalendarNote = useCallback((dateISO: string, text: string) => {
+    const trimmed = text.trim();
+    patch((prev) => {
+      const notes = { ...(prev.calendarNotes ?? {}) };
+      if (trimmed) notes[dateISO] = text;
+      else delete notes[dateISO];
+      return { ...prev, calendarNotes: notes };
+    });
+  }, [patch]);
+
   const completeOnboarding = useCallback(() => {
     patch((prev) => ({ ...prev, onboardingCompleted: true }));
   }, [patch]);
@@ -524,11 +546,13 @@ export function useFetyData() {
     addAccount,
     deleteAccount,
     addMessage,
+    updateMessage,
     setPinnedWidgets,
     toggleDashboardWidgetLock,
     setLockedDashboardWidgets,
     resetAll,
     startFreshSetup,
+    updateCalendarNote,
     completeOnboarding,
     replaceCategories,
     replaceBills,

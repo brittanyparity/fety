@@ -1,6 +1,7 @@
 import type { Bill, BudgetCategory, ChatMessage, FetyStore, Goal, Transaction, Account, TransactionType, TypeIconMap } from "../types/fety";
 import { applyBillScheduleToStore, dedupeBills, isScheduledTransaction } from "./billScheduling";
 import { normalizeAccountRecord } from "./ledger";
+import { roundMoney } from "./scheduleAmounts";
 import { defaultTransactionTypes, typeIconsFromTransactionTypes } from "./transactionTypes";
 
 export const DEFAULT_TYPE_ICONS: TypeIconMap = {
@@ -182,6 +183,7 @@ export function createDefaultStore(): FetyStore {
       email: "alex@example.com",
       currency: "USD",
       startingBalance: 1820,
+      balanceAsOfISO: isoDaysAgo(30),
     },
     categories: DEFAULT_CATEGORIES,
     transactions: seedTransactions(),
@@ -249,6 +251,20 @@ function migrateStore(store: FetyStore): FetyStore {
   }
   if (!next.incomeStreams) next = { ...next, incomeStreams: [] };
   if (!next.recurringTransactions) next = { ...next, recurringTransactions: [] };
+  if (!next.calendarNotes) next = { ...next, calendarNotes: {} };
+  if (next.onboardingCompleted && !next.profile.balanceAsOfISO) {
+    next = {
+      ...next,
+      profile: { ...next.profile, balanceAsOfISO: isoDaysAgo(0) },
+    };
+  }
+  next = {
+    ...next,
+    categories: (next.categories ?? []).map((c) => ({
+      ...c,
+      monthlyBudget: roundMoney(c.monthlyBudget),
+    })),
+  };
   next = {
     ...next,
     accounts: (next.accounts ?? []).map((a) => normalizeAccountRecord(a, next)),

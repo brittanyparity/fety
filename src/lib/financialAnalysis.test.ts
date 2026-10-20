@@ -1,7 +1,9 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 import { createEmptyStore } from "./fetyStorage";
-import { analyzeStore, buildPersonalizedTour, pageForAction } from "./financialAnalysis";
+import { applyBillScheduleToStore } from "./billScheduling";
+import { analyzeStore, buildChatBriefingTips, buildPersonalizedTour, pageForAction } from "./financialAnalysis";
+import { computeSummary } from "./fetyCalculations";
 import { monthlyFromFrequency } from "./scheduleAmounts";
 import type { FetyStore } from "../types/fety";
 
@@ -16,10 +18,10 @@ function withMoney(partial: Partial<FetyStore>): FetyStore {
 describe("monthlyFromFrequency", () => {
   it("converts weekly, biweekly, semimonthly, and weekday amounts", () => {
     assert.equal(monthlyFromFrequency(100, "monthly"), 100);
-    assert.equal(monthlyFromFrequency(100, "weekly"), (100 * 52) / 12);
-    assert.equal(monthlyFromFrequency(200, "biweekly"), (200 * 26) / 12);
+    assert.equal(monthlyFromFrequency(100, "weekly"), 433.33);
+    assert.equal(monthlyFromFrequency(200, "biweekly"), 433.33);
     assert.equal(monthlyFromFrequency(2000, "semimonthly"), 4000);
-    assert.equal(monthlyFromFrequency(6, "weekday"), (6 * 5 * 52) / 12);
+    assert.equal(monthlyFromFrequency(6, "weekday"), 130);
   });
 });
 
@@ -226,5 +228,90 @@ describe("buildPersonalizedTour", () => {
     assert.ok(steps.some((s) => s.id === "calendar" && s.page === "calendar"));
     assert.ok(steps.some((s) => s.id === "tip" && s.action));
     assert.match(steps[0].explanation, /Alex/);
+  });
+});
+
+describe("buildChatBriefingTips", () => {
+  it("returns three tips on different platform areas", () => {
+    const store = withMoney({
+      profile: { ...createEmptyStore().profile, displayName: "Alex" },
+      incomeStreams: [
+        { id: "i1", name: "Paycheck", amount: 4000, dueDay: 1, frequency: "monthly", category: "Income", icon: "💵" },
+      ],
+      bills: [
+        { id: "b1", name: "Rent", amount: 1500, dueDay: 1, frequency: "monthly", category: "Housing", icon: "🏠" },
+      ],
+      recurringTransactions: [
+        { id: "r1", name: "Dining", amount: 80, dueDay: 1, frequency: "weekly", category: "Dining", icon: "🍽️", transactionType: "expense" },
+      ],
+      goals: [
+        { id: "g1", name: "Emergency fund", icon: "🛟", target: 5000, saved: 0, targetDate: "2027-12-31", monthlyContribution: 0 },
+      ],
+      categories: [{ id: "c-dining", name: "Dining", icon: "🍽️", monthlyBudget: 400 }],
+    });
+    const cards = buildChatBriefingTips(store, analyzeStore(store));
+    assert.equal(cards.length, 3);
+    assert.equal(new Set(cards.map((c) => c.featureLabel)).size, 3);
+    assert.ok(cards.every((c) => c.workflow.length === 3 && c.action));
+  });
+
+  it("still offers three starting areas when the store is empty", () => {
+    const store = createEmptyStore();
+    const cards = buildChatBriefingTips(store, analyzeStore(store));
+    assert.equal(cards.length, 3);
+    assert.equal(new Set(cards.map((c) => c.featureLabel)).size, 3);
+  });
+});
+
+describe("ledger start date and current balance", () => {
+  it("does not create scheduled transactions before the setup date", () => {
+    const store = applyBillScheduleToStore(
+      withMoney({
+        profile: {
+          displayName: "Alex",
+          email: "",
+          currency: "USD",
+          startingBalance: 1000,
+          balanceAsOfISO: "2026-10-15",
+        },
+        incomeStreams: [
+          { id: "i1", name: "Paycheck", amount: 2000, dueDay: 1, frequency: "monthly", category: "Income", icon: "💵" },
+        ],
+      }),
+      new Date(2026, 9, 20),
+    );
+    assert.ok(store.transactions.every((t) => t.dateISO >= "2026-10-15"));
+    assert.equal(store.transactions.some((t) => t.desc === "Paycheck" && t.dateISO === "2026-10-01"), false);
+    assert.ok(store.transactions.some((t) => t.desc === "Paycheck" && t.dateISO === "2026-11-01"));
+  });
+
+  it("keeps the current balance through today, not future scheduled pay", () => {
+    const store = applyBillScheduleToStore(
+      withMoney({
+        profile: {
+          displayName: "Alex",
+          email: "",
+          currency: "USD",
+          startingBalance: 100,
+          balanceAsOfISO: "2026-10-01",
+        },
+        incomeStreams: [
+          {
+            id: "i1",
+            name: "Paycheck",
+            amount: 2000,
+            dueDay: 1,
+            frequency: "monthly",
+            category: "Income",
+            icon: "💵",
+            startDateISO: "2027-06-01",
+          },
+        ],
+      }),
+      new Date(2026, 9, 20),
+    );
+    const summary = computeSummary(store, new Date(2026, 9, 20));
+    assert.equal(summary.balance, 100);
+    assert.ok(store.transactions.some((t) => t.desc === "Paycheck" && t.dateISO === "2027-06-01"));
   });
 });

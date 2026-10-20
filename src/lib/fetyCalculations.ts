@@ -117,13 +117,15 @@ function categorySpentInMonth(store: FetyStore, categoryName: string, ref: Date)
   const start = monthStart(ref);
   const end = monthEnd(ref);
   const asOf = balanceAsOfISO(store);
+  const today = todayISO();
+  const through = end < today ? end : today;
   return store.transactions
     .filter(
       (t) =>
         t.dateISO >= asOf &&
         t.category === categoryName &&
         isOutflow(t, store) &&
-        inRange(t.dateISO, start, end),
+        inRange(t.dateISO, start, through),
     )
     .reduce((s, t) => s + Math.abs(t.amount), 0);
 }
@@ -150,10 +152,8 @@ export function computeSummary(store: FetyStore, ref = new Date()): FinanceSumma
   const mStart = monthStart(ref);
   const mEnd = monthEnd(ref);
   const asOf = balanceAsOfISO(store);
-  const balanceTx = store.transactions.filter((t) => t.dateISO >= asOf);
-
-  const txSum = balanceTx.reduce((s, t) => s + globalBalanceContribution(t, store), 0);
-  const balance = store.profile.startingBalance + txSum;
+  const balance = endingBalanceOnDate(store, today);
+  const balanceTx = store.transactions.filter((t) => t.dateISO >= asOf && t.dateISO <= today);
 
   const moneyInToday = balanceTx
     .filter((t) => t.dateISO === today && isInflow(t, store))

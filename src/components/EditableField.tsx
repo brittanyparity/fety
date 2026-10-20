@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import type { CSSProperties } from "react";
-import CurrencyInput, { sanitizeDecimalInput } from "./CurrencyInput";
+import CurrencyInput, { amountToEditString, sanitizeDecimalInput } from "./CurrencyInput";
 
 const editBtnStyle: React.CSSProperties = {
   width: 28,
@@ -75,7 +75,7 @@ export function EditableNumber({
   const display = format ? format(value) : String(value);
 
   const openEdit = () => {
-    setDraft(value === 0 && !allowNegative ? "" : String(value));
+    setDraft(value === 0 && !allowNegative ? "" : currency ? amountToEditString(value) : String(value));
     setEditing(true);
   };
 

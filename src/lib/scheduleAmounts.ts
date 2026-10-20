@@ -3,6 +3,11 @@ import type { BillFrequency, IncomeFrequency } from "../types/fety";
 /** UI-only everyday cadence; stored as weekly or monthly on the recurring item. */
 export type EverydayFrequency = BillFrequency | "weekday";
 
+export function roundMoney(amount: number): number {
+  if (!Number.isFinite(amount)) return 0;
+  return Math.round(amount * 100) / 100;
+}
+
 /** Convert a scheduled amount into an approximate monthly total. */
 export function monthlyFromFrequency(
   amount: number,
@@ -11,22 +16,22 @@ export function monthlyFromFrequency(
   if (!Number.isFinite(amount) || amount === 0) return 0;
   switch (frequency) {
     case "weekly":
-      return (amount * 52) / 12;
+      return roundMoney((amount * 52) / 12);
     case "biweekly":
-      return (amount * 26) / 12;
+      return roundMoney((amount * 26) / 12);
     case "quarterly":
-      return amount / 3;
+      return roundMoney(amount / 3);
     case "semimonthly":
-      return amount * 2;
+      return roundMoney(amount * 2);
     case "weekday":
-      return (amount * 5 * 52) / 12;
+      return roundMoney((amount * 5 * 52) / 12);
     case "monthly":
     default:
-      return amount;
+      return roundMoney(amount);
   }
 }
 
-export function formatUsd(amount: number, digits = 0): string {
+export function formatUsd(amount: number, digits = 2): string {
   const formatted = Math.abs(amount).toLocaleString("en-US", {
     style: "currency",
     currency: "USD",

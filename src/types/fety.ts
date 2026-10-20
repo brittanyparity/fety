@@ -109,6 +109,8 @@ export interface ChatMessage {
   confirmationId?: string;
   confirmationTitle?: string;
   resultCard?: { title: string; lines: string[] };
+  tipCards?: import("./analysis").ChatTipCard[];
+  workflow?: import("./analysis").ChatWorkflow;
 }
 
 export interface UserProfile {
@@ -150,6 +152,8 @@ export interface FetyStore {
   widgetsCuratedV2?: boolean;
   /** Strip removed widgets + apply latest curated defaults when still on a prior starter set. */
   widgetsCuratedV3?: boolean;
+  /** Freeform notes keyed by calendar date (YYYY-MM-DD). */
+  calendarNotes?: Record<string, string>;
 }
 
 export interface CategoryWithSpent extends BudgetCategory {

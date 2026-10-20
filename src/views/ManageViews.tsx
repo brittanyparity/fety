@@ -26,7 +26,7 @@ import { accountBalanceWithTransactions, accountActivityForAccount, accountBalan
 import CurrencyInput, { amountToEditString } from "../components/CurrencyInput";
 
 const usd = (n: number) =>
-  new Intl.NumberFormat("en-US", { style: "currency", currency: "USD", maximumFractionDigits: 0 }).format(n);
+  new Intl.NumberFormat("en-US", { style: "currency", currency: "USD", minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(n);
 const usdF = (n: number) =>
   new Intl.NumberFormat("en-US", { style: "currency", currency: "USD", minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(n);
 
@@ -335,7 +335,7 @@ export function BudgetManageView({
     const cat = categories.find((c) => c.id === highlightCategoryId);
     if (!cat) return;
     setEditingCategoryCapId(cat.id);
-    setCategoryCapDraft(cat.monthlyBudget === 0 ? "" : String(cat.monthlyBudget));
+    setCategoryCapDraft(amountToEditString(cat.monthlyBudget));
   }, [highlightCategoryId]); // categories looked up when the highlight target changes
 
   useEffect(() => {
@@ -715,7 +715,7 @@ export function BudgetManageView({
                   title="Edit monthly cap"
                   onClick={() => {
                     setEditingCategoryCapId(c.id);
-                    setCategoryCapDraft(c.monthlyBudget === 0 ? "" : String(c.monthlyBudget));
+                    setCategoryCapDraft(amountToEditString(c.monthlyBudget));
                   }}
                   style={{ ...tileIconBtn, color: "var(--ink-3)" }}
                 >
@@ -1397,6 +1397,7 @@ export function TransactionsManageView({
   onUpdate,
   onDelete,
   initialAccountFilter,
+  earliestDateISO,
 }: {
   transactions: Transaction[];
   categories: BudgetCategory[];
@@ -1424,6 +1425,7 @@ export function TransactionsManageView({
   ) => void;
   onDelete: (id: string) => void;
   initialAccountFilter?: string | null;
+  earliestDateISO?: string;
 }) {
   const ledgerStore = { accounts, goals, transactionTypes, typeIcons, transactions, profile: { startingBalance: 0, displayName: "", email: "", currency: "USD" } } as import("../types/fety").FetyStore;
   const defaultTypeId = transactionTypes.find((t) => t.id === "expense")?.id ?? transactionTypes[0]?.id ?? "expense";
@@ -1471,7 +1473,8 @@ export function TransactionsManageView({
           return tt?.name === filter || t.type === filter;
         })
     ).filter((t) =>
-      accountFilter === "all" ? true : t.fromAccountId === accountFilter || t.toAccountId === accountFilter,
+      (earliestDateISO ? t.dateISO >= earliestDateISO : true) &&
+      (accountFilter === "all" ? true : t.fromAccountId === accountFilter || t.toAccountId === accountFilter),
     );
   const filterLabels = ["All", ...transactionTypes.map((t) => t.name)];
   const byDateISO: Record<string, Transaction[]> = {};
@@ -1577,7 +1580,16 @@ export function TransactionsManageView({
           </div>
           <div>
             <label className="fety-label" style={{ display: "block", marginBottom: 4 }}>Date</label>
-            <input type="date" value={dateISO} onChange={(e) => setDateISO(e.target.value)} style={inputStyle} />
+            <input
+              type="date"
+              min={earliestDateISO}
+              value={dateISO}
+              onChange={(e) => {
+                const next = e.target.value;
+                setDateISO(earliestDateISO && next < earliestDateISO ? earliestDateISO : next);
+              }}
+              style={inputStyle}
+            />
           </div>
         </div>
         <div className="fety-txn-add-form__routing">

@@ -1,6 +1,7 @@
 import type { CSSProperties } from "react";
 import type { IncomeFrequency } from "../types/fety";
 import { INCOME_FREQUENCY_LABELS } from "../lib/billScheduling";
+import DayOfMonthInput from "./DayOfMonthInput";
 
 const WEEKDAYS = [
   { value: 0, label: "Sunday" },
@@ -54,8 +55,6 @@ export default function IncomeScheduleFields({
   const isWeekBased = frequency === "weekly" || frequency === "biweekly";
   const isSemiMonthly = frequency === "semimonthly";
 
-  const dayOptions = Array.from({ length: 31 }, (_, i) => i + 1);
-
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: compact ? 8 : 10 }}>
       <div
@@ -97,13 +96,7 @@ export default function IncomeScheduleFields({
                 ))}
               </select>
             ) : (
-              <select value={dueDay} onChange={(e) => onDueDayChange(parseInt(e.target.value, 10))} style={baseInput}>
-                {dayOptions.map((d) => (
-                  <option key={d} value={d}>
-                    {d}
-                  </option>
-                ))}
-              </select>
+              <DayOfMonthInput value={dueDay} onChange={onDueDayChange} style={baseInput} aria-label="Paid day of month" />
             )}
           </div>
         )}
@@ -114,35 +107,19 @@ export default function IncomeScheduleFields({
               Paid on (days of month)
             </label>
             <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
-              <select
+              <DayOfMonthInput
                 value={semiMonthlyDays[0]}
-                onChange={(e) =>
-                  onSemiMonthlyDaysChange([parseInt(e.target.value, 10), semiMonthlyDays[1]])
-                }
+                onChange={(day) => onSemiMonthlyDaysChange([day, semiMonthlyDays[1]])}
                 style={baseInput}
                 aria-label="First pay day of month"
-              >
-                {dayOptions.map((d) => (
-                  <option key={d} value={d}>
-                    {d}
-                  </option>
-                ))}
-              </select>
+              />
               <span style={{ fontSize: 12, color: "var(--ink-3)" }}>and</span>
-              <select
+              <DayOfMonthInput
                 value={semiMonthlyDays[1]}
-                onChange={(e) =>
-                  onSemiMonthlyDaysChange([semiMonthlyDays[0], parseInt(e.target.value, 10)])
-                }
+                onChange={(day) => onSemiMonthlyDaysChange([semiMonthlyDays[0], day])}
                 style={baseInput}
                 aria-label="Second pay day of month"
-              >
-                {dayOptions.map((d) => (
-                  <option key={d} value={d}>
-                    {d}
-                  </option>
-                ))}
-              </select>
+              />
             </div>
           </div>
         )}

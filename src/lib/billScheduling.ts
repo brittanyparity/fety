@@ -303,8 +303,28 @@ function collapseDuplicateScheduledTransactions(transactions: Transaction[]): Tr
 
 type RebuildStore = Pick<
   FetyStore,
-  "bills" | "incomeStreams" | "recurringTransactions" | "transactions" | "skippedBillOccurrences" | "skippedScheduledOccurrences"
->;
+  | "bills"
+  | "incomeStreams"
+  | "recurringTransactions"
+  | "transactions"
+  | "skippedBillOccurrences"
+  | "skippedScheduledOccurrences"
+> & {
+  profile?: Pick<FetyStore["profile"], "balanceAsOfISO">;
+};
+
+function parseISODateLocal(iso: string | undefined): Date | null {
+  if (!iso) return null;
+  const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(iso);
+  if (!m) return null;
+  return new Date(Number(m[1]), Number(m[2]) - 1, Number(m[3]), 12, 0, 0, 0);
+}
+
+/** First date scheduled activity may appear — the setup / opening-balance date, or today. */
+export function scheduleProjectionStart(store: { profile?: { balanceAsOfISO?: string } }, ref = new Date()): Date {
+  return parseISODateLocal(store.profile?.balanceAsOfISO)
+    ?? new Date(ref.getFullYear(), ref.getMonth(), ref.getDate(), 12, 0, 0, 0);
+}
 
 function projectOccurrences(
   store: RebuildStore,
@@ -357,9 +377,13 @@ export function rebuildTransactionsWithBillSchedule(store: RebuildStore, ref = n
   const incomeStreams = dedupeIncomeStreams(store.incomeStreams ?? []);
   const recurringTransactions = dedupeRecurringTransactions(store.recurringTransactions ?? []);
 
+  const asOfISO = store.profile?.balanceAsOfISO;
   let manual = (store.transactions ?? []).filter((t) => !isScheduledTransaction(t.id));
+  if (asOfISO) {
+    manual = manual.filter((t) => t.dateISO >= asOfISO);
+  }
 
-  const from = new Date(ref.getFullYear() - 1, 0, 1);
+  const from = scheduleProjectionStart(store, ref);
   const to = new Date(ref.getFullYear() + 1, 11, 31);
 
   const consumedManualIds = new Set<string>();

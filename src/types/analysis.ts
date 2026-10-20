@@ -62,6 +62,32 @@ export type AnalysisTourStep = {
   action?: FetyActionTarget;
 };
 
+export type TipWorkflowStep = {
+  id: string;
+  title: string;
+  instruction: string;
+};
+
+export type ChatTipCard = {
+  id: string;
+  title: string;
+  explanation: string;
+  featureLabel: string;
+  action: FetyActionTarget;
+  actionLabel: string;
+  workflow: TipWorkflowStep[];
+};
+
+export type ChatWorkflow = {
+  tipId: string;
+  title: string;
+  featureLabel: string;
+  action: FetyActionTarget;
+  steps: TipWorkflowStep[];
+  stepIndex: number;
+  status: "active" | "later" | "done";
+};
+
 export type CategoryShare = {
   name: string;
   monthly: number;

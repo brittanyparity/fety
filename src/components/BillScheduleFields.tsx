@@ -1,6 +1,7 @@
 import type { CSSProperties } from "react";
 import type { BillFrequency } from "../types/fety";
 import { BILL_FREQUENCY_LABELS } from "../lib/billScheduling";
+import DayOfMonthInput from "./DayOfMonthInput";
 
 const WEEKDAYS = [
   { value: 0, label: "Sunday" },
@@ -75,13 +76,7 @@ export default function BillScheduleFields({
             ))}
           </select>
         ) : (
-          <select value={dueDay} onChange={(e) => onDueDayChange(parseInt(e.target.value, 10))} style={baseInput}>
-            {Array.from({ length: 31 }, (_, i) => i + 1).map((d) => (
-              <option key={d} value={d}>
-                {d}
-              </option>
-            ))}
-          </select>
+          <DayOfMonthInput value={dueDay} onChange={onDueDayChange} style={baseInput} aria-label="Due day of month" />
         )}
         <p style={{ fontSize: 10, color: "var(--ink-3)", marginTop: 4, lineHeight: 1.35 }}>
           {isWeekBased

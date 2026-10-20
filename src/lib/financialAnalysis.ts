@@ -1,9 +1,11 @@
 import type {
   AnalysisTourStep,
+  ChatTipCard,
   FinancialAnalysis,
   FinancialInsight,
   FinancialTip,
   FetyActionTarget,
+  TipWorkflowStep,
 } from "../types/analysis";
 import type { Bill, FetyStore, IncomeStream, RecurringTransaction } from "../types/fety";
 import { computeSummary } from "./fetyCalculations";
@@ -352,7 +354,7 @@ export function analyzeStore(store: FetyStore, ref = new Date()): FinancialAnaly
     missing,
     categoryShares,
     insights: rankedInsights,
-    tips: tips.slice(0, 4),
+    tips: tips.slice(0, 3),
   };
 }
 
@@ -486,4 +488,137 @@ export function buildPersonalizedTour(store: FetyStore, analysis: FinancialAnaly
   }
 
   return steps;
+}
+
+export function featureLabelForAction(action: FetyActionTarget): string {
+  if (action.type === "calendar") return "Calendar";
+  if (action.type === "goals") return "Goals";
+  if (action.type === "spending" || action.type === "transactions") return "Transactions";
+  if (action.type === "budget" || action.type === "bills") return "Budget";
+  return "Insights";
+}
+
+function workflowForAction(action: FetyActionTarget): TipWorkflowStep[] {
+  if (action.type === "calendar") {
+    return [
+      { id: "c1", title: "Scan the month", instruction: "Look across this month and notice which days look heavier — those are usually the ones that squeeze cash." },
+      { id: "c2", title: "Compare timing", instruction: "Find when income lands versus when bills are due. If a bill hits first, that's a timing issue, not necessarily an income issue." },
+      { id: "c3", title: "Pick one tight day", instruction: "Choose one tight day to keep an eye on. You can add or move a transaction when you're ready." },
+    ];
+  }
+  if (action.type === "bills") {
+    return [
+      { id: "l1", title: "Review the list", instruction: "The bills section is highlighted. Confirm names, amounts, and due days still look right." },
+      { id: "l2", title: "Fix what drifted", instruction: "Edit anything that's out of date. Accurate bills make the calendar and leftover-cash number trustworthy." },
+      { id: "l3", title: "Check the calendar after", instruction: "When you're done, open Calendar to see those due dates on the month." },
+    ];
+  }
+  if (action.type === "budget") {
+    return [
+      { id: "b1", title: "Find the category", instruction: action.categoryName ? `The ${action.categoryName} category is highlighted. Open it if it isn't already in edit mode.` : "Pick the category you want to give a monthly cap." },
+      { id: "b2", title: "Set a cap you can keep", instruction: "Enter a monthly amount you can actually live with — a little tight is useful, impossible is not." },
+      { id: "b3", title: "Save and watch it", instruction: "Save the cap. Next week, Insights and Transactions will compare spending against this number." },
+    ];
+  }
+  if (action.type === "goals") {
+    return [
+      { id: "g1", title: "Open the goal", instruction: "Your goal is highlighted. Check the target and what's already saved." },
+      { id: "g2", title: "Set a monthly contribution", instruction: "Use leftover cash from the briefing as a starting point — even a small monthly amount counts." },
+      { id: "g3", title: "Link the next save", instruction: "When money actually moves, apply that transaction to this goal so progress stays honest." },
+    ];
+  }
+  if (action.type === "spending" || action.type === "transactions") {
+    return [
+      { id: "t1", title: "Scan recent activity", instruction: "Look for anything missing or miscategorized from the last couple of weeks." },
+      { id: "t2", title: "Add what's missing", instruction: "Add one real transaction if something didn't get captured. The picture only works if the ledger is current." },
+      { id: "t3", title: "Give it a category", instruction: "Categorize it so Budget and Insights can group it with the rest of that spending." },
+    ];
+  }
+  return [
+    { id: "i1", title: "Read the charts", instruction: "These widgets use the same numbers as chat. Look for the category or goal we just talked about." },
+    { id: "i2", title: "Pin what matters", instruction: "Use Customise to keep the charts you actually check on this page." },
+    { id: "i3", title: "Come back after a change", instruction: "After you adjust a budget or goal, this page should reflect it." },
+  ];
+}
+
+function toChatTipCard(tip: FinancialTip): ChatTipCard {
+  const action = tip.action ?? { type: "dashboard" };
+  const featureLabel = featureLabelForAction(action);
+  return {
+    id: tip.id,
+    title: tip.title,
+    explanation: tip.explanation,
+    featureLabel,
+    action,
+    actionLabel: `Explore ${featureLabel}`,
+    workflow: workflowForAction(action),
+  };
+}
+
+function fallbackBriefingCards(store: FetyStore, analysis: FinancialAnalysis): ChatTipCard[] {
+  const goal = store.goals[0];
+  return [
+    {
+      id: "fallback-calendar",
+      title: "See your month as a calendar",
+      explanation: analysis.missing.income && analysis.missing.obligations
+        ? "Calendar is the easiest place to watch money in and out once you add a paycheck or bill."
+        : "Calendar shows when money arrives and when it has to go out — the same timing we just calculated.",
+      featureLabel: "Calendar",
+      action: { type: "calendar" },
+      actionLabel: "Explore Calendar",
+      workflow: workflowForAction({ type: "calendar" }),
+    },
+    {
+      id: "fallback-budget",
+      title: analysis.missing.obligations ? "Put regular expenses in one place" : "Give flexible spending a cap",
+      explanation: analysis.missing.obligations
+        ? "Budget is where bills and category caps live. Adding one regular expense makes leftover cash real."
+        : "Budget is where you decide how much each category gets each month.",
+      featureLabel: "Budget",
+      action: { type: "budget" },
+      actionLabel: "Explore Budget",
+      workflow: workflowForAction({ type: "budget" }),
+    },
+    {
+      id: "fallback-goals",
+      title: goal ? `Keep ${goal.name} in view` : "Name something you're working toward",
+      explanation: goal
+        ? `Goals is where ${goal.name} lives — target, saved so far, and a monthly contribution.`
+        : "Goals is where you tell Fety what leftover cash is for.",
+      featureLabel: "Goals",
+      action: { type: "goals", goalId: goal?.id },
+      actionLabel: "Explore Goals",
+      workflow: workflowForAction({ type: "goals", goalId: goal?.id }),
+    },
+  ];
+}
+
+/** Exactly three tips, each mapped to a different platform area. */
+export function buildChatBriefingTips(store: FetyStore, analysis: FinancialAnalysis): ChatTipCard[] {
+  const picked: ChatTipCard[] = [];
+  const used = new Set<string>();
+  for (const tip of analysis.tips) {
+    const card = toChatTipCard(tip);
+    if (used.has(card.featureLabel)) continue;
+    used.add(card.featureLabel);
+    picked.push(card);
+    if (picked.length === 3) return picked;
+  }
+  for (const card of fallbackBriefingCards(store, analysis)) {
+    if (used.has(card.featureLabel)) continue;
+    used.add(card.featureLabel);
+    picked.push(card);
+    if (picked.length === 3) break;
+  }
+  return picked;
+}
+
+export function buildChatBriefingIntro(store: FetyStore, analysis: FinancialAnalysis): string {
+  const firstName = store.profile.displayName.trim().split(/\s+/)[0] || "";
+  const hi = firstName ? `${firstName}, here's` : "Here's";
+  if (analysis.missing.income && analysis.missing.obligations) {
+    return `${hi} what I have so far. I need a little more income or a regular expense before the picture fills in. I still picked three places we can start.`;
+  }
+  return `${hi} what I found. You have about ${formatUsd(analysis.expectedMonthlyIncome)} coming in each month, with about ${formatUsd(analysis.regularObligations)} in regular expenses. That leaves about ${formatUsd(Math.max(0, analysis.expectedMonthlyIncome - analysis.regularObligations))} before everyday spending and other priorities.`;
 }

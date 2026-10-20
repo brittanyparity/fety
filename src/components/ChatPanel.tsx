@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from "react";
+import type { ChatTipCard, ChatWorkflow } from "../types/analysis";
 import type { ChatMessage } from "../types/fety";
 import { conversationalizeDatesInText } from "../lib/fetyCalculations";
 
@@ -26,6 +27,9 @@ export function ChatPanel({
   onCollapse,
   onConfirm,
   onCancelConfirm,
+  onExploreTip,
+  onSaveTipLater,
+  onWorkflowAction,
 }: {
   messages: ChatMessage[];
   processing?: boolean;
@@ -33,6 +37,9 @@ export function ChatPanel({
   onCollapse: () => void;
   onConfirm: (confirmationId: string) => void;
   onCancelConfirm: (confirmationId: string) => void;
+  onExploreTip?: (card: ChatTipCard) => void;
+  onSaveTipLater?: (card: ChatTipCard) => void;
+  onWorkflowAction?: (messageId: number, action: "next" | "back" | "later" | "done" | "resume") => void;
 }) {
   const [draft, setDraft] = useState("");
   const feedRef = useRef<HTMLDivElement>(null);
@@ -87,7 +94,15 @@ export function ChatPanel({
           </div>
         )}
         {messages.map((msg) => (
-          <ChatBubble key={msg.id} msg={msg} onConfirm={onConfirm} onCancelConfirm={onCancelConfirm} />
+          <ChatBubble
+            key={msg.id}
+            msg={msg}
+            onConfirm={onConfirm}
+            onCancelConfirm={onCancelConfirm}
+            onExploreTip={onExploreTip}
+            onSaveTipLater={onSaveTipLater}
+            onWorkflowAction={onWorkflowAction}
+          />
         ))}
         {processing && (
           <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 12 }}>
@@ -174,10 +189,16 @@ function ChatBubble({
   msg,
   onConfirm,
   onCancelConfirm,
+  onExploreTip,
+  onSaveTipLater,
+  onWorkflowAction,
 }: {
   msg: ChatMessage;
   onConfirm: (id: string) => void;
   onCancelConfirm: (id: string) => void;
+  onExploreTip?: (card: ChatTipCard) => void;
+  onSaveTipLater?: (card: ChatTipCard) => void;
+  onWorkflowAction?: (messageId: number, action: "next" | "back" | "later" | "done" | "resume") => void;
 }) {
   const isUser = msg.role === "user";
   return (
@@ -195,7 +216,7 @@ function ChatBubble({
       )}
       <div
         style={{
-          maxWidth: "92%",
+          maxWidth: msg.tipCards || msg.workflow ? "100%" : "92%",
           background: isUser ? "var(--ink)" : "var(--paper)",
           color: isUser ? "#fff" : "var(--ink)",
           borderRadius: isUser ? "12px 12px 4px 12px" : "12px 12px 12px 4px",
@@ -224,6 +245,16 @@ function ChatBubble({
             ))}
           </div>
         )}
+        {msg.tipCards && msg.tipCards.length > 0 && onExploreTip && onSaveTipLater ? (
+          <div className="fety-tip-grid">
+            {msg.tipCards.map((card) => (
+              <TipTile key={card.id} card={card} onExplore={onExploreTip} onLater={onSaveTipLater} />
+            ))}
+          </div>
+        ) : null}
+        {msg.workflow && onWorkflowAction ? (
+          <WorkflowCard workflow={msg.workflow} onAction={(action) => onWorkflowAction(msg.id, action)} />
+        ) : null}
         {msg.confirmationId && (
           <div style={{ marginTop: 10, display: "flex", flexDirection: "column", gap: 8 }}>
             {msg.confirmationTitle && (
@@ -282,6 +313,97 @@ function ChatBubble({
           ✓ {msg.tag}
         </div>
       )}
+    </div>
+  );
+}
+
+function TipTile({
+  card,
+  onExplore,
+  onLater,
+}: {
+  card: ChatTipCard;
+  onExplore: (card: ChatTipCard) => void;
+  onLater: (card: ChatTipCard) => void;
+}) {
+  return (
+    <article className="fety-tip-tile">
+      <p className="fety-tip-tile-feature">{card.featureLabel}</p>
+      <h3>{card.title}</h3>
+      <p>{card.explanation}</p>
+      <div className="fety-tip-tile-actions">
+        <button type="button" className="fety-splash-btn-primary" onClick={() => onExplore(card)}>
+          {card.actionLabel}
+        </button>
+        <button type="button" className="fety-splash-btn-ghost" onClick={() => onLater(card)}>
+          Later
+        </button>
+      </div>
+    </article>
+  );
+}
+
+function WorkflowCard({
+  workflow,
+  onAction,
+}: {
+  workflow: ChatWorkflow;
+  onAction: (action: "next" | "back" | "later" | "done" | "resume") => void;
+}) {
+  const step = workflow.steps[workflow.stepIndex];
+  const last = workflow.stepIndex >= workflow.steps.length - 1;
+
+  if (workflow.status === "done") {
+    return (
+      <div className="fety-workflow-card fety-workflow-card--done">
+        <p className="fety-label">Workflow complete</p>
+        <p className="fety-workflow-title">{workflow.title}</p>
+        <p>You can come back to {workflow.featureLabel} anytime.</p>
+      </div>
+    );
+  }
+
+  if (workflow.status === "later") {
+    return (
+      <div className="fety-workflow-card">
+        <p className="fety-label">Saved for later</p>
+        <p className="fety-workflow-title">{workflow.title}</p>
+        <p>This lives in {workflow.featureLabel}. Resume when you want to walk through it.</p>
+        <div className="fety-workflow-actions">
+          <button type="button" className="fety-splash-btn-primary" onClick={() => onAction("resume")}>
+            Resume in {workflow.featureLabel}
+          </button>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="fety-workflow-card">
+      <p className="fety-label">
+        {workflow.featureLabel} · Step {workflow.stepIndex + 1} of {workflow.steps.length}
+      </p>
+      <p className="fety-workflow-title">{step?.title ?? workflow.title}</p>
+      <p>{step?.instruction}</p>
+      <div className="fety-workflow-actions">
+        {workflow.stepIndex > 0 ? (
+          <button type="button" className="fety-splash-btn-ghost" onClick={() => onAction("back")}>
+            Back
+          </button>
+        ) : null}
+        <button type="button" className="fety-talk-skip" onClick={() => onAction("later")}>
+          Do this later
+        </button>
+        {!last ? (
+          <button type="button" className="fety-splash-btn-primary" onClick={() => onAction("next")}>
+            Next
+          </button>
+        ) : (
+          <button type="button" className="fety-splash-btn-primary" onClick={() => onAction("done")}>
+            Done
+          </button>
+        )}
+      </div>
     </div>
   );
 }

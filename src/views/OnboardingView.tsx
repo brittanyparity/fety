@@ -1,9 +1,10 @@
 import { useMemo, useState } from "react";
 import { FetyLogo } from "../FetyLogo";
 import CurrencyInput, { amountToEditString } from "../components/CurrencyInput";
+import DayOfMonthInput from "../components/DayOfMonthInput";
 import { todayISO } from "../lib/fetyCalculations";
 import { newId } from "../lib/fetyStorage";
-import { everydayToStoredSchedule, type EverydayFrequency } from "../lib/scheduleAmounts";
+import { everydayToStoredSchedule, monthlyFromFrequency, roundMoney, type EverydayFrequency } from "../lib/scheduleAmounts";
 import type {
   Bill,
   BillFrequency,
@@ -183,10 +184,10 @@ function upsertCategory(
   const existing = categories.find((c) => c.name.toLowerCase() === trimmed.toLowerCase());
   if (existing) {
     return categories.map((c) =>
-      c.id === existing.id ? { ...c, monthlyBudget: c.monthlyBudget + monthlyBudget, icon: c.icon || icon } : c,
+      c.id === existing.id ? { ...c, monthlyBudget: roundMoney(c.monthlyBudget + monthlyBudget), icon: c.icon || icon } : c,
     );
   }
-  return [...categories, { id: newId("cat"), name: trimmed, icon, monthlyBudget }];
+  return [...categories, { id: newId("cat"), name: trimmed, icon, monthlyBudget: roundMoney(monthlyBudget) }];
 }
 
 export function OnboardingView({
@@ -386,6 +387,7 @@ export function OnboardingView({
   const finish = () => {
     let categories: BudgetCategory[] = [{ id: newId("cat"), name: "Income", icon: "💵", monthlyBudget: 0 }];
 
+    const startISO = balanceAsOfISO || todayISO();
     const streams: IncomeStream[] = incomes
       .filter((row) => parseFloat(row.amount) > 0)
       .map((row) => ({
@@ -396,6 +398,7 @@ export function OnboardingView({
         frequency: row.frequency,
         category: "Income",
         icon: row.icon,
+        startDateISO: startISO,
         semiMonthlyDays: row.frequency === "semimonthly" ? row.semiMonthlyDays : undefined,
       }));
 
@@ -419,12 +422,7 @@ export function OnboardingView({
       .map((row) => {
         const raw = parseFloat(row.amount) || 0;
         const stored = everydayToStoredSchedule(raw, row.frequency);
-        const monthly =
-          row.frequency === "weekday"
-            ? (raw * 5 * 52) / 12
-            : row.frequency === "weekly"
-              ? (raw * 52) / 12
-              : raw;
+        const monthly = monthlyFromFrequency(raw, row.frequency);
         categories = upsertCategory(categories, row.category, row.icon, monthly);
         return {
           id: newId("recur"),
@@ -585,17 +583,17 @@ export function OnboardingView({
                 <div className="fety-talk-two">
                   <label className="fety-talk-field">
                     <span className="fety-label">First payday</span>
-                    <input type="number" min={1} max={31} value={currentIncome.semiMonthlyDays[0]} onChange={(e) => setIncomes((rows) => rows.map((r, i) => (i === incomeIndex ? { ...r, semiMonthlyDays: [Number(e.target.value) || 1, r.semiMonthlyDays[1]] } : r)))} />
+                    <DayOfMonthInput aria-label="First payday" value={currentIncome.semiMonthlyDays[0]} onChange={(day) => setIncomes((rows) => rows.map((r, i) => (i === incomeIndex ? { ...r, semiMonthlyDays: [day, r.semiMonthlyDays[1]] } : r)))} />
                   </label>
                   <label className="fety-talk-field">
                     <span className="fety-label">Second payday</span>
-                    <input type="number" min={1} max={31} value={currentIncome.semiMonthlyDays[1]} onChange={(e) => setIncomes((rows) => rows.map((r, i) => (i === incomeIndex ? { ...r, semiMonthlyDays: [r.semiMonthlyDays[0], Number(e.target.value) || 15] } : r)))} />
+                    <DayOfMonthInput aria-label="Second payday" value={currentIncome.semiMonthlyDays[1]} onChange={(day) => setIncomes((rows) => rows.map((r, i) => (i === incomeIndex ? { ...r, semiMonthlyDays: [r.semiMonthlyDays[0], day] } : r)))} />
                   </label>
                 </div>
               ) : currentIncome.frequency !== "weekly" && currentIncome.frequency !== "biweekly" ? (
                 <label className="fety-talk-field">
                   <span className="fety-label">When do you usually receive it?</span>
-                  <input type="number" min={1} max={31} value={currentIncome.dueDay} onChange={(e) => setIncomes((rows) => rows.map((r, i) => (i === incomeIndex ? { ...r, dueDay: Number(e.target.value) || 1 } : r)))} />
+                  <DayOfMonthInput aria-label="Usual receive day" value={currentIncome.dueDay} onChange={(day) => setIncomes((rows) => rows.map((r, i) => (i === incomeIndex ? { ...r, dueDay: day } : r)))} />
                 </label>
               ) : (
                 <p className="fety-talk-hint">Weekly pay is tracked from the start of each week.</p>
@@ -653,7 +651,7 @@ export function OnboardingView({
               {currentObligation.frequency !== "weekly" && currentObligation.frequency !== "biweekly" ? (
                 <label className="fety-talk-field">
                   <span className="fety-label">Which day of the month?</span>
-                  <input type="number" min={1} max={31} value={currentObligation.dueDay} onChange={(e) => setObligations((rows) => rows.map((r, i) => (i === obligationIndex ? { ...r, dueDay: Number(e.target.value) || 1 } : r)))} />
+                  <DayOfMonthInput aria-label="Due day of month" value={currentObligation.dueDay} onChange={(day) => setObligations((rows) => rows.map((r, i) => (i === obligationIndex ? { ...r, dueDay: day } : r)))} />
                 </label>
               ) : null}
               {actions({
@@ -772,7 +770,7 @@ export function OnboardingView({
             <>
               <Prompt
                 title="About how much money do you have available right now?"
-                body="This is your starting point — the date matters so Fety can look backward and forward from the same place."
+                body="This is your starting point. Fety records activity from this date forward — nothing earlier is added to your books."
               />
               <label className="fety-talk-field">
                 <span className="fety-label">Available now</span>

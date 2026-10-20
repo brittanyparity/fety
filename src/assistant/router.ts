@@ -48,7 +48,7 @@ export function executeToolAction(action: ToolAction, deps: ToolDeps, summary: F
       });
       const signed = p.type === "income" ? `+${usd(p.amount)}` : `-${usd(Math.abs(p.amount))}`;
       return {
-        text: `Done. I added ${signed} for ${p.desc}. Check the dashboard for updated spending power.`,
+        text: `Done. I added ${signed} for ${p.desc}. Check Insights for updated spending power.`,
         tag: p.type === "income" ? "Income recorded" : "Transaction added",
       };
     }
