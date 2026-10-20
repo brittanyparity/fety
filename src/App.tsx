@@ -25,9 +25,15 @@ import {
 } from "./views/ManageViews";
 import { OnboardingView } from "./views/OnboardingView";
 import SplashView from "./views/SplashView";
-import { analyzeStore, buildPersonalizedTour, pageForAction } from "./lib/financialAnalysis";
+import {
+  analyzeStore,
+  buildChatBriefingIntro,
+  buildChatBriefingTips,
+  buildPersonalizedTour,
+  pageForAction,
+} from "./lib/financialAnalysis";
 import { assessFinancialNeeds, isWidgetRecommended, recommendationForWidget } from "./lib/needsAssessment";
-import type { FetyActionTarget } from "./types/analysis";
+import type { ChatTipCard, ChatWorkflow, FetyActionTarget } from "./types/analysis";
 import type { FinancialAssessment } from "./types/widgets";
 import {
   AreaChart, Area, BarChart, Bar,
@@ -42,6 +48,10 @@ type ViewMode = "cards" | "list";
 type CalView = "monthly" | "weekly" | "biweekly" | "daily" | "yearly";
 
 const CAL_KEY = (d: Date) => d.toISOString().slice(0, 10);
+
+function clock(): string {
+  return new Date().toLocaleTimeString([], { hour: "numeric", minute: "2-digit" });
+}
 
 const compactUsd = (n: number) => {
   const sign = n < 0 ? "-" : "";
@@ -2808,8 +2818,16 @@ export default function App() {
     let cancelled = false;
     setChatCollapsed(false);
     setChatProcessing(true);
-    const intro = buildChatBriefingIntro(store, analysis);
-    const cards = buildChatBriefingTips(store, analysis);
+    let intro: string;
+    let cards: ChatTipCard[];
+    try {
+      intro = buildChatBriefingIntro(store, analysis);
+      cards = buildChatBriefingTips(store, analysis);
+    } catch {
+      setChatProcessing(false);
+      setPostSetup(null);
+      return;
+    }
     const t1 = window.setTimeout(() => {
       if (cancelled) return;
       addMessage({
