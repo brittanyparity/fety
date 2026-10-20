@@ -1561,6 +1561,8 @@ function WeeklyCalGrid({
   store: FetyStore;
   selectedDay: CalDay | null;
 }) {
+  const narrow = useIsNarrow();
+  const money = narrow ? compactUsd : usd;
   // Start from Monday of anchor's week
   const monday = new Date(anchor);
   monday.setDate(anchor.getDate() - ((anchor.getDay() + 6) % 7));
@@ -1593,7 +1595,7 @@ function WeeklyCalGrid({
           <p style={{ fontSize: 18, fontWeight: 400, color: isSelected ? calSignedColor(net, true) : isToday ? "var(--lime-dk)" : "var(--ink)", letterSpacing: "-0.5px", lineHeight: 1.1 }}>{date.getDate()}</p>
         </div>
         {data ? (
-          <DayActivityCopy data={data} money={usd} selected={isSelected} />
+          <DayActivityCopy data={data} money={money} selected={isSelected} />
         ) : (
           <div style={{ fontSize: 9, color: isSelected ? "rgba(255,255,255,0.4)" : "var(--ink-3)" }}>No activity</div>
         )}
@@ -1602,10 +1604,15 @@ function WeeklyCalGrid({
   };
 
   return (
-    <div className="fety-cal-week-stack" style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+    <div className="fety-cal-week-stack">
+      <div className="fety-cal-week-dow">
+        {DAYS_SHORT.map((d) => (
+          <div key={d}>{d}</div>
+        ))}
+      </div>
       {rows.map((row, ri) => (
-        <div key={ri} className="fety-cal-week-row" style={{ display: "grid", gridTemplateColumns: "repeat(7, 1fr)", gap: 6 }}>
-          {row.map(date => DayCell(date))}
+        <div key={ri} className="fety-cal-week-row">
+          {row.map((date) => DayCell(date))}
         </div>
       ))}
       <DayInsightsSection day={selectedDay} store={store} />
