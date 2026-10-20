@@ -194,16 +194,17 @@ describe("pageForAction", () => {
 });
 
 describe("buildPersonalizedTour", () => {
-  it("always starts on the dashboard snapshot", () => {
+  it("starts with a dashboard orientation when data is sparse", () => {
     const store = createEmptyStore();
     const steps = buildPersonalizedTour(store, analyzeStore(store));
-    assert.equal(steps[0]?.id, "snapshot");
+    assert.ok(steps[0]?.id === "snapshot" || steps[0]?.id === "spending-power");
     assert.equal(steps[0]?.page, "dashboard");
-    assert.equal(steps.some((s) => s.id === "income"), false);
-    assert.equal(steps.some((s) => s.id === "goals"), false);
+    assert.equal(steps[0]?.phase, "financial");
+    assert.ok(steps.some((s) => s.phase === "bridge"));
+    assert.ok(steps.some((s) => s.phase === "product"));
   });
 
-  it("walks income, budget, goals, and calendar when the store has them", () => {
+  it("runs financial widget highlights then bridges into the product tour", () => {
     const store = withMoney({
       profile: { ...createEmptyStore().profile, displayName: "Alex" },
       incomeStreams: [
@@ -216,18 +217,26 @@ describe("buildPersonalizedTour", () => {
         { id: "r1", name: "Dining", amount: 80, dueDay: 1, frequency: "weekly", category: "Dining", icon: "🍽️", transactionType: "expense" },
       ],
       goals: [
-        { id: "g1", name: "Emergency fund", icon: "🛟", target: 5000, saved: 0, targetDate: "2027-12-31", monthlyContribution: 0 },
+        { id: "g1", name: "Emergency fund", icon: "🛟", target: 5000, saved: 500, targetDate: "2027-12-31", monthlyContribution: 0 },
       ],
       categories: [{ id: "c-dining", name: "Dining", icon: "🍽️", monthlyBudget: 400 }],
+      pinnedWidgets: ["weekly-power", "spending-breakdown", "savings-goal", "next-paycheck"],
     });
     const analysis = analyzeStore(store);
-    const steps = buildPersonalizedTour(store, analysis);
-    assert.ok(steps.some((s) => s.id === "income"));
-    assert.ok(steps.some((s) => s.id === "budget" && s.target === "budget-category-c-dining"));
-    assert.ok(steps.some((s) => s.id === "goals" && s.target === "goal-g1"));
-    assert.ok(steps.some((s) => s.id === "calendar" && s.page === "calendar"));
-    assert.ok(steps.some((s) => s.id === "tip" && s.action));
+    const steps = buildPersonalizedTour(store, analysis, {
+      financialStory: { summary: "Spending awareness may be most useful.", beats: [] },
+      needs: [{ id: "spending_awareness", label: "Spending awareness" }],
+      recommendedPinned: ["weekly-power", "spending-breakdown", "savings-goal"],
+    });
+    assert.equal(steps[0]?.target, "widget-weekly-power");
+    assert.equal(steps[0]?.phase, "financial");
     assert.match(steps[0].explanation, /Alex/);
+    assert.match(steps[0].explanation, /spending power this week/i);
+    assert.ok(steps.some((s) => s.target === "widget-spending-breakdown" && s.phase === "financial"));
+    assert.ok(steps.some((s) => s.target === "widget-savings-goal" && s.phase === "financial"));
+    assert.ok(steps.some((s) => s.id === "bridge-product" && s.phase === "bridge"));
+    assert.ok(steps.some((s) => s.id === "budget" && s.phase === "product"));
+    assert.ok(steps.some((s) => s.id === "customize" && s.phase === "product"));
   });
 });
 

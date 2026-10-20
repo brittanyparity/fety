@@ -117,17 +117,18 @@ export const CURATED_V2_DEFAULT_PINNED = [
 ];
 
 /**
- * Curated starter dashboard: cash snapshot, filterable trends,
- * budget health, and upcoming money. Other widgets stay in Customise.
+ * Curated starter dashboard: spending power, cash snapshot, trends,
+ * budget health, goals, and upcoming money. Other widgets stay in Customise.
  */
 export const DEFAULT_PINNED = [
+  "weekly-power",
   "stat-balance",
   "stat-money-in",
   "stat-money-out",
   "balance-chart",
-  "budget-remaining",
   "spending-breakdown",
-  "monthly-spend-chart",
+  "budget-remaining",
+  "savings-goal",
   "next-paycheck",
   "biggest-bill",
 ];
@@ -171,6 +172,9 @@ export function createEmptyStore(): FetyStore {
     heroBlocksOptional: true,
     widgetsCuratedV2: true,
     widgetsCuratedV3: true,
+    widgetsPersonalizedV1: false,
+    widgetsPersonalizedV2: true,
+    dashboardCustomizedByUser: false,
   };
 }
 
@@ -197,6 +201,10 @@ export function createDefaultStore(): FetyStore {
     heroBlocksOptional: true,
     widgetsCuratedV2: true,
     widgetsCuratedV3: true,
+    // Demo seed: allow needs assessment to curate pins on first load.
+    widgetsPersonalizedV1: false,
+    widgetsPersonalizedV2: true,
+    dashboardCustomizedByUser: false,
   };
 }
 
@@ -256,6 +264,22 @@ function migrateStore(store: FetyStore): FetyStore {
     next = {
       ...next,
       profile: { ...next.profile, balanceAsOfISO: isoDaysAgo(0) },
+    };
+  }
+  if (next.dashboardCustomizedByUser === undefined) {
+    next = { ...next, dashboardCustomizedByUser: false };
+  }
+  // One-time upgrade: re-apply need-driven pins for users who have not customized.
+  if (!next.widgetsPersonalizedV2) {
+    next = {
+      ...next,
+      widgetsPersonalizedV2: true,
+      widgetsPersonalizedV1: next.dashboardCustomizedByUser ? true : false,
+    };
+  } else if (next.widgetsPersonalizedV1 === undefined) {
+    next = {
+      ...next,
+      widgetsPersonalizedV1: next.dashboardCustomizedByUser === true,
     };
   }
   next = {
