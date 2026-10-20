@@ -533,6 +533,32 @@ export function useFetyData() {
     });
   }, [patch]);
 
+  const completeSetup = useCallback(
+    (payload: {
+      profile: UserProfile;
+      categories: BudgetCategory[];
+      bills: Bill[];
+      incomeStreams: IncomeStream[];
+      recurringTransactions: RecurringTransaction[];
+      goals: Goal[];
+    }) => {
+      patch((prev) => {
+        const merged: FetyStore = {
+          ...prev,
+          profile: { ...prev.profile, ...payload.profile },
+          categories: payload.categories,
+          bills: payload.bills,
+          incomeStreams: payload.incomeStreams,
+          recurringTransactions: payload.recurringTransactions,
+          goals: payload.goals,
+          onboardingCompleted: true,
+        };
+        return withPersonalizedPins(merged);
+      });
+    },
+    [patch],
+  );
+
   const replaceCategories = useCallback((categories: BudgetCategory[]) => {
     patch((prev) => ({ ...prev, categories }));
   }, [patch]);
@@ -601,6 +627,7 @@ export function useFetyData() {
     startFreshSetup,
     updateCalendarNote,
     completeOnboarding,
+    completeSetup,
     replaceCategories,
     replaceBills,
     replaceIncomeStreams,

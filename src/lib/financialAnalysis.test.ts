@@ -323,4 +323,32 @@ describe("ledger start date and current balance", () => {
     assert.equal(summary.balance, 100);
     assert.ok(store.transactions.some((t) => t.desc === "Paycheck" && t.dateISO === "2027-06-01"));
   });
+
+  it("computeSummary caps category spend through today without throwing", () => {
+    const store = applyBillScheduleToStore({
+      ...createEmptyStore(),
+      onboardingCompleted: true,
+      profile: {
+        displayName: "Alex",
+        email: "",
+        currency: "USD",
+        startingBalance: 500,
+        balanceAsOfISO: "2026-10-01",
+      },
+      categories: [{ id: "c1", name: "Groceries", icon: "🛒", monthlyBudget: 200 }],
+      transactions: [
+        {
+          id: "t1",
+          dateISO: "2026-10-15",
+          desc: "Store",
+          category: "Groceries",
+          amount: -40,
+          type: "expense",
+          icon: "🛒",
+        },
+      ],
+    });
+    const summary = computeSummary(store, new Date(2026, 9, 20));
+    assert.equal(summary.categoriesWithSpent[0]?.spent, 40);
+  });
 });

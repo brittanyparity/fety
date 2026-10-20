@@ -191,21 +191,16 @@ function upsertCategory(
 }
 
 export function OnboardingView({
-  onUpdateProfile,
-  onReplaceCategories,
-  onReplaceBills,
-  onReplaceIncomeStreams,
-  onReplaceRecurringTransactions,
-  onReplaceGoals,
-  onComplete,
+  onFinishSetup,
 }: {
-  onUpdateProfile: (u: Partial<UserProfile>) => void;
-  onReplaceCategories: (categories: BudgetCategory[]) => void;
-  onReplaceBills: (bills: Bill[]) => void;
-  onReplaceIncomeStreams: (streams: IncomeStream[]) => void;
-  onReplaceRecurringTransactions: (items: RecurringTransaction[]) => void;
-  onReplaceGoals: (goals: Goal[]) => void;
-  onComplete: () => void;
+  onFinishSetup: (payload: {
+    profile: UserProfile;
+    categories: BudgetCategory[];
+    bills: Bill[];
+    incomeStreams: IncomeStream[];
+    recurringTransactions: RecurringTransaction[];
+    goals: Goal[];
+  }) => void;
 }) {
   const [phase, setPhase] = useState<Phase>("welcome");
   const [displayName, setDisplayName] = useState("");
@@ -451,19 +446,20 @@ export function OnboardingView({
           ]
         : [];
 
-    onUpdateProfile({
-      displayName: displayName.trim() || "Friend",
-      email: "",
-      currency: "USD",
-      startingBalance: parseFloat(startingBalance) || 0,
-      balanceAsOfISO: balanceAsOfISO || todayISO(),
+    onFinishSetup({
+      profile: {
+        displayName: displayName.trim() || "Friend",
+        email: "",
+        currency: "USD",
+        startingBalance: parseFloat(startingBalance) || 0,
+        balanceAsOfISO: balanceAsOfISO || todayISO(),
+      },
+      categories: categories.filter((c) => c.name !== "Income" || streams.length > 0),
+      incomeStreams: streams,
+      bills,
+      recurringTransactions: recurring,
+      goals,
     });
-    onReplaceCategories(categories.filter((c) => c.name !== "Income" || streams.length > 0));
-    onReplaceIncomeStreams(streams);
-    onReplaceBills(bills);
-    onReplaceRecurringTransactions(recurring);
-    onReplaceGoals(goals);
-    onComplete();
   };
 
   const stageIndex = Math.max(0, SETUP_STAGES.findIndex((s) => s.phases.includes(phase)));

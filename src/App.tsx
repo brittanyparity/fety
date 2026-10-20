@@ -33,7 +33,14 @@ import {
   pageForAction,
 } from "./lib/financialAnalysis";
 import { assessFinancialNeeds, isWidgetRecommended, recommendationForWidget } from "./lib/needsAssessment";
-import type { ChatTipCard, ChatWorkflow, FetyActionTarget } from "./types/analysis";
+import {
+  getWidgetDefinition,
+  WIDGET_CATALOG,
+  WIDGET_CATEGORY_LABELS,
+  WIDGET_CATEGORY_ORDER,
+} from "./lib/widgetCatalog";
+import DashboardBriefing from "./views/AnalysisReportView";
+import type { ChatTipCard, ChatWorkflow, FetyActionTarget, FinancialAnalysis } from "./types/analysis";
 import type { FinancialAssessment } from "./types/widgets";
 import {
   AreaChart, Area, BarChart, Bar,
@@ -2410,11 +2417,17 @@ function CalendarSidePanel({
 function DashboardView({
   store,
   summary,
+  analysis,
+  firstLook,
+  onTipAction,
   highlightTarget,
   pinned, setPinned, lockedWidgets, onToggleWidgetLock, onSetLockedWidgets, onCustomize, customizing,
 }: {
   store: FetyStore;
   summary: FinanceSummary;
+  analysis: FinancialAnalysis;
+  firstLook: boolean;
+  onTipAction: (action: FetyActionTarget) => void;
   highlightTarget?: string | null;
   pinned: string[];
   setPinned: React.Dispatch<React.SetStateAction<string[]>>;
@@ -2473,7 +2486,7 @@ function DashboardView({
 
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
-      <AnalysisReportView
+      <DashboardBriefing
         analysis={analysis}
         firstLook={firstLook}
         highlightTarget={highlightTarget}
@@ -2714,13 +2727,8 @@ export default function App() {
     setLockedDashboardWidgets,
     resetAll,
     startFreshSetup,
-    completeOnboarding,
+    completeSetup,
     updateCalendarNote,
-    replaceCategories,
-    replaceBills,
-    replaceIncomeStreams,
-    replaceRecurringTransactions,
-    replaceGoals,
     addTransactionType,
     updateTransactionType,
     deleteTransactionType,
@@ -3060,6 +3068,9 @@ export default function App() {
           <DashboardView
             store={store}
             summary={summary}
+            analysis={analysis}
+            firstLook={!store.dashboardCustomizedByUser}
+            onTipAction={applyFetyAction}
             highlightTarget={tourTarget}
             pinned={pinned}
             setPinned={setPinnedWidgets}
@@ -3079,14 +3090,8 @@ export default function App() {
     }
     return (
       <OnboardingView
-        onUpdateProfile={updateProfile}
-        onReplaceCategories={replaceCategories}
-        onReplaceBills={replaceBills}
-        onReplaceIncomeStreams={replaceIncomeStreams}
-        onReplaceRecurringTransactions={replaceRecurringTransactions}
-        onReplaceGoals={replaceGoals}
-        onComplete={() => {
-          completeOnboarding();
+        onFinishSetup={(payload) => {
+          completeSetup(payload);
           setPage("calendar");
           setChatCollapsed(false);
           setPostSetup("briefing");

@@ -118,7 +118,8 @@ function categorySpentInMonth(store: FetyStore, categoryName: string, ref: Date)
   const end = monthEnd(ref);
   const asOf = balanceAsOfISO(store);
   const today = todayISO();
-  const through = end < today ? end : today;
+  const todayDate = new Date(`${today}T12:00:00`);
+  const through = end > todayDate ? todayDate : end;
   return store.transactions
     .filter(
       (t) =>
