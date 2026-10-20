@@ -3104,7 +3104,7 @@ export default function App() {
           page={page}
           setPage={setPage}
           navDate={navDate}
-          profileInitial={(store.profile.displayName.trim()[0] || "?").toUpperCase()}
+          profileInitial={((store.profile.displayName ?? "").trim()[0] || "?").toUpperCase()}
           onOpenProfile={() => setPage("profile")}
           onOpenNetWorth={() => setPage("networth")}
         />

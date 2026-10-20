@@ -377,7 +377,7 @@ export function buildPersonalizedTour(
   },
 ): AnalysisTourStep[] {
   const steps: AnalysisTourStep[] = [];
-  const firstName = store.profile.displayName.trim().split(/\s+/)[0] || "";
+  const firstName = (store.profile.displayName ?? "").trim().split(/\s+/)[0] || "";
   const greeting = firstName ? `${firstName}, here's` : "Here's";
   const topTip = analysis.tips[0];
   const flexInsight = analysis.insights.find((i) => i.type === "spending_pattern");
@@ -665,7 +665,7 @@ export function buildChatBriefingTips(store: FetyStore, analysis: FinancialAnaly
 }
 
 export function buildChatBriefingIntro(store: FetyStore, analysis: FinancialAnalysis): string {
-  const firstName = store.profile.displayName.trim().split(/\s+/)[0] || "";
+  const firstName = (store.profile.displayName ?? "").trim().split(/\s+/)[0] || "";
   const hi = firstName ? `${firstName}, here's` : "Here's";
   if (analysis.missing.income && analysis.missing.obligations) {
     return `${hi} what I have so far. I need a little more income or a regular expense before the picture fills in. I still picked three places we can start.`;

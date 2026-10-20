@@ -9,7 +9,7 @@ import {
   skipKeyForOccurrence,
   normalizeSkippedOccurrences,
 } from "../lib/billScheduling";
-import { loadStore, newId, saveStore, resetStore as resetStored, resetToEmptyStore } from "../lib/fetyStorage";
+import { createEmptyStore, loadStore, newId, saveStore, resetStore as resetStored, resetToEmptyStore } from "../lib/fetyStorage";
 import { assessFinancialNeeds, shouldApplyPersonalizedPins, withPersonalizedPins } from "../lib/needsAssessment";
 import { buildDashboardWidgetStates, markWidgetUserModified } from "../lib/dashboardPreferences";
 import { roundMoney } from "../lib/scheduleAmounts";
@@ -43,8 +43,12 @@ function normalizeSkipped(prev: FetyStore): string[] {
 
 export function useFetyData() {
   const [store, setStore] = useState<FetyStore>(() => {
-    const loaded = loadStore();
-    return shouldApplyPersonalizedPins(loaded) ? withPersonalizedPins(loaded) : loaded;
+    try {
+      const loaded = loadStore();
+      return shouldApplyPersonalizedPins(loaded) ? withPersonalizedPins(loaded) : loaded;
+    } catch {
+      return createEmptyStore();
+    }
   });
 
   useEffect(() => {

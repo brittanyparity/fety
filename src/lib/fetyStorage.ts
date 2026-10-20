@@ -209,7 +209,25 @@ export function createDefaultStore(): FetyStore {
 }
 
 function migrateStore(store: FetyStore): FetyStore {
-  let next = store;
+  const emptyProfile = createEmptyStore().profile;
+  let next: FetyStore = {
+    ...store,
+    profile: {
+      ...emptyProfile,
+      ...(store.profile ?? {}),
+      displayName: typeof store.profile?.displayName === "string" ? store.profile.displayName : "",
+      email: typeof store.profile?.email === "string" ? store.profile.email : "",
+      currency: store.profile?.currency ?? "USD",
+      startingBalance: Number.isFinite(store.profile?.startingBalance) ? store.profile!.startingBalance : 0,
+    },
+    pinnedWidgets: Array.isArray(store.pinnedWidgets) ? store.pinnedWidgets : DEFAULT_PINNED,
+    categories: Array.isArray(store.categories) ? store.categories : [],
+    transactions: Array.isArray(store.transactions) ? store.transactions : [],
+    bills: Array.isArray(store.bills) ? store.bills : [],
+    goals: Array.isArray(store.goals) ? store.goals : [],
+    accounts: Array.isArray(store.accounts) ? store.accounts : [],
+    messages: Array.isArray(store.messages) ? store.messages : createEmptyStore().messages,
+  };
   if (store.onboardingCompleted === undefined) {
     next = { ...next, onboardingCompleted: true };
   }
