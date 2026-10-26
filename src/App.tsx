@@ -1,4 +1,4 @@
-import { useState, useRef, useEffect, useCallback, useMemo } from "react";
+import { useState, useRef, useEffect, useCallback, useMemo, type ReactNode } from "react";
 import { FetyLogo } from "./FetyLogo";
 import { useFetyData } from "./hooks/useFetyData";
 import { calendarNotePreview, calendarNoteText, hasCalendarNote, noteForCalendarDay } from "./lib/calendarNotes";
@@ -28,7 +28,9 @@ import {
   getWidgetDefinition,
 } from "./lib/widgetCatalog";
 import { IncomeAllocationChart } from "./views/InsightsBriefing";
+import InboxDropdown from "./components/InboxDropdown";
 import HomeView from "./views/HomeView";
+import InboxView from "./views/InboxView";
 import type { FetyActionTarget, FinancialAnalysis } from "./types/analysis";
 import type { FinancialAssessment } from "./types/widgets";
 import {
@@ -39,7 +41,7 @@ import {
 import { nextBillOccurrenceOnOrAfter } from "./lib/billScheduling";
 
 // ─── Types ─────────────────────────────────────────────────────────────────────
-type Page = "dashboard" | "budget" | "spending" | "goals" | "profile" | "networth" | "calendar";
+type Page = "dashboard" | "budget" | "spending" | "goals" | "profile" | "networth" | "calendar" | "inbox";
 type ViewMode = "cards" | "list";
 type CalView = "monthly" | "weekly" | "biweekly" | "daily" | "yearly";
 
@@ -355,6 +357,7 @@ function TopNav({
   profileInitial,
   onOpenProfile,
   onOpenNetWorth,
+  suggestions,
 }: {
   page: Page;
   setPage: (p: Page) => void;
@@ -362,6 +365,7 @@ function TopNav({
   profileInitial: string;
   onOpenProfile: () => void;
   onOpenNetWorth: () => void;
+  suggestions: ReactNode;
 }) {
   const [menuOpen, setMenuOpen] = useState(false);
   const [profileOpen, setProfileOpen] = useState(false);
@@ -404,6 +408,7 @@ function TopNav({
         </div>
         <div className="fety-nav-actions">
           <span className="fety-nav-date">{navDate}</span>
+          {suggestions}
           <div className="fety-nav-profile-wrap" ref={profileWrapRef}>
             <button
               type="button"
@@ -2597,15 +2602,11 @@ function CalendarSidePanel({
 function DashboardView({
   store,
   onTipAction,
-  onMarkTipDone,
-  onArchiveTip,
   onAddTransaction,
   onOpenCalendarDay,
 }: {
   store: FetyStore;
   onTipAction: (action: FetyActionTarget) => void;
-  onMarkTipDone: (tipId: string) => void;
-  onArchiveTip: (tipId: string) => void;
   onAddTransaction: ReturnType<typeof useFetyData>["addTransaction"];
   onOpenCalendarDay: (dateISO: string) => void;
 }) {
@@ -2622,8 +2623,6 @@ function DashboardView({
       focusDateISO={focusDateISO}
       onFocusDateChange={setFocusDateISO}
       onAction={onTipAction}
-      onMarkTipDone={onMarkTipDone}
-      onArchiveTip={onArchiveTip}
       onAddTransaction={onAddTransaction}
       onOpenCalendarDay={onOpenCalendarDay}
       balanceChart={<BalanceChartWidget />}
@@ -2640,6 +2639,7 @@ const PAGE_META: Record<Page, { title: string; sub: string }> = {
   profile:   { title: "Profile Settings", sub: "Personal info and data preferences." },
   networth:  { title: "Net Worth", sub: "Account balances, debt, and recent activity per account." },
   calendar:  { title: "Calendar", sub: "Cash flow and spending power, day by day." },
+  inbox:     { title: "Inbox", sub: "Tips and updates from Fety — same messages as the header preview." },
 };
 
 // ─── App Root ──────────────────────────────────────────────────────────────────
@@ -2701,6 +2701,14 @@ export default function App() {
   const [tourTarget, setTourTarget] = useState<string | null>(null);
   const [focusAction, setFocusAction] = useState<FetyActionTarget | null>(null);
   const [calendarDayOpen, setCalendarDayOpen] = useState<CalendarDayOpenRequest | null>(null);
+  const [inboxFocusTipId, setInboxFocusTipId] = useState<string | null>(null);
+
+  const openInbox = useCallback((tipId?: string) => {
+    setInboxFocusTipId(tipId ?? null);
+    setPage("inbox");
+  }, []);
+
+  const clearInboxFocusTip = useCallback(() => setInboxFocusTipId(null), []);
 
   const openCalendarDay = useCallback((dateISO: string) => {
     setCalendarDayOpen({ dateISO });
@@ -2836,13 +2844,23 @@ export default function App() {
             }}
           />
         );
+      case "inbox":
+        return (
+          <InboxView
+            store={store}
+            analysis={analysis}
+            focusTipId={inboxFocusTipId}
+            onFocusTipConsumed={clearInboxFocusTip}
+            onAction={applyFetyAction}
+            onMarkDone={markTipDone}
+            onArchive={archiveTip}
+          />
+        );
       default:
         return (
           <DashboardView
             store={store}
             onTipAction={applyFetyAction}
-            onMarkTipDone={markTipDone}
-            onArchiveTip={archiveTip}
             onAddTransaction={addTransaction}
             onOpenCalendarDay={openCalendarDay}
           />
@@ -2885,6 +2903,16 @@ export default function App() {
           profileInitial={((store.profile.displayName ?? "").trim()[0] || "?").toUpperCase()}
           onOpenProfile={() => setPage("profile")}
           onOpenNetWorth={() => setPage("networth")}
+          suggestions={
+            <InboxDropdown
+              store={store}
+              analysis={analysis}
+              onOpenInbox={openInbox}
+              onAction={applyFetyAction}
+              onMarkDone={markTipDone}
+              onArchive={archiveTip}
+            />
+          }
         />
 
         {store.exploreMode && !exploreBannerDismissed ? (

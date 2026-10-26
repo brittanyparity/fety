@@ -6,7 +6,6 @@ import { hasCalendarNote } from "../lib/calendarNotes";
 import type { FinancialAnalysis, FetyActionTarget } from "../types/analysis";
 import type { CalDayItem, CalendarMap, FetyStore, FinanceSummary } from "../types/fety";
 import HomeInsightCharts from "./HomeInsightCharts";
-import HomeThingsToTry from "./HomeThingsToTry";
 import { NotesPanel, UpcomingExpensesPanel } from "./homePanels";
 
 const DAYS_SHORT = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
@@ -453,8 +452,6 @@ export default function HomeView({
   focusDateISO,
   onFocusDateChange,
   onAction,
-  onMarkTipDone,
-  onArchiveTip,
   onAddTransaction,
   onOpenCalendarDay,
   balanceChart,
@@ -465,8 +462,6 @@ export default function HomeView({
   focusDateISO: string;
   onFocusDateChange: (dateISO: string) => void;
   onAction: (action: FetyActionTarget) => void;
-  onMarkTipDone: (tipId: string) => void;
-  onArchiveTip: (tipId: string) => void;
   onAddTransaction: (input: AddTransactionPayload) => void;
   onOpenCalendarDay: (dateISO: string) => void;
   balanceChart: ReactNode;
@@ -512,16 +507,6 @@ export default function HomeView({
           {balanceChart}
         </HomeCard>
       </div>
-
-      <HomeCard label="Things to try" titleMode="plain" className="fety-home-cell fety-home-span-3">
-        <HomeThingsToTry
-          store={store}
-          analysis={analysis}
-          onAction={onAction}
-          onMarkDone={onMarkTipDone}
-          onArchive={onArchiveTip}
-        />
-      </HomeCard>
     </div>
   );
 }

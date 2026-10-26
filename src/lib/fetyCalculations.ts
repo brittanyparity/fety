@@ -45,10 +45,6 @@ export function formatTransactionGroupDate(dateISO: string): string {
   return d.toLocaleDateString(undefined, { month: "short", day: "numeric", year: "numeric" });
 }
 
-export function formatNavDate(d = new Date()): string {
-  return d.toLocaleDateString(undefined, { month: "short", day: "numeric" });
-}
-
 const CONVERSATIONAL_MONTHS = [
   "Jan.",
   "Feb.",
@@ -63,6 +59,14 @@ const CONVERSATIONAL_MONTHS = [
   "Nov.",
   "Dec.",
 ];
+
+/** Header date line, e.g. "Today is Oct. 25, 2026". */
+export function formatNavDate(d = new Date()): string {
+  const month = CONVERSATIONAL_MONTHS[d.getMonth()];
+  const day = d.getDate();
+  const year = d.getFullYear();
+  return `Today is ${month} ${day}, ${year}`;
+}
 
 /** Chat-friendly date, e.g. "Sept. 23, 2026". Uses "today" / "yesterday" when applicable. */
 export function formatConversationalDate(dateISO: string): string {
