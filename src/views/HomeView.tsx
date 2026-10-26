@@ -454,6 +454,8 @@ export default function HomeView({
   onAction,
   onAddTransaction,
   onOpenCalendarDay,
+  onAddCalendarNote,
+  onDeleteCalendarNote,
   balanceChart,
 }: {
   store: FetyStore;
@@ -464,6 +466,8 @@ export default function HomeView({
   onAction: (action: FetyActionTarget) => void;
   onAddTransaction: (input: AddTransactionPayload) => void;
   onOpenCalendarDay: (dateISO: string) => void;
+  onAddCalendarNote: (dateISO: string, text: string) => void;
+  onDeleteCalendarNote: (dateISO: string, noteId: string) => void;
   balanceChart: ReactNode;
 }) {
   return (
@@ -489,7 +493,13 @@ export default function HomeView({
         <HomeCard label="Upcoming expenses" focusDateISO={focusDateISO} titleMode="asOf" className="fety-home-cell">
           <UpcomingExpensesPanel store={store} onAction={onAction} focusDateISO={focusDateISO} />
         </HomeCard>
-        <HomeCard label="Insights" focusDateISO={focusDateISO} titleMode="asOf" className="fety-home-cell fety-home-span-2">
+        <HomeCard
+          label="Insights"
+          focusDateISO={focusDateISO}
+          titleMode="asOf"
+          className="fety-home-cell fety-home-span-2"
+          bodyClassName="fety-home-card-body--insights"
+        >
           <HomeInsightCharts
             analysis={analysis}
             summary={summary}
@@ -501,7 +511,12 @@ export default function HomeView({
 
       <div className="fety-home-row">
         <HomeCard label="Notes" focusDateISO={focusDateISO} className="fety-home-cell">
-          <NotesPanel store={store} onAction={onAction} focusDateISO={focusDateISO} />
+          <NotesPanel
+            store={store}
+            focusDateISO={focusDateISO}
+            onAddNote={onAddCalendarNote}
+            onDeleteNote={onDeleteCalendarNote}
+          />
         </HomeCard>
         <HomeCard label="Balance" focusDateISO={focusDateISO} className="fety-home-cell fety-home-span-2">
           {balanceChart}

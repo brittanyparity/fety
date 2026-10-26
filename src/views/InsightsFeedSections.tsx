@@ -99,7 +99,7 @@ export default function InsightsFeedSections({
         ) : (
           <ul className="fety-insights-feed-list">
             {notes.map((row) => (
-              <li key={row.dateISO} className="fety-insights-feed-row fety-insights-feed-row--note">
+              <li key={row.id} className="fety-insights-feed-row fety-insights-feed-row--note">
                 <div className="fety-insights-feed-main">
                   <p className="fety-insights-feed-title">{formatNoteDay(row.dateISO)}</p>
                   <p className="fety-insights-feed-note">{row.text}</p>

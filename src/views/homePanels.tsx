@@ -1,17 +1,10 @@
 import { useMemo } from "react";
-import { listSavedCalendarNotes } from "../lib/calendarNotes";
+import DayNotesPanel from "../components/DayNotesPanel";
+import { notesForCalendarDay } from "../lib/calendarNotes";
 import { buildUpcomingExpenses } from "../lib/insightsUpcoming";
 import { formatUsd } from "../lib/scheduleAmounts";
 import type { FetyActionTarget } from "../types/analysis";
 import type { FetyStore } from "../types/fety";
-
-function formatNoteDay(dateISO: string): string {
-  return new Date(`${dateISO}T12:00:00`).toLocaleDateString("en-US", {
-    month: "short",
-    day: "numeric",
-    year: "numeric",
-  });
-}
 
 function formatDueDay(dateISO: string, ref = new Date()): string {
   const due = new Date(`${dateISO}T12:00:00`);
@@ -76,39 +69,29 @@ export function UpcomingExpensesPanel({
 
 export function NotesPanel({
   store,
-  onAction,
   focusDateISO,
+  onAddNote,
+  onDeleteNote,
 }: {
   store: FetyStore;
-  onAction: (action: FetyActionTarget) => void;
   focusDateISO: string;
+  onAddNote: (dateISO: string, text: string) => void;
+  onDeleteNote: (dateISO: string, noteId: string) => void;
 }) {
-  const notes = useMemo(() => {
-    const all = listSavedCalendarNotes(store.calendarNotes, 200);
-    return all.filter((row) => row.dateISO === focusDateISO);
-  }, [store.calendarNotes, focusDateISO]);
-
-  if (notes.length === 0) {
-    return (
-      <div className="fety-insights-feed-empty">
-        <p>No note for this day.</p>
-        <button type="button" className="fety-insights-feed-link" onClick={() => onAction({ type: "calendar" })}>
-          Add a note on Calendar
-        </button>
-      </div>
-    );
-  }
+  const dayNotes = useMemo(
+    () => notesForCalendarDay(store.calendarNotes, focusDateISO),
+    [store.calendarNotes, focusDateISO],
+  );
 
   return (
-    <ul className="fety-insights-feed-list">
-      {notes.map((row) => (
-        <li key={row.dateISO} className="fety-insights-feed-row fety-insights-feed-row--note">
-          <div className="fety-insights-feed-main">
-            <p className="fety-insights-feed-title">{formatNoteDay(row.dateISO)}</p>
-            <p className="fety-insights-feed-note">{row.text}</p>
-          </div>
-        </li>
-      ))}
-    </ul>
+    <div className="fety-home-notes">
+      <DayNotesPanel
+        dateISO={focusDateISO}
+        notes={dayNotes}
+        onAddNote={onAddNote}
+        onDeleteNote={onDeleteNote}
+        compact
+      />
+    </div>
   );
 }

@@ -9,6 +9,7 @@ import {
   skipKeyForOccurrence,
   normalizeSkippedOccurrences,
 } from "../lib/billScheduling";
+import { newCalendarNoteId, normalizeCalendarNotes } from "../lib/calendarNotes";
 import { archiveInsightTip, markInsightTipDone } from "../lib/insightTips";
 import {
   createEmptyStore,
@@ -531,23 +532,30 @@ export function useFetyData() {
     setStore(demo);
   }, []);
 
-  const updateCalendarNote = useCallback((dateISO: string, text: string) => {
+  const addCalendarNote = useCallback((dateISO: string, text: string) => {
     const trimmed = text.trim();
+    if (!trimmed) return;
     patch((prev) => {
-      const notes = { ...(prev.calendarNotes ?? {}) };
-      if (!trimmed) {
-        delete notes[dateISO];
-      } else {
-        const existing = notes[dateISO];
-        const createdISO =
-          existing && typeof existing === "object" && existing.createdISO
-            ? existing.createdISO
-            : dateISO;
-        notes[dateISO] = { text: trimmed, createdISO };
-      }
-      return { ...prev, calendarNotes: notes };
+      const byDay = normalizeCalendarNotes(prev.calendarNotes);
+      const dayNotes = [...(byDay[dateISO] ?? [])];
+      dayNotes.push({ id: newCalendarNoteId(), text: trimmed, createdISO: dateISO });
+      return { ...prev, calendarNotes: { ...byDay, [dateISO]: dayNotes } };
     });
   }, [patch]);
+
+  const deleteCalendarNote = useCallback((dateISO: string, noteId: string) => {
+    patch((prev) => {
+      const byDay = normalizeCalendarNotes(prev.calendarNotes);
+      const nextDay = (byDay[dateISO] ?? []).filter((n) => n.id !== noteId);
+      const next = { ...byDay };
+      if (nextDay.length > 0) next[dateISO] = nextDay;
+      else delete next[dateISO];
+      return { ...prev, calendarNotes: next };
+    });
+  }, [patch]);
+
+  /** @deprecated Use addCalendarNote — kept for call sites that append notes. */
+  const updateCalendarNote = addCalendarNote;
 
   const markTipDone = useCallback(
     (tipId: string) => {
@@ -670,6 +678,8 @@ export function useFetyData() {
     resetAll,
     startFreshSetup,
     startExplorePlatform,
+    addCalendarNote,
+    deleteCalendarNote,
     updateCalendarNote,
     markTipDone,
     archiveTip,

@@ -229,7 +229,7 @@ export default function HomeInsightCharts({
       {tab === "picture" ? (
         <div
           id="fety-home-insight-panel-picture"
-          className="fety-home-insight-panel"
+          className="fety-home-insight-panel fety-home-insight-panel--vcenter"
           role="tabpanel"
           aria-labelledby="fety-home-insight-tab-picture"
         >
@@ -265,7 +265,7 @@ export default function HomeInsightCharts({
       {tab === "mix" ? (
         <div
           id="fety-home-insight-panel-mix"
-          className="fety-home-insight-panel"
+          className="fety-home-insight-panel fety-home-insight-panel--vcenter"
           role="tabpanel"
           aria-labelledby="fety-home-insight-tab-mix"
         >

@@ -412,7 +412,9 @@ function migrateStore(store: FetyStore): FetyStore {
   if (!next.recurringTransactions) next = { ...next, recurringTransactions: [] };
   next = {
     ...next,
-    calendarNotes: normalizeCalendarNotes(next.calendarNotes as Record<string, string | import("../types/fety").CalendarDayNote> | undefined),
+    calendarNotes: normalizeCalendarNotes(
+      next.calendarNotes as Record<string, string | import("../types/fety").CalendarDayNote | import("../types/fety").CalendarDayNote[]> | undefined,
+    ),
   };
   if (!next.insightTipProgress) {
     next = { ...next, insightTipProgress: { doneIds: [], archivedIds: [] } };

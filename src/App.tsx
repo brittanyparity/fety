@@ -1,12 +1,14 @@
 import { useState, useRef, useEffect, useCallback, useMemo, type ReactNode } from "react";
 import { FetyLogo } from "./FetyLogo";
 import { useFetyData } from "./hooks/useFetyData";
-import { calendarNotePreview, calendarNoteText, hasCalendarNote, noteForCalendarDay } from "./lib/calendarNotes";
+import { calendarNotePreview, hasCalendarNote, noteForCalendarDay } from "./lib/calendarNotes";
 import { buildCalendarMap, computeSummary, dateToISOLocal, endingBalanceOnDate, endingBalancesForRange, formatNavDate, monthsSpending, categorySpendSharesForPeriod, todayISO, type BalanceChartRange, type CategorySpendPeriod, type SpendTrendMonths } from "./lib/fetyCalculations";
 import { formatTransactionDetailLine, goalSavedTotal, accountBalanceWithTransactions, accountBalanceAsOfISO, formatAccountBalanceDisplay, isDebtAccount, netWorthTotalsOnDate } from "./lib/ledger";
 import { flowForTransactionType, getTransactionTypes, isTransferTransactionType } from "./lib/transactionTypes";
 import { calendarEndingBalanceBg, calendarEndingBalanceBgStrong, calBalanceColor, calNetWorthColor, calSignedColor } from "./lib/calendarUi";
 import { CalendarPeriodMenu } from "./components/CalendarPeriodMenu";
+import DayNotesPanel from "./components/DayNotesPanel";
+import { notesForCalendarDay } from "./lib/calendarNotes";
 import EmojiIconPicker from "./components/EmojiIconPicker";
 import CurrencyInput, { amountToEditString } from "./components/CurrencyInput";
 import { toggleWidgetOnDashboard, WIDGET_SIZE_SECTIONS } from "./lib/widgetLayout";
@@ -75,135 +77,6 @@ function dayActivityTotals(data: CalDay) {
     else if (item.type === "expense") expenses += amt;
   }
   return { income, bills, expenses };
-}
-
-function DayNoteField({
-  dateISO,
-  value,
-  onSave,
-}: {
-  dateISO: string;
-  value: string;
-  onSave: (dateISO: string, text: string) => void;
-}) {
-  const [draft, setDraft] = useState(value);
-  const [composerBaseline, setComposerBaseline] = useState(value);
-  const [savedNotice, setSavedNotice] = useState<string | null>(null);
-  const skipValueSyncRef = useRef(false);
-  const savedNoticeTimerRef = useRef<number | null>(null);
-
-  useEffect(() => {
-    setDraft(value);
-    setComposerBaseline(value);
-    setSavedNotice(null);
-  }, [dateISO]);
-
-  useEffect(() => {
-    if (skipValueSyncRef.current) {
-      skipValueSyncRef.current = false;
-      return;
-    }
-    setDraft(value);
-    setComposerBaseline(value);
-  }, [value]);
-
-  useEffect(
-    () => () => {
-      if (savedNoticeTimerRef.current != null) window.clearTimeout(savedNoticeTimerRef.current);
-    },
-    [],
-  );
-
-  const dirty = draft.trim() !== composerBaseline.trim();
-  const storedNote = value.trim();
-  const dateLabel = new Date(`${dateISO}T12:00:00`).toLocaleDateString("en-US", {
-    month: "short",
-    day: "numeric",
-    year: "numeric",
-  });
-
-  const flashSaved = (message: string) => {
-    setSavedNotice(message);
-    if (savedNoticeTimerRef.current != null) window.clearTimeout(savedNoticeTimerRef.current);
-    savedNoticeTimerRef.current = window.setTimeout(() => {
-      setSavedNotice(null);
-      savedNoticeTimerRef.current = null;
-    }, 5000);
-  };
-
-  const save = () => {
-    const trimmed = draft.trim();
-    onSave(dateISO, draft);
-    skipValueSyncRef.current = true;
-    setDraft("");
-    setComposerBaseline("");
-    if (trimmed) {
-      flashSaved(`Note saved for ${dateLabel}. It will show on this date in every calendar view.`);
-    } else {
-      flashSaved(`Note removed for ${dateLabel}.`);
-    }
-  };
-
-  const loadStoredIntoComposer = () => {
-    setDraft(value);
-    setComposerBaseline(value);
-    setSavedNotice(null);
-  };
-
-  return (
-    <div className="fety-cal-note">
-      {savedNotice ? (
-        <div className="fety-cal-note-toast" role="status" aria-live="polite">
-          <svg width="16" height="16" viewBox="0 0 16 16" fill="none" aria-hidden>
-            <circle cx="8" cy="8" r="7" stroke="currentColor" strokeWidth="1.4" />
-            <path d="M5 8l2 2 4-4" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round" />
-          </svg>
-          <span>{savedNotice}</span>
-        </div>
-      ) : null}
-
-      {storedNote && !dirty ? (
-        <div className="fety-cal-note-saved">
-          <div className="fety-cal-note-saved-head">
-            <span className="fety-label">Saved on this day</span>
-            <button type="button" className="fety-cal-note-edit" onClick={loadStoredIntoComposer}>
-              Edit
-            </button>
-          </div>
-          <p className="fety-cal-note-saved-text">{value}</p>
-        </div>
-      ) : null}
-
-      <label>
-        <span className="fety-label">{storedNote && !dirty ? "Add or replace" : `Notes for ${dateLabel}`}</span>
-        <textarea
-          value={draft}
-          onChange={(e) => {
-            setDraft(e.target.value);
-            setSavedNotice(null);
-          }}
-          placeholder={
-            storedNote && !dirty
-              ? "Write a new note for this day…"
-              : "What should you remember about this day?"
-          }
-          rows={4}
-        />
-      </label>
-      <div className="fety-cal-note-footer">
-        <span className="fety-cal-note-meta">
-          {dirty
-            ? "Unsaved changes — save to attach to this calendar day."
-            : storedNote
-              ? "Your saved note appears above. The field is ready for a new entry."
-              : "Save attaches this note to this date."}
-        </span>
-        <button type="button" className="fety-cal-note-save" disabled={!dirty} onClick={save}>
-          Save note
-        </button>
-      </div>
-    </div>
-  );
 }
 
 function CalDayNotePreview({
@@ -1463,7 +1336,8 @@ function CalendarView({
   onAddTransaction,
   onUpdateTransaction,
   onDeleteTransaction,
-  onUpdateCalendarNote,
+  onAddCalendarNote,
+  onDeleteCalendarNote,
   dayOpenRequest,
   onConsumeDayOpenRequest,
 }: {
@@ -1472,7 +1346,8 @@ function CalendarView({
   onAddTransaction: ReturnType<typeof useFetyData>["addTransaction"];
   onUpdateTransaction: ReturnType<typeof useFetyData>["updateTransaction"];
   onDeleteTransaction: ReturnType<typeof useFetyData>["deleteTransaction"];
-  onUpdateCalendarNote: (dateISO: string, text: string) => void;
+  onAddCalendarNote: (dateISO: string, text: string) => void;
+  onDeleteCalendarNote: (dateISO: string, noteId: string) => void;
   dayOpenRequest?: CalendarDayOpenRequest | null;
   onConsumeDayOpenRequest?: () => void;
 }) {
@@ -1592,8 +1467,9 @@ function CalendarView({
       categories={store.categories}
       ledgerStore={store}
       transactionTypes={transactionTypes}
-      note={panelISO ? calendarNoteText(store.calendarNotes, panelISO) : ""}
-      onSaveNote={onUpdateCalendarNote}
+      dayNotes={panelISO ? notesForCalendarDay(store.calendarNotes, panelISO) : []}
+      onAddNote={onAddCalendarNote}
+      onDeleteNote={onDeleteCalendarNote}
       onJumpToDate={jumpToDateISO}
       onClose={() => setSelected(null)}
       onAddTransaction={onAddTransaction}
@@ -2207,8 +2083,9 @@ function CalendarSidePanel({
   categories,
   ledgerStore,
   transactionTypes,
-  note,
-  onSaveNote,
+  dayNotes,
+  onAddNote,
+  onDeleteNote,
   onJumpToDate,
   onClose,
   onAddTransaction,
@@ -2223,8 +2100,9 @@ function CalendarSidePanel({
   categories: BudgetCategory[];
   ledgerStore: FetyStore;
   transactionTypes: FetyTransactionType[];
-  note: string;
-  onSaveNote: (dateISO: string, text: string) => void;
+  dayNotes: import("./types/fety").CalendarDayNote[];
+  onAddNote: (dateISO: string, text: string) => void;
+  onDeleteNote: (dateISO: string, noteId: string) => void;
   onJumpToDate: (iso: string) => void;
   onClose: () => void;
   onAddTransaction: (input: {
@@ -2429,7 +2307,12 @@ function CalendarSidePanel({
           </div>
 
           <div style={{ flex: 1, overflowY: "auto", padding: "14px", minHeight: 0 }}>
-            <DayNoteField dateISO={CAL_KEY(day.date)} value={note} onSave={onSaveNote} />
+            <DayNotesPanel
+              dateISO={CAL_KEY(day.date)}
+              notes={dayNotes}
+              onAddNote={onAddNote}
+              onDeleteNote={onDeleteNote}
+            />
 
             {showBalanceSheet && (
               narrow && calView === "yearly" ? (
@@ -2604,11 +2487,15 @@ function DashboardView({
   onTipAction,
   onAddTransaction,
   onOpenCalendarDay,
+  onAddCalendarNote,
+  onDeleteCalendarNote,
 }: {
   store: FetyStore;
   onTipAction: (action: FetyActionTarget) => void;
   onAddTransaction: ReturnType<typeof useFetyData>["addTransaction"];
   onOpenCalendarDay: (dateISO: string) => void;
+  onAddCalendarNote: (dateISO: string, text: string) => void;
+  onDeleteCalendarNote: (dateISO: string, noteId: string) => void;
 }) {
   const [focusDateISO, setFocusDateISO] = useState(todayISO);
   const focusDate = useMemo(() => new Date(`${focusDateISO}T12:00:00`), [focusDateISO]);
@@ -2625,6 +2512,8 @@ function DashboardView({
       onAction={onTipAction}
       onAddTransaction={onAddTransaction}
       onOpenCalendarDay={onOpenCalendarDay}
+      onAddCalendarNote={onAddCalendarNote}
+      onDeleteCalendarNote={onDeleteCalendarNote}
       balanceChart={<BalanceChartWidget />}
     />
   );
@@ -2676,7 +2565,8 @@ export default function App() {
     startFreshSetup,
     startExplorePlatform,
     completeSetup,
-    updateCalendarNote,
+    addCalendarNote,
+    deleteCalendarNote,
     markTipDone,
     archiveTip,
     addTransactionType,
@@ -2863,6 +2753,8 @@ export default function App() {
             onTipAction={applyFetyAction}
             onAddTransaction={addTransaction}
             onOpenCalendarDay={openCalendarDay}
+            onAddCalendarNote={addCalendarNote}
+            onDeleteCalendarNote={deleteCalendarNote}
           />
         );
     }
@@ -2949,7 +2841,8 @@ export default function App() {
               onAddTransaction={addTransaction}
               onUpdateTransaction={updateTransaction}
               onDeleteTransaction={deleteTransaction}
-              onUpdateCalendarNote={updateCalendarNote}
+              onAddCalendarNote={addCalendarNote}
+              onDeleteCalendarNote={deleteCalendarNote}
             />
           ) : (
             <>

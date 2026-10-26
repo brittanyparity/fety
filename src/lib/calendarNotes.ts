@@ -1,65 +1,81 @@
 import type { CalendarDayNote, FetyStore } from "../types/fety";
 
+type LegacyNoteValue = string | CalendarDayNote | CalendarDayNote[];
+
+export function newCalendarNoteId(): string {
+  return `cn_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 9)}`;
+}
+
+function normalizeOneNote(value: string | CalendarDayNote, dateISO: string): CalendarDayNote | null {
+  if (typeof value === "string") {
+    const text = value.trim();
+    if (!text) return null;
+    return { id: newCalendarNoteId(), text, createdISO: dateISO };
+  }
+  const text = (value.text ?? "").trim();
+  if (!text) return null;
+  return {
+    id: value.id?.trim() || newCalendarNoteId(),
+    text: value.text,
+    createdISO: value.createdISO || dateISO,
+  };
+}
+
+/** Migrate legacy single-note-per-day storage to arrays. */
 export function normalizeCalendarNotes(
-  raw: Record<string, string | CalendarDayNote> | undefined,
-): Record<string, CalendarDayNote> {
+  raw: Record<string, LegacyNoteValue> | FetyStore["calendarNotes"] | undefined,
+): Record<string, CalendarDayNote[]> {
   if (!raw) return {};
-  const out: Record<string, CalendarDayNote> = {};
-  for (const [key, value] of Object.entries(raw)) {
-    if (typeof value === "string") {
-      const text = value.trim();
-      if (text) out[key] = { text: value, createdISO: key };
-    } else if (value && typeof value.text === "string") {
-      const text = value.text.trim();
-      if (text) {
-        out[key] = {
-          text: value.text,
-          createdISO: value.createdISO || key,
-        };
-      }
+  const out: Record<string, CalendarDayNote[]> = {};
+  for (const [dateISO, value] of Object.entries(raw)) {
+    if (Array.isArray(value)) {
+      const rows = value
+        .map((n) => normalizeOneNote(n, dateISO))
+        .filter((n): n is CalendarDayNote => n !== null);
+      if (rows.length > 0) out[dateISO] = rows;
+      continue;
     }
+    const one = normalizeOneNote(value, dateISO);
+    if (one) out[dateISO] = [one];
   }
   return out;
 }
 
-export function calendarNoteText(
-  notes: FetyStore["calendarNotes"] | Record<string, string | CalendarDayNote> | undefined,
+export function notesForCalendarDay(
+  notes: FetyStore["calendarNotes"] | Record<string, LegacyNoteValue> | undefined,
   dateISO: string,
-): string {
-  const n = notes?.[dateISO];
-  if (!n) return "";
-  if (typeof n === "string") return n;
-  return n.text ?? "";
+): CalendarDayNote[] {
+  return normalizeCalendarNotes(notes)[dateISO] ?? [];
 }
 
+export function calendarNoteText(
+  notes: FetyStore["calendarNotes"] | Record<string, LegacyNoteValue> | undefined,
+  dateISO: string,
+): string {
+  return notesForCalendarDay(notes, dateISO)
+    .map((n) => n.text.trim())
+    .filter(Boolean)
+    .join("\n\n");
+}
+
+/** @deprecated Prefer notesForCalendarDay */
 export function noteForCalendarDay(
-  notes: FetyStore["calendarNotes"] | Record<string, string | CalendarDayNote> | undefined,
+  notes: FetyStore["calendarNotes"] | Record<string, LegacyNoteValue> | undefined,
   dateISO: string,
 ): CalendarDayNote | null {
-  const direct = notes?.[dateISO];
-  if (direct) {
-    if (typeof direct === "string") {
-      const text = direct.trim();
-      return text ? { text: direct, createdISO: dateISO } : null;
-    }
-    return direct.text.trim() ? direct : null;
-  }
-  if (!notes) return null;
-  for (const value of Object.values(notes)) {
-    const note = typeof value === "string" ? { text: value, createdISO: "" } : value;
-    if (note.createdISO === dateISO && note.text.trim()) return note;
-  }
-  return null;
+  const list = notesForCalendarDay(notes, dateISO);
+  return list.length > 0 ? list[0] : null;
 }
 
 export function hasCalendarNote(
-  notes: FetyStore["calendarNotes"] | Record<string, string | CalendarDayNote> | undefined,
+  notes: FetyStore["calendarNotes"] | Record<string, LegacyNoteValue> | undefined,
   dateISO: string,
 ): boolean {
-  return noteForCalendarDay(notes, dateISO) !== null;
+  return notesForCalendarDay(notes, dateISO).length > 0;
 }
 
 export type SavedCalendarNoteRow = {
+  id: string;
   dateISO: string;
   createdISO: string;
   text: string;
@@ -67,28 +83,40 @@ export type SavedCalendarNoteRow = {
 
 /** All saved notes, newest calendar days first. */
 export function listSavedCalendarNotes(
-  notes: FetyStore["calendarNotes"] | Record<string, string | CalendarDayNote> | undefined,
+  notes: FetyStore["calendarNotes"] | Record<string, LegacyNoteValue> | undefined,
   limit = 24,
 ): SavedCalendarNoteRow[] {
   const normalized = normalizeCalendarNotes(notes);
-  return Object.entries(normalized)
-    .map(([dateISO, note]) => ({
-      dateISO,
-      createdISO: note.createdISO || dateISO,
-      text: note.text.trim(),
-    }))
+  const rows: SavedCalendarNoteRow[] = [];
+  for (const [dateISO, dayNotes] of Object.entries(normalized)) {
+    for (const note of dayNotes) {
+      rows.push({
+        id: note.id,
+        dateISO,
+        createdISO: note.createdISO || dateISO,
+        text: note.text.trim(),
+      });
+    }
+  }
+  return rows
     .filter((row) => row.text.length > 0)
     .sort((a, b) => b.dateISO.localeCompare(a.dateISO))
     .slice(0, limit);
 }
 
 export function calendarNotePreview(
-  notes: FetyStore["calendarNotes"] | Record<string, string | CalendarDayNote> | undefined,
+  notes: FetyStore["calendarNotes"] | Record<string, LegacyNoteValue> | undefined,
   dateISO: string,
   max = 36,
 ): string {
-  const text = (noteForCalendarDay(notes, dateISO)?.text ?? "").trim();
-  if (!text) return "";
-  if (text.length <= max) return text;
-  return `${text.slice(0, max - 1)}…`;
+  const list = notesForCalendarDay(notes, dateISO);
+  if (list.length === 0) return "";
+  if (list.length === 1) {
+    const text = list[0].text.trim();
+    if (text.length <= max) return text;
+    return `${text.slice(0, max - 1)}…`;
+  }
+  const first = list[0].text.trim();
+  const head = first.length > 22 ? `${first.slice(0, 21)}…` : first;
+  return `${head} (+${list.length - 1} more)`;
 }

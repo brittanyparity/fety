@@ -1676,6 +1676,119 @@ html, body, #root {
   overflow: auto;
 }
 
+.fety-home-notes {
+  min-height: 0;
+}
+
+.fety-day-notes {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  min-width: 0;
+}
+
+.fety-day-notes-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  max-height: min(220px, 40vh);
+  overflow-y: auto;
+}
+
+.fety-day-notes-row {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 10px 12px;
+  border-radius: 10px;
+  border: 1px solid var(--border);
+  background: var(--bg);
+}
+
+.fety-day-notes-row-text {
+  margin: 0;
+  flex: 1;
+  min-width: 0;
+  font-size: 13px;
+  line-height: 1.45;
+  color: var(--ink-2);
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+.fety-day-notes-row-remove {
+  flex-shrink: 0;
+  padding: 0;
+  border: none;
+  background: transparent;
+  font-size: 10px;
+  font-weight: 600;
+  color: var(--ink-3);
+  cursor: pointer;
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+
+.fety-day-notes-row-remove:hover {
+  color: var(--ink);
+}
+
+.fety-day-notes-empty {
+  margin: 0;
+  font-size: 12px;
+  color: var(--ink-3);
+}
+
+.fety-day-notes-compose textarea {
+  width: 100%;
+  min-height: 72px;
+  margin-top: 6px;
+  padding: 10px 12px;
+  border-radius: 10px;
+  border: 1px solid var(--border);
+  font-family: inherit;
+  font-size: 13px;
+  line-height: 1.45;
+  resize: vertical;
+  background: var(--surface);
+  color: var(--ink);
+}
+
+.fety-day-notes--compact .fety-day-notes-list {
+  max-height: 180px;
+}
+
+.fety-home-card-body--insights {
+  display: flex;
+  flex-direction: column;
+  overflow: auto;
+}
+
+.fety-home-card-body--insights .fety-home-insight-charts {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  min-height: min(400px, 48vh);
+}
+
+.fety-home-insight-panel {
+  flex: 1;
+  min-height: 0;
+}
+
+.fety-home-insight-panel--vcenter {
+  display: flex;
+  align-items: center;
+}
+
+.fety-home-insight-panel--vcenter .fety-home-insight-split {
+  width: 100%;
+}
+
 .fety-home-stats-grid {
   display: grid;
   grid-template-columns: 1fr 1fr;
@@ -3496,7 +3609,7 @@ html, body, #root {
 .fety-cal-note-saved-head {
   display: flex;
   align-items: center;
-  justify-content: space-between;
+  justify-content: flex-end;
   gap: 8px;
   margin-bottom: 6px;
 }

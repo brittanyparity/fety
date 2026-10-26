@@ -114,6 +114,7 @@ export interface ChatMessage {
 }
 
 export type CalendarDayNote = {
+  id: string;
   text: string;
   /** Calendar date this note belongs to (usually matches the storage key). */
   createdISO: string;
@@ -158,8 +159,8 @@ export interface FetyStore {
   widgetsCuratedV2?: boolean;
   /** Strip removed widgets + apply latest curated defaults when still on a prior starter set. */
   widgetsCuratedV3?: boolean;
-  /** Freeform notes keyed by calendar date (YYYY-MM-DD). */
-  calendarNotes?: Record<string, CalendarDayNote>;
+  /** Freeform notes keyed by calendar date (YYYY-MM-DD), multiple per day. */
+  calendarNotes?: Record<string, CalendarDayNote[]>;
   /** Things to try — done and archived tip ids. */
   insightTipProgress?: {
     doneIds: string[];
