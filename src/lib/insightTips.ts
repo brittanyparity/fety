@@ -1,3 +1,6 @@
+import { calendarNoteText } from "./calendarNotes";
+import { buildCalendarMap, formatConversationalDate } from "./fetyCalculations";
+import { formatUsd } from "./scheduleAmounts";
 import type { FinancialAnalysis, FinancialTip } from "../types/analysis";
 import type { FetyStore } from "../types/fety";
 
@@ -93,8 +96,58 @@ function progressOf(store: FetyStore): InsightTipProgress {
   };
 }
 
+function buildDayTips(store: FetyStore, focusDateISO: string): FinancialTip[] {
+  const year = Number(focusDateISO.slice(0, 4));
+  if (!Number.isFinite(year)) return [];
+  const day = buildCalendarMap(store, year).get(focusDateISO);
+  if (!day) return [];
+
+  const label = formatConversationalDate(focusDateISO);
+  const tips: FinancialTip[] = [];
+
+  if (day.items.length > 0) {
+    tips.push({
+      id: `day-${focusDateISO}-ledger`,
+      title: `Walk through ${day.items.length} item${day.items.length === 1 ? "" : "s"} on ${label}`,
+      explanation: `Ending balance ${formatUsd(day.endBal)} after ${formatUsd(day.income)} in and ${formatUsd(Math.abs(day.expenses))} out.`,
+      category: "spending",
+      actionLabel: "Open transactions",
+      action: { type: "transactions" },
+    });
+  }
+
+  if (day.endBal < 0) {
+    tips.push({
+      id: `day-${focusDateISO}-negative`,
+      title: "Balance dipped below zero",
+      explanation: `On ${label} cash ended at ${formatUsd(day.endBal)}. Check what landed that day and what is coming next.`,
+      category: "budgeting",
+      actionLabel: "Open calendar",
+      action: { type: "calendar" },
+    });
+  }
+
+  const note = calendarNoteText(store.calendarNotes, focusDateISO).trim();
+  if (note) {
+    tips.push({
+      id: `day-${focusDateISO}-note`,
+      title: "Revisit your note for this day",
+      explanation: note.length > 120 ? `${note.slice(0, 117)}…` : note,
+      category: "organization",
+      actionLabel: "Open calendar",
+      action: { type: "calendar" },
+    });
+  }
+
+  return tips;
+}
+
 /** Ordered pool: analysis tips first, then contextual fallbacks, then static library. */
-export function buildTipPool(store: FetyStore, analysis: FinancialAnalysis): FinancialTip[] {
+export function buildTipPool(
+  store: FetyStore,
+  analysis: FinancialAnalysis,
+  focusDateISO?: string,
+): FinancialTip[] {
   const goal = store.goals[0];
   const contextual: FinancialTip[] = [
     {
@@ -138,6 +191,9 @@ export function buildTipPool(store: FetyStore, analysis: FinancialAnalysis): Fin
     out.push(tip);
   };
 
+  if (focusDateISO) {
+    for (const tip of buildDayTips(store, focusDateISO)) push(tip);
+  }
   for (const tip of analysis.tips) push(tip);
   for (const tip of contextual) push(tip);
   for (const tip of STATIC_TIPS) push(tip);
@@ -146,11 +202,15 @@ export function buildTipPool(store: FetyStore, analysis: FinancialAnalysis): Fin
 }
 
 /** Always three tips; archived tips are replaced from the pool. */
-export function resolveInsightTipSlots(store: FetyStore, analysis: FinancialAnalysis): InsightTipSlot[] {
+export function resolveInsightTipSlots(
+  store: FetyStore,
+  analysis: FinancialAnalysis,
+  focusDateISO?: string,
+): InsightTipSlot[] {
   const { doneIds, archivedIds } = progressOf(store);
   const archived = new Set(archivedIds);
   const done = new Set(doneIds);
-  const pool = buildTipPool(store, analysis).filter((t) => !archived.has(t.id));
+  const pool = buildTipPool(store, analysis, focusDateISO).filter((t) => !archived.has(t.id));
 
   const prioritized = [...pool].sort((a, b) => {
     const aDone = done.has(a.id) ? 1 : 0;

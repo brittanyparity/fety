@@ -10,7 +10,15 @@ import {
   normalizeSkippedOccurrences,
 } from "../lib/billScheduling";
 import { archiveInsightTip, markInsightTipDone } from "../lib/insightTips";
-import { createEmptyStore, loadStore, newId, saveStore, resetStore as resetStored, resetToEmptyStore } from "../lib/fetyStorage";
+import {
+  createEmptyStore,
+  createExploreStore,
+  loadStore,
+  newId,
+  saveStore,
+  resetStore as resetStored,
+  resetToEmptyStore,
+} from "../lib/fetyStorage";
 import { assessFinancialNeeds, shouldApplyPersonalizedPins, withPersonalizedPins } from "../lib/needsAssessment";
 import { buildDashboardWidgetStates, markWidgetUserModified } from "../lib/dashboardPreferences";
 import { roundMoney } from "../lib/scheduleAmounts";
@@ -517,6 +525,12 @@ export function useFetyData() {
     setStore(resetToEmptyStore());
   }, []);
 
+  const startExplorePlatform = useCallback(() => {
+    const demo = withPersonalizedPins(createExploreStore());
+    saveStore(demo);
+    setStore(demo);
+  }, []);
+
   const updateCalendarNote = useCallback((dateISO: string, text: string) => {
     const trimmed = text.trim();
     patch((prev) => {
@@ -581,6 +595,7 @@ export function useFetyData() {
           recurringTransactions: payload.recurringTransactions,
           goals: payload.goals,
           onboardingCompleted: true,
+          exploreMode: false,
         };
         return withPersonalizedPins(merged);
       });
@@ -654,6 +669,7 @@ export function useFetyData() {
     setLockedDashboardWidgets,
     resetAll,
     startFreshSetup,
+    startExplorePlatform,
     updateCalendarNote,
     markTipDone,
     archiveTip,

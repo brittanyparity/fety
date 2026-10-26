@@ -2,17 +2,16 @@ import { useState, useRef, useEffect, useCallback, useMemo } from "react";
 import { FetyLogo } from "./FetyLogo";
 import { useFetyData } from "./hooks/useFetyData";
 import { calendarNotePreview, calendarNoteText, hasCalendarNote, noteForCalendarDay } from "./lib/calendarNotes";
-import { buildCalendarMap, endingBalanceOnDate, endingBalancesForRange, formatNavDate, monthsSpending, categorySpendSharesForPeriod, todayISO, type BalanceChartRange, type CategorySpendPeriod, type SpendTrendMonths } from "./lib/fetyCalculations";
+import { buildCalendarMap, computeSummary, endingBalanceOnDate, endingBalancesForRange, formatNavDate, monthsSpending, categorySpendSharesForPeriod, todayISO, type BalanceChartRange, type CategorySpendPeriod, type SpendTrendMonths } from "./lib/fetyCalculations";
 import { formatTransactionDetailLine, goalSavedTotal, accountBalanceWithTransactions, accountBalanceAsOfISO, formatAccountBalanceDisplay, isDebtAccount, netWorthTotalsOnDate } from "./lib/ledger";
 import { flowForTransactionType, getTransactionTypes, isTransferTransactionType } from "./lib/transactionTypes";
 import { calendarEndingBalanceBg, calendarEndingBalanceBgStrong, calBalanceColor, calNetWorthColor, calSignedColor } from "./lib/calendarUi";
 import { CalendarPeriodMenu } from "./components/CalendarPeriodMenu";
 import EmojiIconPicker from "./components/EmojiIconPicker";
 import CurrencyInput, { amountToEditString } from "./components/CurrencyInput";
-import { flattenRowsAfterMoveRespectingLocks, isWidgetInFirstRow, isWidgetPositionLocked, packWidgetsIntoRows, pruneWidgetLocksToFirstRow, reorderWidgetRespectingLocks, toggleWidgetOnDashboard, unpinWidget } from "./lib/widgetLayout";
+import { toggleWidgetOnDashboard, WIDGET_SIZE_SECTIONS } from "./lib/widgetLayout";
 import { useIsNarrow } from "./hooks/useIsNarrow";
 import WidgetPeriodFilter from "./components/WidgetPeriodFilter";
-import WidgetPinIcon from "./components/WidgetPinIcon";
 import type { BudgetCategory, CalDay, CalendarMap, FetyStore, FetyTransactionType, FinanceSummary, Transaction, TransactionType } from "./types/fety";
 import {
   BudgetManageView,
@@ -27,12 +26,9 @@ import { analyzeStore, buildPersonalizedTour, pageForAction } from "./lib/financ
 import { assessFinancialNeeds, isWidgetRecommended, recommendationForWidget } from "./lib/needsAssessment";
 import {
   getWidgetDefinition,
-  WIDGET_CATALOG,
-  WIDGET_CATEGORY_LABELS,
-  WIDGET_CATEGORY_ORDER,
 } from "./lib/widgetCatalog";
-import InsightsBriefing, { IncomeAllocationChart } from "./views/InsightsBriefing";
-import InsightsFeedSections from "./views/InsightsFeedSections";
+import { IncomeAllocationChart } from "./views/InsightsBriefing";
+import HomeView from "./views/HomeView";
 import type { FetyActionTarget, FinancialAnalysis } from "./types/analysis";
 import type { FinancialAssessment } from "./types/widgets";
 import {
@@ -334,14 +330,14 @@ const MONTHS = ["January","February","March","April","May","June","July","August
 const DAYS_SHORT = ["Sun","Mon","Tue","Wed","Thu","Fri","Sat"];
 
 const NAV_ITEMS: { id: Page; label: string }[] = [
-  { id: "dashboard", label: "Insights"     },
+  { id: "dashboard", label: "Home"         },
   { id: "calendar",  label: "Calendar"     },
   { id: "spending",  label: "Transactions" },
   { id: "budget",    label: "Budget"       },
   { id: "goals",     label: "Goals"        },
 ];
 
-type LiveWidgetBundle = { store: FetyStore; summary: FinanceSummary };
+type LiveWidgetBundle = { store: FetyStore; summary: FinanceSummary; focusDateISO: string };
 let liveWidgets: LiveWidgetBundle | null = null;
 function widgetLive(): LiveWidgetBundle {
   if (!liveWidgets) {
@@ -446,64 +442,69 @@ function TopNav({
             ) : null}
           </div>
         </div>
-        <button
-          type="button"
-          className="fety-nav-hamburger"
-          aria-label={menuOpen ? "Close menu" : "Open menu"}
-          aria-expanded={menuOpen}
-          onClick={() => setMenuOpen((o) => !o)}
-        >
-          {menuOpen ? (
-            <svg width="18" height="18" viewBox="0 0 18 18" fill="none" aria-hidden>
-              <path d="M4 4l10 10M14 4L4 14" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" />
-            </svg>
-          ) : (
-            <svg width="18" height="18" viewBox="0 0 18 18" fill="none" aria-hidden>
-              <path d="M2.5 5h13M2.5 9h13M2.5 13h13" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" />
-            </svg>
-          )}
-        </button>
-        {menuOpen && (
-          <>
-            <button type="button" className="fety-nav-backdrop" aria-label="Close menu" onClick={() => setMenuOpen(false)} />
-            <nav className="fety-nav-drawer" aria-label="More">
-              <p className="fety-nav-drawer-date">{navDate}</p>
-              <button
-                type="button"
-                className={`fety-nav-drawer-link${page === "profile" ? " fety-nav-drawer-link-active" : ""}`}
-                onClick={() => {
-                  onOpenProfile();
-                  setMenuOpen(false);
-                }}
-              >
-                Profile Settings
-              </button>
-              <button
-                type="button"
-                className={`fety-nav-drawer-link${page === "networth" ? " fety-nav-drawer-link-active" : ""}`}
-                onClick={() => {
-                  onOpenNetWorth();
-                  setMenuOpen(false);
-                }}
-              >
-                Net Worth
-              </button>
-            </nav>
-          </>
-        )}
-      </header>
-      <nav className="fety-mobile-tabs" aria-label="Primary">
-        {NAV_ITEMS.map((item) => (
+        <div className="fety-nav-menu-wrap">
           <button
-            key={item.id}
             type="button"
-            onClick={() => go(item.id)}
-            className={`fety-mobile-tab${page === item.id ? " fety-mobile-tab-active" : ""}`}
+            className="fety-nav-hamburger"
+            aria-label={menuOpen ? "Close menu" : "Open menu"}
+            aria-expanded={menuOpen}
+            aria-haspopup="menu"
+            onClick={() => setMenuOpen((o) => !o)}
           >
-            {item.label}
+            {menuOpen ? (
+              <svg width="18" height="18" viewBox="0 0 18 18" fill="none" aria-hidden>
+                <path d="M4 4l10 10M14 4L4 14" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" />
+              </svg>
+            ) : (
+              <svg width="18" height="18" viewBox="0 0 18 18" fill="none" aria-hidden>
+                <path d="M2.5 5h13M2.5 9h13M2.5 13h13" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" />
+              </svg>
+            )}
           </button>
-        ))}
-      </nav>
+          {menuOpen ? (
+            <>
+              <button type="button" className="fety-nav-backdrop" aria-label="Close menu" onClick={() => setMenuOpen(false)} />
+              <nav className="fety-nav-drawer" aria-label="Main menu" role="menu">
+                <p className="fety-nav-drawer-date">{navDate}</p>
+                {NAV_ITEMS.map((item) => (
+                  <button
+                    key={item.id}
+                    type="button"
+                    role="menuitem"
+                    className={`fety-nav-drawer-link${page === item.id ? " fety-nav-drawer-link-active" : ""}`}
+                    onClick={() => go(item.id)}
+                  >
+                    {item.label}
+                  </button>
+                ))}
+                <div className="fety-nav-drawer-divider" role="separator" />
+                <button
+                  type="button"
+                  role="menuitem"
+                  className={`fety-nav-drawer-link${page === "profile" ? " fety-nav-drawer-link-active" : ""}`}
+                  onClick={() => {
+                    onOpenProfile();
+                    setMenuOpen(false);
+                  }}
+                >
+                  Profile Settings
+                </button>
+                <button
+                  type="button"
+                  role="menuitem"
+                  className={`fety-nav-drawer-link${page === "networth" ? " fety-nav-drawer-link-active" : ""}`}
+                  onClick={() => {
+                    onOpenNetWorth();
+                    setMenuOpen(false);
+                  }}
+                >
+                  Net Worth
+                </button>
+              </nav>
+            </>
+          ) : null}
+        </div>
+      </header>
     </>
   );
 }
@@ -591,11 +592,12 @@ function ScrollableChart({
 }
 
 function BalanceChartWidget() {
-  const { store, summary: s } = widgetLive();
+  const { store, summary: s, focusDateISO } = widgetLive();
+  const chartRef = useMemo(() => new Date(`${focusDateISO}T12:00:00`), [focusDateISO]);
   const [range, setRange] = useState<BalanceChartRange>("7d");
   const [accountId, setAccountId] = useState<string>("all");
   const selectedAccount = accountId === "all" ? null : accountId;
-  const weekData = endingBalancesForRange(store, range, new Date(), selectedAccount);
+  const weekData = endingBalancesForRange(store, range, chartRef, selectedAccount);
   const endBal = weekData[weekData.length - 1]?.bal ?? (selectedAccount ? 0 : s.balance);
   const dataMax = weekData.length ? Math.max(...weekData.map((d) => d.bal)) : 0;
   const dataMin = weekData.length ? Math.min(...weekData.map((d) => d.bal)) : 0;
@@ -1088,6 +1090,8 @@ const ALL_WIDGETS: WidgetDef[] = [
   },
 ];
 
+const DASHBOARD_WIDGET_BY_ID = new Map(ALL_WIDGETS.map((w) => [w.id, { id: w.id, size: w.size }]));
+
 // ─── Widget Picker Panel (push sidebar) ─────────────────────────────────────────
 function WidgetEducationCard({
   widgetId,
@@ -1337,22 +1341,22 @@ function WidgetPicker({
 
         <div className="fety-widget-picker-group" style={inline ? undefined : { marginBottom: 8 }}>
           <p className="fety-widget-picker-group-label" style={inline ? undefined : { fontSize: 10, fontWeight: 400, color: "var(--ink-3)", fontFamily: "var(--font-mono)", textTransform: "uppercase", letterSpacing: "0.08em", marginBottom: 8 }}>
-            All financial widgets
+            By size
           </p>
           <p style={{ fontSize: 10, color: "var(--ink-3)", marginBottom: 8, lineHeight: 1.4 }}>
-            Browse the complete toolkit — recommendations never hide widgets from you.
+            New widgets land beside others of the same size — chips and cards share a row when there is room.
           </p>
         </div>
 
-        {WIDGET_CATEGORY_ORDER.map((category) => {
-          const ids = WIDGET_CATALOG.filter((w) => w.category === category).map((w) => w.id)
-            .filter((id) => ALL_WIDGETS.some((w) => w.id === id));
+        {WIDGET_SIZE_SECTIONS.map((section) => {
+          const ids = ALL_WIDGETS.filter((w) => w.size === section.size).map((w) => w.id);
           if (ids.length === 0) return null;
           return (
-            <div key={category} className="fety-widget-picker-group" style={inline ? undefined : { marginBottom: 18 }}>
-              <p className="fety-widget-picker-group-label" style={inline ? undefined : { fontSize: 10, fontWeight: 400, color: "var(--ink-3)", fontFamily: "var(--font-mono)", textTransform: "uppercase", letterSpacing: "0.08em", marginBottom: 8 }}>
-                {WIDGET_CATEGORY_LABELS[category]}
+            <div key={section.size} className="fety-widget-picker-group" style={inline ? undefined : { marginBottom: 18 }}>
+              <p className="fety-widget-picker-group-label" style={inline ? undefined : { fontSize: 10, fontWeight: 400, color: "var(--ink-3)", fontFamily: "var(--font-mono)", textTransform: "uppercase", letterSpacing: "0.08em", marginBottom: 4 }}>
+                {section.label}
               </p>
+              <p style={{ fontSize: 10, color: "var(--ink-3)", marginBottom: 8, lineHeight: 1.4 }}>{section.hint}</p>
               <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
                 {ids.map(renderCard)}
               </div>
@@ -2574,359 +2578,42 @@ function CalendarSidePanel({
   );
 }
 
-// ─── Dashboard (widget dock) ────────────────────────────────────────────────────
+// ─── Home (fixed dashboard layout) ─────────────────────────────────────────────
 function DashboardView({
   store,
-  summary,
-  analysis,
   onTipAction,
-  onPinWidget,
   onMarkTipDone,
   onArchiveTip,
-  highlightTarget,
-  pinned, setPinned, lockedWidgets, onToggleWidgetLock, onSetLockedWidgets, onCustomize, onCloseCustomize, customizing,
 }: {
   store: FetyStore;
-  summary: FinanceSummary;
-  analysis: FinancialAnalysis;
   onTipAction: (action: FetyActionTarget) => void;
-  onPinWidget: (widgetId: string) => void;
   onMarkTipDone: (tipId: string) => void;
   onArchiveTip: (tipId: string) => void;
-  highlightTarget?: string | null;
-  pinned: string[];
-  setPinned: React.Dispatch<React.SetStateAction<string[]>>;
-  lockedWidgets: string[];
-  onToggleWidgetLock: (id: string) => void;
-  onSetLockedWidgets: React.Dispatch<React.SetStateAction<string[]>>;
-  onCustomize: () => void;
-  onCloseCustomize: () => void;
-  customizing: boolean;
 }) {
-  liveWidgets = { store, summary };
-
-  const CHARTS_COLLAPSE_KEY = "fety-insights-charts-collapsed";
-  const [chartsCollapsed, setChartsCollapsed] = useState(() => {
-    if (typeof window === "undefined") return false;
-    try {
-      return localStorage.getItem(CHARTS_COLLAPSE_KEY) === "1";
-    } catch {
-      return false;
-    }
-  });
-
-  const toggleChartsCollapsed = useCallback(() => {
-    setChartsCollapsed((prev) => {
-      const next = !prev;
-      try {
-        localStorage.setItem(CHARTS_COLLAPSE_KEY, next ? "1" : "0");
-      } catch {
-        /* ignore */
-      }
-      return next;
-    });
-  }, []);
-
-  const [dragRowIndex, setDragRowIndex] = useState<number | null>(null);
-  const [overRowIndex, setOverRowIndex] = useState<number | null>(null);
-  const [dragWidgetId, setDragWidgetId] = useState<string | null>(null);
-  const [overWidgetId, setOverWidgetId] = useState<string | null>(null);
-
-  const removeWidget = (id: string) => {
-    setPinned((prev) => unpinWidget(prev, id));
-    onSetLockedWidgets((prev) => prev.filter((x) => x !== id));
-  };
-
-  const byId = useMemo(() => {
-    const m = new Map<string, WidgetDef>();
-    ALL_WIDGETS.forEach((w) => m.set(w.id, w));
-    return m;
-  }, []);
-
-  const rows = useMemo(() => packWidgetsIntoRows(pinned, byId), [pinned, byId]);
-
-  useEffect(() => {
-    const pruned = pruneWidgetLocksToFirstRow(lockedWidgets, rows);
-    if (pruned.length !== lockedWidgets.length || pruned.some((id, i) => id !== lockedWidgets[i])) {
-      onSetLockedWidgets(pruned);
-    }
-  }, [rows, lockedWidgets, onSetLockedWidgets]);
-
-  const reorderRows = (fromIndex: number, toIndex: number) => {
-    if (fromIndex === toIndex) return;
-    const next = flattenRowsAfterMoveRespectingLocks(rows, lockedWidgets, pinned, fromIndex, toIndex);
-    if (next) setPinned(next);
-  };
-
-  const reorderWidgetBefore = (fromId: string, beforeId: string) => {
-    setPinned((prev) => reorderWidgetRespectingLocks(prev, lockedWidgets, fromId, beforeId));
-  };
-
-
-  const minH = (size: WidgetDef["size"]) =>
-    size === "small" ? 80 : undefined;
-
-  const widgetCellClass = (w: WidgetDef) => {
-    const chart =
-      w.id === "balance-chart" || w.id === "monthly-spend-chart" ? " fety-widget-chart" : "";
-    return `fety-widget-cell fety-widget-cell--${w.size}${chart}`;
-  };
-
+  const [focusDateISO, setFocusDateISO] = useState(todayISO);
+  const focusDate = useMemo(() => new Date(`${focusDateISO}T12:00:00`), [focusDateISO]);
+  const summary = useMemo(() => computeSummary(store, focusDate), [store, focusDate]);
+  const analysis = useMemo(() => analyzeStore(store, focusDate), [store, focusDate]);
+  liveWidgets = { store, summary, focusDateISO };
   return (
-    <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
-      <InsightsBriefing
-        store={store}
-        analysis={analysis}
-        onAction={onTipAction}
-        pinnedWidgets={pinned}
-        onPinWidget={onPinWidget}
-        onMarkTipDone={onMarkTipDone}
-        onArchiveTip={onArchiveTip}
-      />
-
-      <InsightsFeedSections store={store} onAction={onTipAction} />
-
-      <section
-        className={`fety-insights-charts-section${chartsCollapsed ? " fety-insights-charts-section--collapsed" : ""}`}
-        aria-label="Your charts"
-      >
-        <div className="fety-insights-charts-header">
-          <button
-            type="button"
-            className="fety-insights-collapse"
-            aria-expanded={!chartsCollapsed}
-            aria-label={chartsCollapsed ? "Expand your charts" : "Collapse your charts"}
-            onClick={toggleChartsCollapsed}
-          >
-            <svg
-              width="14"
-              height="14"
-              viewBox="0 0 14 14"
-              fill="none"
-              className={chartsCollapsed ? "fety-insights-chevron" : "fety-insights-chevron fety-insights-chevron-open"}
-              aria-hidden
-            >
-              <path d="M3 5l4 4 4-4" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" />
-            </svg>
-          </button>
-          <h2 className="fety-insights-charts-title">Your Charts</h2>
-          <div className="fety-insights-charts-header-spacer" />
-          {customizing ? (
-            <button
-              type="button"
-              className="fety-insights-charts-action fety-insights-charts-action-primary"
-              onClick={onCloseCustomize}
-            >
-              Done
-            </button>
-          ) : (
-            <button type="button" className="fety-insights-charts-action" onClick={onCustomize}>
-              Customise
-            </button>
-          )}
-        </div>
-
-        {!chartsCollapsed ? (
-          pinned.length === 0 ? (
-            <button
-              type="button"
-              className="fety-insights-charts-empty"
-              onClick={onCustomize}
-            >
-              <svg width="28" height="28" viewBox="0 0 28 28" fill="none" aria-hidden>
-                <path d="M14 4v20M4 14h20" stroke="var(--ink-3)" strokeWidth="2.2" strokeLinecap="round" />
-              </svg>
-              <p>Add widgets to Insights</p>
-              <span>Click Customise to choose what you want to see</span>
-            </button>
-          ) : (
-        <div className="fety-insights-charts-body">
-        <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
-          {rows.map((rowIds, rowIndex) => {
-            const isRowDragging = dragRowIndex === rowIndex;
-            const isRowOver = overRowIndex === rowIndex && dragRowIndex !== null && dragRowIndex !== rowIndex;
-            return (
-              <div
-                key={`${rowIds.join("-")}-${rowIndex}`}
-                className={`fety-widget-row${customizing ? " fety-widget-row--customizing" : ""}`}
-                onDragOver={(e) => {
-                  if (!customizing || dragRowIndex === null) return;
-                  e.preventDefault();
-                  setOverRowIndex(rowIndex);
-                }}
-                onDrop={(e) => {
-                  if (!customizing || dragRowIndex === null) return;
-                  e.preventDefault();
-                  reorderRows(dragRowIndex, rowIndex);
-                  setDragRowIndex(null);
-                  setOverRowIndex(null);
-                }}
-                style={{
-                  display: "flex",
-                  alignItems: "stretch",
-                  gap: customizing ? 6 : 0,
-                  padding: customizing ? 4 : 0,
-                  borderRadius: customizing ? 12 : 0,
-                  border: isRowOver ? "2px dashed var(--ink)" : customizing ? "1px dashed var(--border-soft)" : "none",
-                  opacity: isRowDragging ? 0.55 : 1,
-                }}
-              >
-                {customizing && (
-                  <div
-                    className="fety-row-drag-handle"
-                    draggable
-                    title="Drag row"
-                    onDragStart={(e) => {
-                      setDragRowIndex(rowIndex);
-                      setDragWidgetId(null);
-                      e.dataTransfer.effectAllowed = "move";
-                      e.stopPropagation();
-                    }}
-                    onDragEnd={() => {
-                      setDragRowIndex(null);
-                      setOverRowIndex(null);
-                    }}
-                  >
-                    <svg className="fety-row-drag-handle-icon" width="14" height="10" viewBox="0 0 14 10" fill="none" aria-hidden>
-                      <circle cx="2.5" cy="3" r="1" fill="currentColor" />
-                      <circle cx="7" cy="3" r="1" fill="currentColor" />
-                      <circle cx="11.5" cy="3" r="1" fill="currentColor" />
-                      <circle cx="2.5" cy="7" r="1" fill="currentColor" />
-                      <circle cx="7" cy="7" r="1" fill="currentColor" />
-                      <circle cx="11.5" cy="7" r="1" fill="currentColor" />
-                    </svg>
-                  </div>
-                )}
-                <div className="fety-widget-row-grid">
-                {rowIds.map((id) => {
-                  const w = byId.get(id);
-                  if (!w) return null;
-                  const isWidgetDragging = dragWidgetId === w.id;
-                  const isWidgetOver = overWidgetId === w.id && dragWidgetId !== null && dragWidgetId !== w.id;
-                  const atTopRow = isWidgetInFirstRow(rows, w.id);
-                  const positionLocked = isWidgetPositionLocked(lockedWidgets, w.id);
-                  const canDragWidget = customizing && !positionLocked;
-                  return (
-                    <div
-                      key={w.id}
-                      data-tour-id={`widget-${w.id}`}
-                      className={`${widgetCellClass(w)}${highlightTarget === `widget-${w.id}` ? " fety-tour-ring" : ""}`}
-                      draggable={canDragWidget}
-                      onDragStart={(e) => {
-                        if (!canDragWidget) return;
-                        setDragWidgetId(w.id);
-                        setDragRowIndex(null);
-                        e.dataTransfer.effectAllowed = "move";
-                        e.stopPropagation();
-                      }}
-                      onDragEnd={() => {
-                        setDragWidgetId(null);
-                        setOverWidgetId(null);
-                      }}
-                      onDragOver={(e) => {
-                        if (!customizing || !dragWidgetId) return;
-                        e.preventDefault();
-                        e.stopPropagation();
-                        setOverWidgetId(w.id);
-                      }}
-                      onDragLeave={() => {
-                        if (overWidgetId === w.id) setOverWidgetId(null);
-                      }}
-                      onDrop={(e) => {
-                        if (!customizing || !dragWidgetId) return;
-                        e.preventDefault();
-                        e.stopPropagation();
-                        if (dragWidgetId !== w.id) reorderWidgetBefore(dragWidgetId, w.id);
-                        setDragWidgetId(null);
-                        setOverWidgetId(null);
-                      }}
-                      style={{
-                        background: w.color === "var(--surface)" ? "var(--surface)" : w.color,
-                        borderRadius: "var(--radius-card)",
-                        padding: w.size === "small" ? "14px 16px" : "20px 22px",
-                        border: isWidgetOver ? "2px solid var(--ink)" : w.color === "var(--surface)" ? "1px solid var(--border)" : "2px solid transparent",
-                        position: "relative",
-                        minHeight: minH(w.size),
-                        userSelect: "none",
-                        opacity: isWidgetDragging ? 0.45 : 1,
-                        cursor: canDragWidget ? "grab" : customizing ? "default" : "default",
-                        transition: "opacity 0.15s, border-color 0.12s",
-                      }}
-                    >
-                      {customizing && canDragWidget && (
-                        <div className="fety-widget-drag-hint" style={{ position: "absolute", top: 8, left: 10, opacity: 0.25, pointerEvents: "none" }}>
-                          <svg width="10" height="10" viewBox="0 0 10 10" fill="none"><circle cx="3" cy="2.5" r="1" fill="currentColor"/><circle cx="7" cy="2.5" r="1" fill="currentColor"/><circle cx="3" cy="5" r="1" fill="currentColor"/><circle cx="7" cy="5" r="1" fill="currentColor"/><circle cx="3" cy="7.5" r="1" fill="currentColor"/><circle cx="7" cy="7.5" r="1" fill="currentColor"/></svg>
-                        </div>
-                      )}
-                      {w.render()}
-                      {customizing && (
-                        <div style={{ position: "absolute", top: 8, right: 8, display: "flex", gap: 4 }}>
-                          {atTopRow && (
-                            <button
-                              type="button"
-                              onClick={(e) => { e.stopPropagation(); onToggleWidgetLock(w.id); }}
-                              title={positionLocked ? "Unpin — allow moving this widget" : "Pin in place at top of Insights"}
-                              style={{
-                                width: 28,
-                                height: 28,
-                                borderRadius: 99,
-                                border: positionLocked ? "2px solid var(--ink)" : "1px solid var(--border)",
-                                background: positionLocked ? "var(--ink)" : "rgba(255,255,255,0.85)",
-                                cursor: "pointer",
-                                display: "flex",
-                                alignItems: "center",
-                                justifyContent: "center",
-                                transition: "background 0.12s, border-color 0.12s",
-                              }}
-                            >
-                              <WidgetPinIcon
-                                locked={positionLocked}
-                                size={16}
-                                color={positionLocked ? "#fff" : "var(--ink-2)"}
-                              />
-                            </button>
-                          )}
-                          <button
-                            type="button"
-                            onClick={(e) => { e.stopPropagation(); removeWidget(w.id); }}
-                            title="Remove from Insights"
-                            style={{ width: 28, height: 28, borderRadius: 99, background: "rgba(0,0,0,0.08)", border: "1px solid var(--border)", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center" }}
-                          >
-                            <svg width="10" height="10" viewBox="0 0 10 10" fill="none"><path d="M2 2l6 6M8 2L2 8" stroke="var(--trouble-dk)" strokeWidth="1.4" strokeLinecap="round" /></svg>
-                          </button>
-                        </div>
-                      )}
-                      {!customizing && (
-                      <button
-                        type="button"
-                        onClick={(e) => { e.stopPropagation(); removeWidget(w.id); }}
-                        title="Remove widget"
-                        style={{ position: "absolute", top: 8, right: 8, width: 22, height: 22, borderRadius: 99, background: "rgba(0,0,0,0.1)", border: "none", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", opacity: 0, transition: "opacity 0.15s" }}
-                        onMouseEnter={(e) => (e.currentTarget.style.opacity = "1")}
-                        onMouseLeave={(e) => (e.currentTarget.style.opacity = "0")}
-                      >
-                        <svg width="8" height="8" viewBox="0 0 8 8" fill="none"><path d="M1 1l6 6M7 1L1 7" stroke="rgba(0,0,0,0.55)" strokeWidth="1.4" strokeLinecap="round"/></svg>
-                      </button>
-                      )}
-                    </div>
-                  );
-                })}
-                </div>
-              </div>
-            );
-          })}
-        </div>
-        </div>
-          )
-        ) : null}
-      </section>
-    </div>
+    <HomeView
+      store={store}
+      summary={summary}
+      analysis={analysis}
+      focusDateISO={focusDateISO}
+      onFocusDateChange={setFocusDateISO}
+      onAction={onTipAction}
+      onMarkTipDone={onMarkTipDone}
+      onArchiveTip={onArchiveTip}
+      onOpenCalendar={() => onTipAction({ type: "calendar" })}
+      balanceChart={<BalanceChartWidget />}
+    />
   );
 }
 
 // ─── Page Header ───────────────────────────────────────────────────────────────
 const PAGE_META: Record<Page, { title: string; sub: string }> = {
-  dashboard: { title: "Insights", sub: "Your financial picture, spending mix, and ideas — then the widgets you choose below." },
+  dashboard: { title: "Home", sub: "Calendar, cash flow, and what to focus on next." },
   spending:  { title: "Transactions", sub: "Every dollar in and out of your accounts." },
   budget:    { title: "Budget", sub: "Tracks are ink; coral marks the category that's over." },
   goals:     { title: "Goals", sub: "Money you're holding for later." },
@@ -2967,6 +2654,7 @@ export default function App() {
     setLockedDashboardWidgets,
     resetAll,
     startFreshSetup,
+    startExplorePlatform,
     completeSetup,
     updateCalendarNote,
     markTipDone,
@@ -2987,9 +2675,9 @@ export default function App() {
   const [page, setPage] = useState<Page>("dashboard");
   const [viewMode, setViewMode] = useState<ViewMode>("cards");
   const [transactionsAccountFilter, setTransactionsAccountFilter] = useState<string | null>(null);
-  const [pickerOpen, setPickerOpen] = useState(false);
   /** Shown before onboarding for first-time users. */
   const [showSplash, setShowSplash] = useState(true);
+  const [exploreBannerDismissed, setExploreBannerDismissed] = useState(false);
   const [tourTarget, setTourTarget] = useState<string | null>(null);
   const [focusAction, setFocusAction] = useState<FetyActionTarget | null>(null);
   const analysis = useMemo(() => analyzeStore(store), [store]);
@@ -3007,13 +2695,6 @@ export default function App() {
     else setTourTarget(null);
   }, []);
 
-  const handlePinInsightWidget = useCallback(
-    (widgetId: string) => {
-      setPinnedWidgets((prev) => toggleWidgetOnDashboard(prev, widgetId));
-    },
-    [setPinnedWidgets],
-  );
-
   useEffect(() => {
     if (!tourTarget) return;
     const id = window.setTimeout(() => {
@@ -3022,8 +2703,6 @@ export default function App() {
     }, 80);
     return () => window.clearTimeout(id);
   }, [tourTarget, page]);
-  const isNarrow = useIsNarrow();
-
   const pinned = store.pinnedWidgets;
   const navDate = formatNavDate();
 
@@ -3132,21 +2811,9 @@ export default function App() {
         return (
           <DashboardView
             store={store}
-            summary={summary}
-            analysis={analysis}
             onTipAction={applyFetyAction}
-            onPinWidget={handlePinInsightWidget}
             onMarkTipDone={markTipDone}
             onArchiveTip={archiveTip}
-            highlightTarget={tourTarget}
-            pinned={pinned}
-            setPinned={setPinnedWidgets}
-            lockedWidgets={store.lockedDashboardWidgets ?? []}
-            onToggleWidgetLock={toggleDashboardWidgetLock}
-            onSetLockedWidgets={setLockedDashboardWidgets}
-            onCustomize={() => setPickerOpen(true)}
-            onCloseCustomize={() => setPickerOpen(false)}
-            customizing={pickerOpen}
           />
         );
     }
@@ -3154,7 +2821,16 @@ export default function App() {
 
   if (!store.onboardingCompleted) {
     if (showSplash) {
-      return <SplashView onSignUp={() => setShowSplash(false)} />;
+      return (
+        <SplashView
+          onSignUp={() => setShowSplash(false)}
+          onExplore={() => {
+            startExplorePlatform();
+            setShowSplash(false);
+            setPage("dashboard");
+          }}
+        />
+      );
     }
     return (
       <OnboardingView
@@ -3166,7 +2842,7 @@ export default function App() {
     );
   }
 
-  liveWidgets = { store, summary };
+  liveWidgets = { store, summary, focusDateISO: todayISO() };
 
   return (
     <div className="fety-shell">
@@ -3179,6 +2855,30 @@ export default function App() {
           onOpenProfile={() => setPage("profile")}
           onOpenNetWorth={() => setPage("networth")}
         />
+
+        {store.exploreMode && !exploreBannerDismissed ? (
+          <div className="fety-explore-banner" role="status">
+            <p>
+              You&apos;re exploring with sample data on this device — try the app freely. When you&apos;re ready, start your own setup.
+            </p>
+            <div className="fety-explore-banner-actions">
+              <button
+                type="button"
+                className="fety-explore-banner-primary"
+                onClick={() => {
+                  startFreshSetup();
+                  setExploreBannerDismissed(false);
+                  setPage("dashboard");
+                }}
+              >
+                Start my setup
+              </button>
+              <button type="button" className="fety-explore-banner-dismiss" onClick={() => setExploreBannerDismissed(true)}>
+                Dismiss
+              </button>
+            </div>
+          </div>
+        ) : null}
 
         <div style={{ flex: 1, display: "flex", overflow: "hidden", minHeight: 0 }}>
           {page === "calendar" ? (
@@ -3193,43 +2893,21 @@ export default function App() {
             />
           ) : (
             <>
-              <main className={`fety-main-scroll${pickerOpen && page === "dashboard" ? " fety-main-customizing" : ""}`} style={{ flex: 1, overflowY: "auto", padding: "24px 24px 48px", minWidth: 0 }}>
-                <div className="fety-page-header" style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", marginBottom: 20 }}>
-                  <div className="fety-page-header-text">
-                    <h1 style={{ fontSize: 26, fontWeight: 600, color: "var(--ink)", letterSpacing: "-0.02em", lineHeight: 1.2 }}>
-                      {pickerOpen && page === "dashboard" ? "Customise Insights" : pageTitle}
-                    </h1>
-                    <p style={{ fontSize: 15, color: "var(--ink-2)", marginTop: 4, lineHeight: 1.45 }}>
-                      {pickerOpen && page === "dashboard"
-                        ? "Make Fety work the way you want — add any widget from the full library."
-                        : (isNarrow
-                          ? "Turn widgets on or off, then drag them into place here."
-                          : PAGE_META[page].sub)}
-                    </p>
+              <main className="fety-main-scroll" style={{ flex: 1, overflowY: "auto", padding: "24px 24px 48px", minWidth: 0 }}>
+                {page !== "dashboard" ? (
+                  <div className="fety-page-header" style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", marginBottom: 20 }}>
+                    <div className="fety-page-header-text">
+                      <h1 style={{ fontSize: 26, fontWeight: 600, color: "var(--ink)", letterSpacing: "-0.02em", lineHeight: 1.2 }}>
+                        {pageTitle}
+                      </h1>
+                      <p style={{ fontSize: 15, color: "var(--ink-2)", marginTop: 4, lineHeight: 1.45 }}>
+                        {PAGE_META[page].sub}
+                      </p>
+                    </div>
                   </div>
-                </div>
-                {page === "dashboard" && pickerOpen && (
-                  <WidgetPicker
-                    variant="inline"
-                    pinned={pinned}
-                    assessment={assessment}
-                    onDashboardToggle={(id) => setPinnedWidgets((prev) => toggleWidgetOnDashboard(prev, id))}
-                    onRestoreRecommended={restoreRecommendedWidgets}
-                    onClose={() => setPickerOpen(false)}
-                  />
-                )}
+                ) : null}
                 {renderView()}
               </main>
-              {page === "dashboard" && pickerOpen && (
-                <WidgetPicker
-                  variant="sidebar"
-                  pinned={pinned}
-                  assessment={assessment}
-                  onDashboardToggle={(id) => setPinnedWidgets((prev) => toggleWidgetOnDashboard(prev, id))}
-                  onRestoreRecommended={restoreRecommendedWidgets}
-                  onClose={() => setPickerOpen(false)}
-                />
-              )}
             </>
           )}
         </div>

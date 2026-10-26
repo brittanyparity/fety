@@ -130,8 +130,10 @@ function FeatureVisual({ kind }: { kind: (typeof FEATURES)[number]["visual"] }) 
 
 export default function SplashView({
   onSignUp,
+  onExplore,
 }: {
   onSignUp: () => void;
+  onExplore: () => void;
 }) {
   const [mode, setMode] = useState<SplashMode>("home");
   const [email, setEmail] = useState("");
@@ -200,6 +202,9 @@ export default function SplashView({
           <button type="button" className="fety-splash-btn-primary" onClick={onSignUp}>
             Sign up
           </button>
+          <button type="button" className="fety-splash-link" onClick={onExplore}>
+            Explore
+          </button>
         </div>
         <button
           type="button"
@@ -256,6 +261,16 @@ export default function SplashView({
               </button>
               <button
                 type="button"
+                className="fety-splash-menu-item"
+                onClick={() => {
+                  setMenuOpen(false);
+                  onExplore();
+                }}
+              >
+                Explore the platform
+              </button>
+              <button
+                type="button"
                 className="fety-splash-menu-item fety-splash-menu-item--primary"
                 onClick={() => {
                   setMenuOpen(false);
@@ -283,10 +298,16 @@ export default function SplashView({
                   <button type="button" className="fety-splash-btn-primary fety-splash-btn-lg" onClick={onSignUp}>
                     Get started
                   </button>
+                  <button type="button" className="fety-splash-btn-ghost fety-splash-btn-lg" onClick={onExplore}>
+                    Explore the platform
+                  </button>
                   <button type="button" className="fety-splash-btn-ghost fety-splash-btn-lg" onClick={() => setMode("login")}>
                     Log in
                   </button>
                 </div>
+                <p className="fety-splash-explore-note">
+                  Explore loads sample data on this device so you can try Insights, Calendar, and Budget without setup.
+                </p>
               </div>
 
               <div className="fety-splash-hero-visual" aria-hidden>
@@ -349,9 +370,14 @@ export default function SplashView({
           <footer className="fety-splash-footer">
             <div className="fety-splash-shell fety-splash-footer-inner">
               <p>Fety keeps your books on this device until you choose cloud sync.</p>
-              <button type="button" className="fety-splash-btn-primary" onClick={onSignUp}>
-                Create your setup
-              </button>
+              <div className="fety-splash-footer-actions">
+                <button type="button" className="fety-splash-btn-primary" onClick={onSignUp}>
+                  Create your setup
+                </button>
+                <button type="button" className="fety-splash-btn-ghost" onClick={onExplore}>
+                  Explore with sample data
+                </button>
+              </div>
             </div>
           </footer>
         </>
@@ -390,6 +416,9 @@ export default function SplashView({
             </button>
             <button type="button" className="fety-splash-btn-ghost fety-splash-btn-lg" style={{ width: "100%" }} onClick={onSignUp}>
               Set up on this device
+            </button>
+            <button type="button" className="fety-splash-btn-ghost fety-splash-btn-lg" style={{ width: "100%" }} onClick={onExplore}>
+              Explore with sample data
             </button>
           </form>
         </section>

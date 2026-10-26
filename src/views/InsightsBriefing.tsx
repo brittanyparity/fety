@@ -50,7 +50,7 @@ export function incomeAllocationSlices(analysis: FinancialAnalysis): Slice[] {
     .map((p, i) => ({ ...p, fill: SLICE_COLORS[i % SLICE_COLORS.length] }));
 }
 
-function categoryDonutData(analysis: FinancialAnalysis) {
+export function categoryDonutData(analysis: FinancialAnalysis) {
   return analysis.categoryShares.slice(0, 6).map((d, i) => ({
     name: d.name,
     value: d.value,

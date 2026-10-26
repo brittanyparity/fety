@@ -113,13 +113,15 @@ function isInflow(t: Transaction, store: FetyStore): boolean {
   return t.amount > 0 && flowForTransactionType(store, t.type) === "income";
 }
 
+const calKey = (d: Date) => d.toISOString().slice(0, 10);
+
 function categorySpentInMonth(store: FetyStore, categoryName: string, ref: Date): number {
   const start = monthStart(ref);
   const end = monthEnd(ref);
   const asOf = balanceAsOfISO(store);
-  const today = todayISO();
-  const todayDate = new Date(`${today}T12:00:00`);
-  const through = end > todayDate ? todayDate : end;
+  const focusISO = calKey(ref);
+  const focusDate = new Date(`${focusISO}T12:00:00`);
+  const through = end > focusDate ? focusDate : end;
   return store.transactions
     .filter(
       (t) =>
@@ -147,21 +149,21 @@ export function endingBalanceOnDate(store: FetyStore, dateISO: string): number {
 }
 
 export function computeSummary(store: FetyStore, ref = new Date()): FinanceSummary {
-  const today = todayISO();
+  const focusISO = calKey(ref);
   const wStart = startOfWeek(ref);
   const wEnd = endOfWeek(ref);
   const mStart = monthStart(ref);
   const mEnd = monthEnd(ref);
   const asOf = balanceAsOfISO(store);
-  const balance = endingBalanceOnDate(store, today);
-  const balanceTx = store.transactions.filter((t) => t.dateISO >= asOf && t.dateISO <= today);
+  const balance = endingBalanceOnDate(store, focusISO);
+  const balanceTx = store.transactions.filter((t) => t.dateISO >= asOf && t.dateISO <= focusISO);
 
   const moneyInToday = balanceTx
-    .filter((t) => t.dateISO === today && isInflow(t, store))
+    .filter((t) => t.dateISO === focusISO && isInflow(t, store))
     .reduce((s, t) => s + t.amount, 0);
 
   const moneyOutToday = balanceTx
-    .filter((t) => t.dateISO === today && isOutflow(t, store))
+    .filter((t) => t.dateISO === focusISO && isOutflow(t, store))
     .reduce((s, t) => s + Math.abs(t.amount), 0);
 
   const weeklySpent = balanceTx
@@ -190,7 +192,7 @@ export function computeSummary(store: FetyStore, ref = new Date()): FinanceSumma
 
   return {
     balance,
-    balanceThroughToday: endingBalanceOnDate(store, today),
+    balanceThroughToday: endingBalanceOnDate(store, focusISO),
     moneyInToday,
     moneyOutToday,
     savingsTotal,
@@ -203,8 +205,6 @@ export function computeSummary(store: FetyStore, ref = new Date()): FinanceSumma
     categoriesWithSpent,
   };
 }
-
-const calKey = (d: Date) => d.toISOString().slice(0, 10);
 
 function itemTypeForTransaction(t: Transaction, store: FetyStore): CalDayItemType {
   const flow = flowForTransactionType(store, t.type);

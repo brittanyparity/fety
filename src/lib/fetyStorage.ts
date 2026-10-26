@@ -173,6 +173,27 @@ export function createEmptyStore(): FetyStore {
   };
 }
 
+/** Demo data for “Explore the platform” (no setup wizard). */
+export function createExploreStore(): FetyStore {
+  return {
+    ...createDefaultStore(),
+    exploreMode: true,
+    incomeStreams: [
+      {
+        id: "inc-explore-1",
+        name: "Employer Paycheck",
+        amount: 2800,
+        dueDay: 1,
+        frequency: "semimonthly",
+        category: "Income",
+        icon: "💵",
+        semiMonthlyDays: [1, 15],
+        startDateISO: isoDaysAgo(90),
+      },
+    ],
+  };
+}
+
 export function createDefaultStore(): FetyStore {
   return {
     version: 1,

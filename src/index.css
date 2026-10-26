@@ -337,13 +337,20 @@ html, body, #root {
   font-family: var(--font-sans);
 }
 
-.fety-nav-hamburger {
+.fety-nav-menu-wrap {
   display: none;
+  align-items: center;
+  margin-left: auto;
+  position: relative;
+  flex-shrink: 0;
+}
+
+.fety-nav-hamburger {
+  display: inline-flex;
   align-items: center;
   justify-content: center;
   width: 40px;
   height: 40px;
-  margin-left: auto;
   border: 1px solid var(--border);
   border-radius: var(--radius-ctrl);
   background: var(--surface);
@@ -1274,6 +1281,319 @@ html, body, #root {
   margin-bottom: 8px;
 }
 
+/* ─── Home page grid ─────────────────────────────────────────────────────── */
+
+.fety-home {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.fety-home-row {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 14px;
+  align-items: stretch;
+}
+
+.fety-home-row--hero {
+  min-height: min(440px, 54vh);
+  max-height: 560px;
+}
+
+.fety-home-cell {
+  min-width: 0;
+}
+
+.fety-home-span-2 {
+  grid-column: span 2;
+}
+
+.fety-home-span-3 {
+  grid-column: span 3;
+}
+
+.fety-home-card {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-card, 16px);
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  height: 100%;
+}
+
+.fety-home-card-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 12px 16px;
+  border-bottom: 1px solid var(--border);
+  background: var(--bg);
+}
+
+.fety-home-card-title {
+  margin: 0;
+  font-size: 13px;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  color: var(--ink);
+}
+
+.fety-home-card-body {
+  padding: 14px 16px 16px;
+  flex: 1;
+  min-height: 0;
+  overflow: auto;
+}
+
+.fety-home-stats-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  grid-template-rows: 1fr 1fr;
+  gap: 10px;
+  min-height: 220px;
+  height: 100%;
+}
+
+.fety-home-stats-stack {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  height: 100%;
+  min-height: 0;
+}
+
+.fety-home-stats-stack .fety-home-stat {
+  flex: 1;
+  min-height: 72px;
+}
+
+.fety-home-stat {
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 14px 16px;
+  background: var(--bg);
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  min-height: 0;
+}
+
+.fety-home-stat-label {
+  margin: 0 0 6px;
+  font-size: 10px;
+  font-family: var(--font-mono);
+  text-transform: uppercase;
+  letter-spacing: 0.14em;
+  color: var(--ink-3);
+}
+
+.fety-home-stat-value {
+  margin: 0;
+  font-size: clamp(22px, 2.4vw, 28px);
+  font-weight: 400;
+  letter-spacing: -0.04em;
+  color: var(--ink);
+  line-height: 1.05;
+}
+
+.fety-home-stat-sub {
+  margin: 6px 0 0;
+  font-size: 11px;
+  color: var(--ink-3);
+}
+
+.fety-home-stat--in .fety-home-stat-value {
+  color: var(--lime-dk);
+}
+
+.fety-home-stat--out .fety-home-stat-value {
+  color: var(--peach-dk);
+}
+
+.fety-home-stat--power .fety-home-stat-value {
+  color: var(--amber-dk);
+}
+
+.fety-home-calendar-toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 8px;
+}
+
+.fety-home-calendar-month {
+  margin: 0;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--ink);
+}
+
+.fety-home-calendar-nav {
+  width: 28px;
+  height: 28px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--bg);
+  cursor: pointer;
+  color: var(--ink-2);
+  font-size: 16px;
+  line-height: 1;
+}
+
+.fety-home-calendar-dow {
+  display: grid;
+  grid-template-columns: repeat(7, 1fr);
+  gap: 3px;
+  margin-bottom: 4px;
+  font-size: 9px;
+  font-weight: 600;
+  text-align: center;
+  color: var(--ink-3);
+  text-transform: uppercase;
+}
+
+.fety-home-calendar-grid {
+  display: grid;
+  grid-template-columns: repeat(7, 1fr);
+  gap: 3px;
+}
+
+.fety-home-calendar-pad {
+  min-height: 44px;
+}
+
+.fety-home-calendar-day {
+  min-height: 44px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 4px 5px;
+  cursor: pointer;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 2px;
+  text-align: left;
+}
+
+.fety-home-calendar-day--today {
+  box-shadow: inset 0 0 0 1px var(--clear-dk);
+}
+
+.fety-home-calendar-day--selected {
+  box-shadow: inset 0 0 0 2px var(--ink);
+}
+
+.fety-home-row--hero .fety-home-calendar-pad {
+  min-height: 52px;
+}
+
+.fety-home-row--hero .fety-home-calendar-day {
+  min-height: 52px;
+}
+
+.fety-home-calendar-day-num {
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--ink);
+  line-height: 1;
+}
+
+.fety-home-calendar-day-bal {
+  font-size: 8px;
+  font-weight: 600;
+  font-family: var(--font-sans);
+  margin-top: auto;
+}
+
+.fety-home-calendar-open {
+  margin-top: 10px;
+  width: 100%;
+  padding: 8px 12px;
+  border-radius: 99px;
+  border: 1px solid var(--border);
+  background: var(--bg);
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--ink);
+  cursor: pointer;
+}
+
+.fety-home-insight-tabs {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  margin-bottom: 12px;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  overflow: hidden;
+  background: var(--bg);
+}
+
+.fety-home-insight-tab {
+  padding: 10px 12px;
+  border: none;
+  border-right: 1px solid var(--border);
+  border-radius: 0;
+  background: transparent;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--ink-3);
+  cursor: pointer;
+  text-align: center;
+}
+
+.fety-home-insight-tab:last-child {
+  border-right: none;
+}
+
+.fety-home-insight-tab-active {
+  color: var(--ink);
+  background: var(--surface);
+}
+
+.fety-home-insight-lede {
+  margin: 0 0 10px;
+  font-size: 13px;
+  line-height: 1.45;
+  color: var(--ink-2);
+}
+
+.fety-analysis-stats--compact dd {
+  font-size: 18px;
+}
+
+.fety-analysis-legend--compact {
+  margin-bottom: 10px;
+}
+
+.fety-home-insight-visual {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.fety-insights-try-grid--home {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
+@media (max-width: 1100px) {
+  .fety-home-row {
+    grid-template-columns: 1fr;
+  }
+
+  .fety-home-span-2,
+  .fety-home-span-3 {
+    grid-column: span 1;
+  }
+
+  .fety-insights-try-grid--home {
+    grid-template-columns: 1fr;
+  }
+}
+
 .fety-insights-section {
   background: var(--surface);
   border: 1px solid var(--border);
@@ -1424,6 +1744,31 @@ html, body, #root {
 
 .fety-insights-charts-body {
   padding: 16px 16px 20px;
+}
+
+.fety-widget-size-band {
+  padding: 4px 2px 2px;
+  margin-top: 4px;
+}
+
+.fety-widget-size-band:first-child {
+  margin-top: 0;
+}
+
+.fety-widget-size-band-title {
+  margin: 0;
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--ink-3);
+}
+
+.fety-widget-size-band-hint {
+  margin: 2px 0 0;
+  font-size: 10px;
+  color: var(--ink-3);
+  line-height: 1.4;
 }
 
 .fety-insights-charts-empty {
@@ -2357,10 +2702,6 @@ html, body, #root {
   box-sizing: border-box;
 }
 
-.fety-mobile-tabs {
-  display: none;
-}
-
 .fety-cal-year-scroll-wrap {
   width: 100%;
   min-width: 0;
@@ -2375,14 +2716,89 @@ html, body, #root {
 }
 
 @media (max-width: 1024px) {
-  .fety-nav-links {
-    overflow-x: auto;
-    max-width: min(52vw, 420px);
-    scrollbar-width: none;
+  .fety-nav {
+    padding: 0 14px;
+    gap: 12px;
   }
 
-  .fety-nav-links::-webkit-scrollbar {
+  .fety-nav-links,
+  .fety-nav-actions {
     display: none;
+  }
+
+  .fety-nav-menu-wrap {
+    display: flex;
+  }
+
+  .fety-nav-backdrop {
+    display: block;
+    position: fixed;
+    inset: 0;
+    z-index: 45;
+    border: none;
+    background: rgba(0, 0, 0, 0.35);
+    cursor: pointer;
+  }
+
+  .fety-nav-drawer {
+    display: flex;
+    flex-direction: column;
+    position: absolute;
+    top: calc(100% + 8px);
+    right: 0;
+    left: auto;
+    z-index: 50;
+    min-width: 240px;
+    max-width: min(320px, calc(100vw - 28px));
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 8px;
+    box-shadow: 0 12px 32px rgba(0, 0, 0, 0.12);
+    max-height: min(70vh, 480px);
+    overflow-y: auto;
+  }
+
+  .fety-nav-drawer-date {
+    font-size: 10px;
+    color: var(--ink-3);
+    font-family: var(--font-mono);
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    margin: 4px 8px 8px;
+  }
+
+  .fety-nav-drawer-link {
+    width: 100%;
+    text-align: left;
+    min-height: 42px;
+    padding: 10px 12px;
+    border: none;
+    border-radius: 8px;
+    background: transparent;
+    font-family: var(--font-mono);
+    font-size: 11px;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    color: var(--ink-2);
+    cursor: pointer;
+  }
+
+  .fety-nav-drawer-link:hover {
+    background: var(--paper);
+    color: var(--ink);
+  }
+
+  .fety-nav-drawer-link-active {
+    background: var(--bg);
+    color: var(--ink);
+    font-weight: 500;
+  }
+
+  .fety-nav-drawer-divider {
+    height: 1px;
+    margin: 6px 8px;
+    background: var(--border);
   }
 
   .fety-main-scroll {
@@ -2402,115 +2818,6 @@ html, body, #root {
   .fety-logo-mark {
     display: block;
     font-size: 28px;
-  }
-
-  .fety-nav {
-    padding: 0 14px;
-    justify-content: space-between;
-  }
-
-  .fety-nav-links,
-  .fety-nav-actions {
-    display: none;
-  }
-
-  .fety-nav-hamburger {
-    display: inline-flex;
-  }
-
-  .fety-mobile-tabs {
-    display: flex;
-    gap: 6px;
-    padding: 8px 12px 10px;
-    overflow-x: auto;
-    scrollbar-width: none;
-    -webkit-overflow-scrolling: touch;
-    background: var(--surface);
-    border-bottom: 1px solid var(--border);
-    flex-shrink: 0;
-  }
-
-  .fety-mobile-tabs::-webkit-scrollbar {
-    display: none;
-  }
-
-  .fety-mobile-tab {
-    flex: 0 0 auto;
-    min-height: 36px;
-    padding: 8px 12px;
-    border: 1px solid var(--border);
-    border-radius: 8px;
-    background: var(--bg);
-    color: var(--ink-2);
-    font-family: var(--font-mono);
-    font-size: 11px;
-    letter-spacing: 0.08em;
-    text-transform: uppercase;
-    cursor: pointer;
-  }
-
-  .fety-mobile-tab-active {
-    background: var(--ink);
-    border-color: var(--ink);
-    color: #fff;
-  }
-
-  .fety-nav-backdrop {
-    display: block;
-    position: fixed;
-    inset: 56px 0 0 0;
-    z-index: 45;
-    border: none;
-    background: rgba(0, 0, 0, 0.45);
-    cursor: pointer;
-  }
-
-  .fety-nav-drawer {
-    display: flex;
-    flex-direction: column;
-    position: absolute;
-    top: 56px;
-    left: 0;
-    right: 0;
-    z-index: 50;
-    background: var(--surface);
-    border-bottom: 1px solid var(--border);
-    padding: 12px 14px 16px;
-    box-shadow: 0 12px 32px rgba(0, 0, 0, 0.08);
-    max-height: calc(100vh - 56px);
-    overflow-y: auto;
-  }
-
-  .fety-nav-drawer-date {
-    font-size: 11px;
-    color: var(--ink-3);
-    font-family: var(--font-mono);
-    letter-spacing: 0.08em;
-    text-transform: uppercase;
-    margin-bottom: 10px;
-    padding: 0 4px;
-  }
-
-  .fety-nav-drawer-link {
-    width: 100%;
-    text-align: left;
-    min-height: 44px;
-    padding: 12px 12px;
-    border: none;
-    border-radius: var(--radius-inner);
-    background: transparent;
-    font-family: var(--font-mono);
-    font-size: 12px;
-    letter-spacing: 0.12em;
-    text-transform: uppercase;
-    color: var(--ink-2);
-    cursor: pointer;
-  }
-
-  .fety-nav-drawer-link-active {
-    background: var(--bg);
-    color: var(--ink);
-    font-weight: 500;
   }
 
   .fety-main-scroll {
@@ -3342,6 +3649,72 @@ html, body, #root {
   max-width: 42ch;
 }
 
+.fety-splash-explore-note {
+  margin: 14px 0 0;
+  max-width: 36em;
+  font-size: 13px;
+  line-height: 1.45;
+  color: var(--ink-3);
+}
+
+.fety-splash-footer-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  align-items: center;
+}
+
+.fety-explore-banner {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px 16px;
+  padding: 10px 20px;
+  background: rgba(145, 216, 182, 0.2);
+  border-bottom: 1px solid rgba(46, 143, 102, 0.25);
+  flex-shrink: 0;
+}
+
+.fety-explore-banner p {
+  margin: 0;
+  font-size: 12px;
+  line-height: 1.45;
+  color: var(--ink-2);
+  flex: 1;
+  min-width: 200px;
+}
+
+.fety-explore-banner-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: center;
+}
+
+.fety-explore-banner-primary {
+  padding: 7px 14px;
+  border-radius: 99px;
+  border: 1px solid var(--ink);
+  background: var(--ink);
+  color: #fff;
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.fety-explore-banner-dismiss {
+  padding: 7px 12px;
+  border: none;
+  background: transparent;
+  color: var(--ink-2);
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+
 .fety-splash-cta {
   display: flex;
   flex-wrap: wrap;
@@ -3908,7 +4281,14 @@ html, body, #root {
     align-items: stretch;
   }
 
-  .fety-splash-footer .fety-splash-btn-primary {
+  .fety-splash-footer-actions {
+    width: 100%;
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .fety-splash-footer-actions .fety-splash-btn-primary,
+  .fety-splash-footer-actions .fety-splash-btn-ghost {
     width: 100%;
   }
 }

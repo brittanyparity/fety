@@ -174,6 +174,8 @@ export interface FetyStore {
   widgetsPersonalizedV2?: boolean;
   /** Explicit user customization of pins/order — takes precedence over assessment recommendations. */
   dashboardCustomizedByUser?: boolean;
+  /** Sample-data tour — user skipped onboarding via Explore on splash. */
+  exploreMode?: boolean;
   /** Per-widget source/preference metadata (core | recommended | user-added). */
   dashboardWidgetStates?: import("./widgets").DashboardWidgetState[];
 }

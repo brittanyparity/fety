@@ -12,7 +12,7 @@
     "build": "vite build",
     "preview": "vite preview",
     "format": "oxfmt",
-    "test": "tsx --test src/lib/financialAnalysis.test.ts src/lib/needsAssessment.test.ts"
+    "test": "tsx --test src/lib/financialAnalysis.test.ts src/lib/needsAssessment.test.ts src/lib/widgetLayout.test.ts"
   },
   "dependencies": {
     "react": "^19.0.0",
