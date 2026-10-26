@@ -294,7 +294,7 @@ export default function HomeInsightCharts({
       {tab === "power" ? (
         <div
           id="fety-home-insight-panel-power"
-          className="fety-home-insight-panel"
+          className="fety-home-insight-panel fety-home-insight-panel--vcenter"
           role="tabpanel"
           aria-labelledby="fety-home-insight-tab-power"
         >

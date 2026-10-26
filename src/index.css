@@ -1785,7 +1785,8 @@ html, body, #root {
   align-items: center;
 }
 
-.fety-home-insight-panel--vcenter .fety-home-insight-split {
+.fety-home-insight-panel--vcenter .fety-home-insight-split,
+.fety-home-insight-panel--vcenter .fety-home-spending-mix {
   width: 100%;
 }
 
