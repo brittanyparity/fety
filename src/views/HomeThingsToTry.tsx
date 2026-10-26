@@ -6,21 +6,19 @@ import type { FetyStore } from "../types/fety";
 export default function HomeThingsToTry({
   store,
   analysis,
-  focusDateISO,
   onAction,
   onMarkDone,
   onArchive,
 }: {
   store: FetyStore;
   analysis: FinancialAnalysis;
-  focusDateISO: string;
   onAction: (action: FetyActionTarget) => void;
   onMarkDone: (tipId: string) => void;
   onArchive: (tipId: string) => void;
 }) {
   const slots = useMemo(
-    () => resolveInsightTipSlots(store, analysis, focusDateISO),
-    [store, analysis, focusDateISO, store.insightTipProgress],
+    () => resolveInsightTipSlots(store, analysis),
+    [store, analysis, store.insightTipProgress],
   );
 
   return (

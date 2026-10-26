@@ -10,8 +10,16 @@ import type {
 import { flowForTransactionType } from "./transactionTypes";
 import { globalBalanceContribution, goalSavedTotal, accountBalanceWithTransactions } from "./ledger";
 
+/** Calendar / UI date key in the user's local timezone (YYYY-MM-DD). */
+export function dateToISOLocal(d: Date): string {
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, "0");
+  const day = String(d.getDate()).padStart(2, "0");
+  return `${y}-${m}-${day}`;
+}
+
 export function todayISO(): string {
-  return new Date().toISOString().slice(0, 10);
+  return dateToISOLocal(new Date());
 }
 
 export function formatDisplayDate(dateISO: string): string {
@@ -19,7 +27,7 @@ export function formatDisplayDate(dateISO: string): string {
   const d = new Date(dateISO + "T12:00:00");
   const yesterday = new Date();
   yesterday.setDate(yesterday.getDate() - 1);
-  const yISO = yesterday.toISOString().slice(0, 10);
+  const yISO = dateToISOLocal(yesterday);
   if (dateISO === today) return "Today";
   if (dateISO === yISO) return "Yesterday";
   return d.toLocaleDateString(undefined, { month: "short", day: "numeric" });
@@ -31,7 +39,7 @@ export function formatTransactionGroupDate(dateISO: string): string {
   const d = new Date(dateISO + "T12:00:00");
   const yesterday = new Date();
   yesterday.setDate(yesterday.getDate() - 1);
-  const yISO = yesterday.toISOString().slice(0, 10);
+  const yISO = dateToISOLocal(yesterday);
   if (dateISO === today) return "Today";
   if (dateISO === yISO) return "Yesterday";
   return d.toLocaleDateString(undefined, { month: "short", day: "numeric", year: "numeric" });
@@ -63,7 +71,7 @@ export function formatConversationalDate(dateISO: string): string {
   const today = todayISO();
   const yesterday = new Date();
   yesterday.setDate(yesterday.getDate() - 1);
-  const yISO = yesterday.toISOString().slice(0, 10);
+  const yISO = dateToISOLocal(yesterday);
   if (iso === today) return "today";
   if (iso === yISO) return "yesterday";
   const d = new Date(`${iso}T12:00:00`);
@@ -113,7 +121,7 @@ function isInflow(t: Transaction, store: FetyStore): boolean {
   return t.amount > 0 && flowForTransactionType(store, t.type) === "income";
 }
 
-const calKey = (d: Date) => d.toISOString().slice(0, 10);
+const calKey = (d: Date) => dateToISOLocal(d);
 
 function categorySpentInMonth(store: FetyStore, categoryName: string, ref: Date): number {
   const start = monthStart(ref);
@@ -321,15 +329,41 @@ function labelForBalancePoint(d: Date, range: BalanceChartRange): string {
   return d.toLocaleDateString("en-US", { month: "short", day: "numeric" });
 }
 
+/** 30D axis: day number always; month abbreviation only on the first in-range day of each month. */
+function labelForBalancePoint30d(d: Date, firstDayOfMonthOnChart: boolean): string {
+  const dayNum = String(d.getDate());
+  if (!firstDayOfMonthOnChart) return dayNum;
+  const month = d.toLocaleDateString("en-US", { month: "short" });
+  return `${month} ${dayNum}`;
+}
+
+export type BalanceChartPoint = {
+  /** X-axis tick label (may be abbreviated on 30D). */
+  d: string;
+  bal: number;
+  /** Full calendar date for chart tooltips. */
+  dateLabel: string;
+};
+
+function formatBalanceChartTooltipDate(d: Date): string {
+  return d.toLocaleDateString("en-US", {
+    weekday: "short",
+    month: "short",
+    day: "numeric",
+    year: "numeric",
+  });
+}
+
 /** Daily ending balances for a selectable lookback (or calendar month to date). */
 export function endingBalancesForRange(
   store: FetyStore,
   range: BalanceChartRange,
   ref = new Date(),
   accountId?: string | null,
-): { d: string; bal: number }[] {
+): BalanceChartPoint[] {
   const count = daysInBalanceRange(range, ref);
-  const out: { d: string; bal: number }[] = [];
+  const out: BalanceChartPoint[] = [];
+  const monthsSeenOnChart = new Set<string>();
   for (let i = count - 1; i >= 0; i--) {
     const d = new Date(ref);
     d.setHours(12, 0, 0, 0);
@@ -338,7 +372,16 @@ export function endingBalancesForRange(
     const bal = accountId
       ? accountBalanceWithTransactions(store, accountId, key)
       : endingBalanceOnDate(store, key);
-    out.push({ d: labelForBalancePoint(d, range), bal });
+    let label: string;
+    if (range === "30d") {
+      const monthKey = `${d.getFullYear()}-${d.getMonth()}`;
+      const firstDayOfMonthOnChart = !monthsSeenOnChart.has(monthKey);
+      if (firstDayOfMonthOnChart) monthsSeenOnChart.add(monthKey);
+      label = labelForBalancePoint30d(d, firstDayOfMonthOnChart);
+    } else {
+      label = labelForBalancePoint(d, range);
+    }
+    out.push({ d: label, bal, dateLabel: formatBalanceChartTooltipDate(d) });
   }
   return out;
 }

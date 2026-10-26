@@ -121,6 +121,19 @@ export function analyzeStore(store: FetyStore, ref = new Date()): FinancialAnaly
       value: spendTotal > 0 ? Math.round((monthly / spendTotal) * 100) : 0,
     }));
 
+  const budgetTotal = store.categories.reduce((s, c) => s + Math.max(0, c.monthlyBudget), 0);
+  const budgetCategoryShares = store.categories
+    .slice()
+    .sort((a, b) => b.monthlyBudget - a.monthlyBudget || a.name.localeCompare(b.name))
+    .map((c) => {
+      const monthly = Math.max(0, c.monthlyBudget);
+      return {
+        name: c.name,
+        monthly,
+        value: budgetTotal > 0 ? Math.round((monthly / budgetTotal) * 100) : 0,
+      };
+    });
+
   const topFlex = [...flexibleByCategory.entries()].sort((a, b) => b[1] - a[1])[0];
   const largestBill = bills
     .map((b) => ({ bill: b, monthly: billMonthly(b) }))
@@ -342,6 +355,11 @@ export function analyzeStore(store: FetyStore, ref = new Date()): FinancialAnaly
     });
   }
 
+  const goalsMonthlyContributions = goals.reduce(
+    (s, g) => s + Math.max(0, g.monthlyContribution ?? 0),
+    0,
+  );
+
   const rankedInsights = topInsights(insights);
   return {
     expectedMonthlyIncome,
@@ -353,6 +371,8 @@ export function analyzeStore(store: FetyStore, ref = new Date()): FinancialAnaly
     qualifier,
     missing,
     categoryShares,
+    budgetCategoryShares,
+    goalsMonthlyContributions,
     insights: rankedInsights,
     tips: tips.slice(0, 3),
   };

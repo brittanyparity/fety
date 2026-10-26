@@ -113,6 +113,10 @@ export type FinancialAnalysis = {
     goals: boolean;
   };
   categoryShares: CategoryShare[];
+  /** Every user budget category and its share of total monthly budget. */
+  budgetCategoryShares: CategoryShare[];
+  /** Planned monthly contributions across all goals. */
+  goalsMonthlyContributions: number;
   insights: FinancialInsight[];
   tips: FinancialTip[];
 };

@@ -1,4 +1,15 @@
-import type { Bill, BudgetCategory, ChatMessage, FetyStore, Goal, Transaction, Account, TransactionType, TypeIconMap } from "../types/fety";
+import type {
+  Bill,
+  BudgetCategory,
+  ChatMessage,
+  FetyStore,
+  Goal,
+  RecurringTransaction,
+  Transaction,
+  Account,
+  TransactionType,
+  TypeIconMap,
+} from "../types/fety";
 import { normalizeCalendarNotes } from "./calendarNotes";
 import { applyBillScheduleToStore, dedupeBills, isScheduledTransaction } from "./billScheduling";
 import { normalizeAccountRecord } from "./ledger";
@@ -22,6 +33,82 @@ function isoDaysAgo(days: number): string {
   return d.toISOString().slice(0, 10);
 }
 
+function seedGoalTransactions(): Transaction[] {
+  return [
+    {
+      id: "tg1",
+      dateISO: isoDaysAgo(2),
+      desc: "Emergency fund deposit",
+      category: "Savings",
+      amount: -250,
+      type: "transfer",
+      icon: "🛡️",
+      fromAccountId: "a1",
+      toAccountId: "a2",
+      goalId: "g1",
+    },
+    {
+      id: "tg2",
+      dateISO: isoDaysAgo(4),
+      desc: "Vacation fund",
+      category: "Savings",
+      amount: -200,
+      type: "transfer",
+      icon: "✈️",
+      fromAccountId: "a1",
+      toAccountId: "a2",
+      goalId: "g2",
+    },
+    {
+      id: "tg3",
+      dateISO: isoDaysAgo(8),
+      desc: "Extra credit card payment",
+      category: "Personal",
+      amount: -400,
+      type: "expense",
+      icon: "💳",
+      fromAccountId: "a1",
+      goalId: "g3",
+    },
+    {
+      id: "tg4",
+      dateISO: isoDaysAgo(12),
+      desc: "New car savings",
+      category: "Savings",
+      amount: -500,
+      type: "transfer",
+      icon: "🚗",
+      fromAccountId: "a1",
+      toAccountId: "a2",
+      goalId: "g4",
+    },
+    {
+      id: "tg5",
+      dateISO: isoDaysAgo(16),
+      desc: "Emergency fund — payday",
+      category: "Savings",
+      amount: -250,
+      type: "transfer",
+      icon: "🛡️",
+      fromAccountId: "a1",
+      toAccountId: "a2",
+      goalId: "g1",
+    },
+    {
+      id: "tg6",
+      dateISO: isoDaysAgo(20),
+      desc: "Vacation fund",
+      category: "Savings",
+      amount: -200,
+      type: "transfer",
+      icon: "✈️",
+      fromAccountId: "a1",
+      toAccountId: "a2",
+      goalId: "g2",
+    },
+  ];
+}
+
 function seedTransactions(): Transaction[] {
   return [
     { id: "t1", dateISO: isoDaysAgo(0), desc: "Whole Foods Market", category: "Groceries", amount: -52.4, type: "expense", icon: "🛒" },
@@ -31,9 +118,38 @@ function seedTransactions(): Transaction[] {
     { id: "t5", dateISO: isoDaysAgo(17), desc: "Employer Paycheck", category: "Income", amount: 2800, type: "income", icon: "💵" },
     { id: "t6", dateISO: isoDaysAgo(17), desc: "Gas Station", category: "Transportation", amount: -48, type: "expense", icon: "⛽" },
     { id: "t7", dateISO: isoDaysAgo(19), desc: "Trader Joe's", category: "Groceries", amount: -87.32, type: "expense", icon: "🛒" },
-    { id: "t8", dateISO: isoDaysAgo(19), desc: "Savings Transfer", category: "Savings", amount: -200, type: "transfer", icon: "🏦" },
+    ...seedGoalTransactions(),
   ];
 }
+
+const DEFAULT_GOAL_RECURRING: RecurringTransaction[] = [
+  {
+    id: "rec-goal-emergency",
+    name: "Emergency fund auto-save",
+    amount: 250,
+    dueDay: 2,
+    frequency: "monthly",
+    category: "Savings",
+    icon: "🛡️",
+    transactionType: "transfer",
+    fromAccountId: "a1",
+    toAccountId: "a2",
+    goalId: "g1",
+  },
+  {
+    id: "rec-goal-vacation",
+    name: "Vacation contribution",
+    amount: 200,
+    dueDay: 15,
+    frequency: "monthly",
+    category: "Savings",
+    icon: "✈️",
+    transactionType: "transfer",
+    fromAccountId: "a1",
+    toAccountId: "a2",
+    goalId: "g2",
+  },
+];
 
 const DEFAULT_CATEGORIES: BudgetCategory[] = [
   { id: "c1", name: "Housing", icon: "🏠", monthlyBudget: 2000 },
@@ -208,6 +324,7 @@ export function createDefaultStore(): FetyStore {
     categories: DEFAULT_CATEGORIES,
     transactions: seedTransactions(),
     bills: DEFAULT_BILLS,
+    recurringTransactions: DEFAULT_GOAL_RECURRING,
     goals: DEFAULT_GOALS,
     accounts: DEFAULT_ACCOUNTS,
     messages: SEED_MESSAGES,
@@ -334,7 +451,33 @@ function migrateStore(store: FetyStore): FetyStore {
     accounts: (next.accounts ?? []).map((a) => normalizeAccountRecord(a, next)),
     transactions: next.transactions.filter((t) => !isScheduledTransaction(t.id)),
   };
-  return applyBillScheduleToStore(next);
+  next = applyBillScheduleToStore(next);
+  return ensureDemoGoalLinkedActivity(next);
+}
+
+/** Sample / demo stores get goal-linked txs so Goals surfaces (Insights bar, Goals page, etc.). */
+function ensureDemoGoalLinkedActivity(store: FetyStore): FetyStore {
+  const hasDefaultDemoGoals = store.goals.some((g) => g.id === "g1" && g.name === "Emergency Fund");
+  if (!hasDefaultDemoGoals) return store;
+
+  const hasGoalTx = store.transactions.some((t) => t.goalId);
+  const hasGoalRecurring = (store.recurringTransactions ?? []).some((r) => r.goalId);
+  if (hasGoalTx && hasGoalRecurring) return store;
+
+  const existingIds = new Set(store.transactions.map((t) => t.id));
+  const extraTx = seedGoalTransactions().filter((t) => !existingIds.has(t.id));
+  const existingRecurIds = new Set((store.recurringTransactions ?? []).map((r) => r.id));
+  const extraRecur = DEFAULT_GOAL_RECURRING.filter((r) => !existingRecurIds.has(r.id));
+
+  if (extraTx.length === 0 && extraRecur.length === 0) return store;
+
+  return {
+    ...store,
+    transactions: extraTx.length ? [...store.transactions, ...extraTx] : store.transactions,
+    recurringTransactions: extraRecur.length
+      ? [...(store.recurringTransactions ?? []), ...extraRecur]
+      : store.recurringTransactions,
+  };
 }
 
 export function loadStore(): FetyStore {
@@ -344,7 +487,12 @@ export function loadStore(): FetyStore {
     if (!raw) return createEmptyStore();
     const parsed = JSON.parse(raw) as FetyStore;
     if (parsed?.version !== 1) return createEmptyStore();
-    return migrateStore(parsed);
+    const migrated = migrateStore(parsed);
+    const goalTxAdded =
+      migrated.transactions.length !== parsed.transactions.length ||
+      (migrated.recurringTransactions?.length ?? 0) !== (parsed.recurringTransactions?.length ?? 0);
+    if (goalTxAdded) saveStore(migrated);
+    return migrated;
   } catch {
     return createEmptyStore();
   }

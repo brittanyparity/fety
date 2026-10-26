@@ -10,6 +10,7 @@ import {
   XAxis,
   YAxis,
 } from "recharts";
+import type { PieLabelRenderProps, TooltipProps } from "recharts";
 import { resolveInsightTipSlots, type InsightTipSlot } from "../lib/insightTips";
 import type { FinancialAnalysis, FetyActionTarget } from "../types/analysis";
 import type { FetyStore } from "../types/fety";
@@ -33,30 +34,152 @@ const INSIGHT_TABS: { id: InsightTab; label: string }[] = [
 
 type Slice = { name: string; amount: number; fill: string };
 
+const PIE_START_ANGLE = 90;
+const PIE_END_ANGLE = -270;
+const PIE_LABEL_RADIAN = Math.PI / 180;
+
+const INCOME_SLICE_LABEL_SHORT: Record<string, string> = {
+  Expenses: "Expenses",
+  Goals: "Goals",
+  Available: "Available",
+};
+
+const GOALS_SLICE_FILL = "#7B63E8";
+const EXPENSES_SLICE_FILL = "#D14A34";
+const AVAILABLE_SLICE_FILL = "#2E8F66";
+
+function incomeSliceLabelColor(fill: string | undefined): string {
+  const f = (fill ?? "").toLowerCase();
+  if (
+    f === "#111111" ||
+    f === "#2e8f66" ||
+    f === "#d14a34" ||
+    f === "#b07000" ||
+    f === "#7b63e8"
+  )
+    return "#ffffff";
+  return "#111111";
+}
+
+function renderIncomeSliceLabel(props: PieLabelRenderProps) {
+  const {
+    cx = 0,
+    cy = 0,
+    midAngle = 0,
+    innerRadius = 0,
+    outerRadius = 0,
+    percent = 0,
+    name = "",
+    fill,
+  } = props;
+  if (percent < 0.04) return null;
+  const r = innerRadius + (outerRadius - innerRadius) * 0.55;
+  const x = cx + r * Math.cos(-midAngle * PIE_LABEL_RADIAN);
+  const y = cy + r * Math.sin(-midAngle * PIE_LABEL_RADIAN);
+  const pct = Math.round(percent * 100);
+  const label = INCOME_SLICE_LABEL_SHORT[name] ?? name;
+  const color = incomeSliceLabelColor(typeof fill === "string" ? fill : undefined);
+  const subColor = color === "#ffffff" ? "rgba(255,255,255,0.92)" : "rgba(17,17,17,0.72)";
+
+  return (
+    <text
+      x={x}
+      y={y}
+      textAnchor="middle"
+      dominantBaseline="central"
+      className="fety-income-pie-label"
+      pointerEvents="none"
+    >
+      <tspan x={x} dy="-0.35em" fill={color} fontSize={9} fontWeight={600}>
+        {label}
+      </tspan>
+      <tspan x={x} dy="1.15em" fill={subColor} fontSize={9} fontWeight={600}>
+        {pct}%
+      </tspan>
+    </text>
+  );
+}
+
+function IncomeAllocationTooltip({
+  active,
+  payload,
+  totalIncome,
+}: TooltipProps<number, string> & { totalIncome: number }) {
+  if (!active || !payload?.length) return null;
+  const inner = payload.find((p) => p.name && p.name !== "Total income");
+  if (!inner) return null;
+  const amount = Number(inner.value ?? 0);
+  const name = String(inner.name ?? "");
+  const pct = totalIncome > 0 ? Math.round((amount / totalIncome) * 100) : 0;
+  return (
+    <div
+      className="fety-income-allocation-tooltip"
+      style={{
+        fontSize: 11,
+        borderRadius: 8,
+        border: "1px solid var(--border)",
+        background: "var(--surface)",
+        padding: "8px 10px",
+        boxShadow: "0 4px 14px rgba(0,0,0,0.08)",
+      }}
+    >
+      <p style={{ margin: 0, fontWeight: 600, color: "var(--ink)" }}>{name}</p>
+      <p style={{ margin: "4px 0 0", color: "var(--ink-2)" }}>{formatUsd(amount)}</p>
+      <p style={{ margin: "4px 0 0", color: "var(--ink-3)", lineHeight: 1.35 }}>
+        {pct}% of total income ({formatUsd(totalIncome)} expected monthly).
+      </p>
+    </div>
+  );
+}
+
 export function incomeAllocationSlices(analysis: FinancialAnalysis): Slice[] {
   const income = Math.max(0, analysis.expectedMonthlyIncome);
   if (income <= 0) return [];
-  const obligations = Math.min(Math.max(0, analysis.regularObligations), income);
-  const afterObl = income - obligations;
-  const flexible = Math.min(Math.max(0, analysis.flexibleSpending), afterObl);
-  const remaining = Math.max(0, afterObl - flexible);
-  const parts: { name: string; amount: number }[] = [
-    { name: "Regular expenses", amount: obligations },
-    { name: "Everyday budgets", amount: flexible },
-    { name: "Unallocated", amount: remaining },
+  const goals = Math.min(Math.max(0, analysis.goalsMonthlyContributions), income);
+  const expenses = Math.min(Math.max(0, analysis.regularObligations), Math.max(0, income - goals));
+  const available = Math.max(0, income - expenses - goals);
+  const parts: { name: string; amount: number; fill: string }[] = [
+    { name: "Expenses", amount: expenses, fill: EXPENSES_SLICE_FILL },
+    { name: "Goals", amount: goals, fill: GOALS_SLICE_FILL },
+    { name: "Available", amount: available, fill: AVAILABLE_SLICE_FILL },
   ];
-  return parts
-    .filter((p) => p.amount > 0.005)
-    .map((p, i) => ({ ...p, fill: SLICE_COLORS[i % SLICE_COLORS.length] }));
+  return parts.filter((p) => p.amount > 0.005);
 }
 
-export function categoryDonutData(analysis: FinancialAnalysis) {
-  return analysis.categoryShares.slice(0, 6).map((d, i) => ({
+export type CategoryMixSlice = {
+  name: string;
+  amount: number;
+  pct: number;
+  fill: string;
+};
+
+export function categoryMixPieData(analysis: FinancialAnalysis): CategoryMixSlice[] {
+  const categoryRows = analysis.budgetCategoryShares.map((d, i) => ({
     name: d.name,
-    value: d.value,
     amount: d.monthly,
     fill: SLICE_COLORS[i % SLICE_COLORS.length],
   }));
+  const goalsMonthly = Math.max(0, analysis.goalsMonthlyContributions);
+  const grandTotal =
+    categoryRows.reduce((s, r) => s + r.amount, 0) + goalsMonthly;
+  const slices: CategoryMixSlice[] = categoryRows.map((r) => ({
+    ...r,
+    pct: grandTotal > 0 ? Math.round((r.amount / grandTotal) * 100) : 0,
+  }));
+  if (goalsMonthly > 0.005) {
+    slices.push({
+      name: "Goals",
+      amount: goalsMonthly,
+      pct: grandTotal > 0 ? Math.round((goalsMonthly / grandTotal) * 100) : 0,
+      fill: GOALS_SLICE_FILL,
+    });
+  }
+  return slices;
+}
+
+/** @deprecated Use categoryMixPieData */
+export function categoryDonutData(analysis: FinancialAnalysis) {
+  return categoryMixPieData(analysis);
 }
 
 function PinChartButton({
@@ -89,28 +212,66 @@ export function IncomeAllocationChart({
   analysis: FinancialAnalysis;
   size?: number;
 }) {
+  const income = Math.max(0, analysis.expectedMonthlyIncome);
   const data = incomeAllocationSlices(analysis);
-  if (data.length === 0) {
+  if (income <= 0 || data.length === 0) {
     return (
       <div className="fety-insights-chart-empty">
         <p>Add income or regular expenses in setup to see how money is allocated.</p>
       </div>
     );
   }
+
+  const outerRing = [{ name: "Total income", amount: income, fill: "var(--fety-income-ring-fill, #3a3a3a)" }];
+  const innerOuter = size * 0.34;
+  const outerInner = size * 0.36;
+  const outerOuter = size * 0.46;
+  const innerPaddingAngle = 1;
+
   return (
-    <ResponsiveContainer width="100%" height={size}>
-      <PieChart>
-        <Pie data={data} dataKey="amount" nameKey="name" innerRadius={size * 0.32} outerRadius={size * 0.42} paddingAngle={2}>
-          {data.map((entry) => (
-            <Cell key={entry.name} fill={entry.fill} />
-          ))}
-        </Pie>
-        <Tooltip
-          formatter={(v: unknown) => formatUsd(Number(v))}
-          contentStyle={{ fontSize: 11, borderRadius: 8, border: "1px solid var(--border)" }}
-        />
-      </PieChart>
-    </ResponsiveContainer>
+    <div className="fety-income-allocation-chart">
+      <ResponsiveContainer width="100%" height={size}>
+        <PieChart>
+          <Pie
+            data={outerRing}
+            dataKey="amount"
+            nameKey="name"
+            innerRadius={outerInner}
+            outerRadius={outerOuter}
+            startAngle={PIE_START_ANGLE}
+            endAngle={PIE_END_ANGLE}
+            stroke="none"
+            isAnimationActive={false}
+          >
+            <Cell fill={outerRing[0].fill} stroke="none" />
+          </Pie>
+          <Pie
+            data={data}
+            dataKey="amount"
+            nameKey="name"
+            innerRadius={0}
+            outerRadius={innerOuter}
+            startAngle={PIE_START_ANGLE}
+            endAngle={PIE_END_ANGLE}
+            paddingAngle={innerPaddingAngle}
+            stroke="var(--surface, #fff)"
+            strokeWidth={2}
+            label={renderIncomeSliceLabel}
+            labelLine={false}
+          >
+            {data.map((entry) => (
+              <Cell key={entry.name} fill={entry.fill} />
+            ))}
+          </Pie>
+          <Tooltip
+            content={(props) => (
+              <IncomeAllocationTooltip {...props} totalIncome={income} />
+            )}
+          />
+        </PieChart>
+      </ResponsiveContainer>
+      <p className="fety-income-allocation-chart-caption">Total income · {formatUsd(income)}</p>
+    </div>
   );
 }
 
@@ -134,31 +295,47 @@ export function IncomeAllocationBars({ analysis }: { analysis: FinancialAnalysis
 }
 
 export function CategoryMixChart({ analysis, size = 200 }: { analysis: FinancialAnalysis; size?: number }) {
-  const data = categoryDonutData(analysis);
-  if (data.length === 0) {
+  const legend = categoryMixPieData(analysis);
+  const data = legend.filter((d) => d.amount > 0.005);
+  if (legend.length === 0 || data.length === 0) {
     return (
       <div className="fety-insights-chart-empty">
-        <p>Everyday spending categories will show up here once you add budgets or transactions.</p>
+        <p>Add budget categories with monthly amounts to see how your plan is divided.</p>
       </div>
     );
   }
+  const budgetTotal = data.reduce((s, d) => s + d.amount, 0);
   return (
-    <ResponsiveContainer width="100%" height={size}>
-      <PieChart>
-        <Pie data={data} dataKey="value" nameKey="name" innerRadius={size * 0.32} outerRadius={size * 0.42} paddingAngle={2}>
-          {data.map((entry) => (
-            <Cell key={entry.name} fill={entry.fill} />
-          ))}
-        </Pie>
-        <Tooltip
-          formatter={(v: unknown, _n, item) => {
-            const row = item?.payload as { amount?: number; name?: string } | undefined;
-            return [`${Number(v)}% · ${formatUsd(row?.amount ?? 0)}`, row?.name ?? ""];
-          }}
-          contentStyle={{ fontSize: 11, borderRadius: 8, border: "1px solid var(--border)" }}
-        />
-      </PieChart>
-    </ResponsiveContainer>
+    <div className="fety-category-mix-chart">
+      <ResponsiveContainer width="100%" height={size}>
+        <PieChart>
+          <Pie
+            data={data}
+            dataKey="amount"
+            nameKey="name"
+            innerRadius={0}
+            outerRadius={size * 0.42}
+            paddingAngle={1}
+            stroke="var(--surface, #fff)"
+            strokeWidth={2}
+          >
+            {data.map((entry) => (
+              <Cell key={entry.name} fill={entry.fill} />
+            ))}
+          </Pie>
+          <Tooltip
+            formatter={(v: unknown, _n, item) => {
+              const row = item?.payload as CategoryMixSlice | undefined;
+              const amt = Number(v);
+              const pct = budgetTotal > 0 ? Math.round((amt / budgetTotal) * 100) : 0;
+              return [`${pct}% · ${formatUsd(amt)}`, row?.name ?? ""];
+            }}
+            contentStyle={{ fontSize: 11, borderRadius: 8, border: "1px solid var(--border)" }}
+          />
+        </PieChart>
+      </ResponsiveContainer>
+      <p className="fety-category-mix-chart-caption">Monthly budget · {formatUsd(budgetTotal)}</p>
+    </div>
   );
 }
 
@@ -233,7 +410,7 @@ export default function InsightsBriefing({
     () => resolveInsightTipSlots(store, analysis),
     [store, analysis, store.insightTipProgress],
   );
-  const mixLegend = categoryDonutData(analysis);
+  const mixLegend = categoryMixPieData(analysis);
   const isPinned = (id: string) => pinnedWidgets.includes(id);
 
   const pictureLede = empty
@@ -352,22 +529,31 @@ function PictureTabContent({
         <div className="fety-insights-copy">
           <h2>Here&apos;s what I found.</h2>
           <p>{pictureLede}</p>
-          <dl className="fety-analysis-stats">
+          <dl className="fety-analysis-stats fety-analysis-stats--picture-grid">
             <div>
               <dt>Income</dt>
               <dd>{formatUsd(analysis.expectedMonthlyIncome)}</dd>
             </div>
             <div>
-              <dt>Regular expenses</dt>
+              <dt>Expenses</dt>
               <dd>{formatUsd(analysis.regularObligations)}</dd>
             </div>
             <div>
-              <dt>Flexible spending</dt>
-              <dd>{formatUsd(analysis.flexibleSpending)}</dd>
+              <dt>Goals</dt>
+              <dd>{formatUsd(analysis.goalsMonthlyContributions)}</dd>
             </div>
             <div>
-              <dt>Available after regulars</dt>
-              <dd>{formatUsd(analysis.expectedMonthlyIncome - analysis.regularObligations)}</dd>
+              <dt>Available</dt>
+              <dd>
+                {formatUsd(
+                  Math.max(
+                    0,
+                    analysis.expectedMonthlyIncome -
+                      analysis.regularObligations -
+                      analysis.goalsMonthlyContributions,
+                  ),
+                )}
+              </dd>
             </div>
           </dl>
         </div>
@@ -407,7 +593,7 @@ function MixTabContent({
   onPinWidget,
 }: {
   analysis: FinancialAnalysis;
-  mixLegend: ReturnType<typeof categoryDonutData>;
+  mixLegend: CategoryMixSlice[];
   isPinned: (id: string) => boolean;
   onPinWidget: (id: string) => void;
 }) {
@@ -417,16 +603,16 @@ function MixTabContent({
         <h2>Where everyday money is aimed</h2>
         <p>
           {mixLegend.length === 0
-            ? "Category budgets from setup and spending you log will shape this mix."
-            : "These are your largest everyday categories by monthly budget — the same view you can keep on the dashboard as a widget."}
+            ? "Category budgets from setup will shape this mix."
+            : "Every budget category you set up — each slice is that category's share of your total monthly budget."}
         </p>
-        <ul className="fety-analysis-legend">
+        <ul className="fety-analysis-legend fety-analysis-legend--two-col">
           {mixLegend.map((d) => (
             <li key={d.name}>
               <span className="fety-analysis-swatch" style={{ background: d.fill }} />
               <span>{d.name}</span>
               <strong>
-                {d.value}% · {formatUsd(d.amount)}
+                {d.pct}% · {formatUsd(d.amount)}
               </strong>
             </li>
           ))}
