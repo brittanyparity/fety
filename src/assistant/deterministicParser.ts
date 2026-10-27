@@ -16,7 +16,9 @@ const CATEGORY_HINTS: [RegExp, string][] = [
   [/netflix|spotify/i, "Entertainment"],
   [/gas|fuel|uber|lyft/i, "Transportation"],
   [/rent|mortgage|housing/i, "Housing"],
-  [/electric|internet|phone|utility/i, "Bills"],
+  [/electric|utility/i, "Electric"],
+  [/internet/i, "Internet"],
+  [/phone/i, "Phone"],
 ];
 
 function parseAmount(text: string): number | null {
@@ -52,7 +54,11 @@ function extractMerchant(text: string): string | null {
 }
 
 function guessCategory(text: string, txnType: TransactionType, store: AssistantContext["store"]): string {
-  if (txnType === "income") return "Income";
+  if (txnType === "deposit") {
+    const incomeName = store.incomeStreams?.[0]?.name?.trim();
+    if (incomeName) return resolveCategoryName(store, incomeName) ?? incomeName;
+    return resolveCategoryName(store, "Shopping") ?? "Shopping";
+  }
   const merchant = extractMerchant(text) ?? text;
   for (const [re, cat] of CATEGORY_HINTS) {
     if (re.test(merchant) || re.test(text)) {
@@ -65,15 +71,17 @@ function guessCategory(text: string, txnType: TransactionType, store: AssistantC
     const resolved = resolveCategoryName(store, addTo[1].trim());
     if (resolved) return resolved;
   }
-  if (/bill|rent|electric/.test(text)) return "Bills";
-  return "Other";
+  if (/electric|utility/.test(text)) return resolveCategoryName(store, "Electric") ?? "Electric";
+  if (/internet/.test(text)) return resolveCategoryName(store, "Internet") ?? "Internet";
+  if (/phone/.test(text)) return resolveCategoryName(store, "Phone") ?? "Phone";
+  if (/rent|mortgage/.test(text)) return resolveCategoryName(store, "Rent") ?? "Shopping";
+  return resolveCategoryName(store, "Shopping") ?? "Shopping";
 }
 
 function guessTxnType(text: string): TransactionType {
   const lower = text.toLowerCase();
-  if (/paycheck|salary|freelance|deposit|got paid|paid me|income|received/.test(lower)) return "income";
+  if (/paycheck|salary|freelance|deposit|got paid|paid me|income|received/.test(lower)) return "deposit";
   if (/transfer|move\s+\$|moved\s+\$|from checking to savings|to savings/.test(lower)) return "transfer";
-  if (/bill|rent due|paid rent|electric bill/.test(lower)) return "bill";
   return "expense";
 }
 
@@ -325,14 +333,11 @@ export function parseDeterministicIntent(message: string, ctx: AssistantContext)
     const txnType = guessTxnType(text);
     const merchant = extractMerchant(text);
     const desc = merchant
-      ? `${merchant}${txnType === "income" ? " income" : ""}`
+      ? `${merchant}${txnType === "deposit" ? " deposit" : ""}`
       : text.length > 64
         ? `${text.slice(0, 61)}…`
         : text;
-    const category =
-      txnType === "income" && /paycheck|salary|pay roll/.test(lower)
-        ? "Income"
-        : guessCategory(text, txnType, ctx.store);
+    const category = guessCategory(text, txnType, ctx.store);
     return {
       intent: "create_transaction",
       confidence: merchant || /spent|paid|got paid|add \$/.test(lower) ? CONFIDENCE_HIGH : CONFIDENCE_MED,

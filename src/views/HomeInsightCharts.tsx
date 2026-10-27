@@ -46,14 +46,20 @@ function SpendingPowerPanel({
     [store, period],
   );
   const balanceBar = spendingPowerBalanceBar(insight, analysis.regularObligations, goalsPeriodAmount);
+  const showPowerBar =
+    balanceBar.balance > 0 ||
+    balanceBar.spendingPowerAmount > 0.005 ||
+    balanceBar.budgetedExpenses > 0.005 ||
+    balanceBar.goalsAmount > 0.005;
+  const dayLabel = formatDisplayDate(focusDateISO);
 
   return (
     <div className="fety-home-spending-mix">
       <div className="fety-home-spending-mix-head">
         <p className="fety-home-spending-mix-explainer">
-          About <strong>{formatUsd(insight.periodPower)}</strong> per {periodWord} is what you can spend on a{" "}
-          {periodAdverb} basis before your balance would go negative — spreading what&apos;s left through the rest of
-          this month.
+          You have about <strong>{formatUsd(insight.periodPower)}</strong> of room per {periodWord} before your
+          calendar balance would dip below zero. That number comes from your <strong>ending balance on each day</strong>
+          — including paychecks and bills still ahead — not just what you have in cash right now.
         </p>
         <WidgetPeriodFilter
           options={POWER_PERIOD_OPTIONS}
@@ -70,17 +76,26 @@ function SpendingPowerPanel({
 
       <div className="fety-home-spending-power-balance">
         <div className="fety-home-spending-power-balance-head">
-          <span className="fety-home-spending-power-balance-title">Your balance</span>
-          <span className="fety-home-spending-power-balance-total">{formatUsd(balanceBar.balance)}</span>
+          <span className="fety-home-spending-power-balance-title">
+            {balanceBar.scaleFromProjections ? "Balance on your calendar" : "Cash on hand"}
+          </span>
+          <span className="fety-home-spending-power-balance-total">
+            {formatUsd(balanceBar.balance > 0 ? balanceBar.balance : insight.balance)}
+          </span>
         </div>
-        {balanceBar.balance <= 0 ? (
-          <p className="fety-home-insight-lede">Add a balance in setup to see how it splits between expenses and spending power.</p>
-        ) : (
+        {balanceBar.scaleFromProjections ? (
+          <p className="fety-home-insight-lede">
+            As of {dayLabel}, your ending balance is {formatUsd(insight.balance)}. The bar below still shows how
+            regular bills, goals, and {periodAdverb} spending power compare — using that calendar balance and what&apos;s
+            scheduled next.
+          </p>
+        ) : null}
+        {showPowerBar ? (
           <>
             <div
               className="fety-home-spending-power-balance-track"
               role="img"
-              aria-label={`Balance ${formatUsd(balanceBar.balance)}: ${formatUsd(balanceBar.budgetedExpenses)} budgeted expenses, ${formatUsd(balanceBar.goalsAmount)} ${periodAdverb} goal allocation, ${formatUsd(balanceBar.spendingPowerAmount)} ${periodAdverb} spending power, ${formatUsd(balanceBar.remainder)} unallocated`}
+              aria-label={`${formatUsd(balanceBar.budgetedExpenses)} budgeted expenses, ${formatUsd(balanceBar.goalsAmount)} ${periodAdverb} goal allocation, ${formatUsd(balanceBar.spendingPowerAmount)} ${periodAdverb} spending power${balanceBar.remainder > 0 ? `, ${formatUsd(balanceBar.remainder)} unallocated` : ""}`}
             >
               {balanceBar.budgetedPct > 0 ? (
                 <div
@@ -136,15 +151,23 @@ function SpendingPowerPanel({
               ) : null}
             </div>
             <p className="fety-home-spending-mix-bar-caption">
-              The full bar is your current balance. Dark gray is regular budgeted expenses (
-              {formatUsd(analysis.regularObligations)}/month on file).
+              {balanceBar.scaleFromProjections
+                ? "With no cash on hand today, this bar compares bills and goals to the spending room your calendar projects from future balances. "
+                : `The full bar is cash on hand as of this date. Dark gray is regular budgeted expenses (${formatUsd(analysis.regularObligations)}/month on file). `}
               {balanceBar.goalsAmount > 0.005
-                ? ` Purple is your planned goal contribution (${formatUsd(goalsPeriodAmount)} per ${periodWord}).`
-                : ""}{" "}
-              Green is your {formatUsd(insight.periodPower)} per-{periodWord} spending power before going negative.
-              Light gray is unallocated cash.
+                ? `Purple is your planned goal contribution (${formatUsd(goalsPeriodAmount)} per ${periodWord}). `
+                : ""}
+              Green is {formatUsd(insight.periodPower)} per {periodWord} of spending power before your balance would go
+              negative.
+              {!balanceBar.scaleFromProjections && balanceBar.remainder > 0.005
+                ? " Light gray is cash not yet assigned to bills, goals, or spending power."
+                : ""}
             </p>
           </>
+        ) : (
+          <p className="fety-home-insight-lede">
+            Add income, bills, or a starting balance in setup so we can project spending power from your calendar.
+          </p>
         )}
       </div>
     </div>
@@ -174,8 +197,8 @@ export default function HomeInsightCharts({
   );
 
   const pictureLede = empty
-    ? "Add income or regular expenses and this snapshot will fill in."
-    : `As of ${dayLabel}: ${formatUsd(summary.balance)} ending balance. Monthly picture — about ${formatUsd(analysis.expectedMonthlyIncome)} income with ${formatUsd(analysis.regularObligations)} toward regular expenses${goalsMonthly > 0 ? ` and ${formatUsd(goalsMonthly)} toward goals` : ""}.`;
+    ? "Once you add income or regular bills, we'll walk through how money coming in compares to what's already spoken for."
+    : `Here's the monthly story as of ${dayLabel}: you're tracking about ${formatUsd(analysis.expectedMonthlyIncome)} in income, ${formatUsd(analysis.regularObligations)} in regular expenses${goalsMonthly > 0 ? `, and ${formatUsd(goalsMonthly)} toward goals` : ""}. Your ending balance that day is ${formatUsd(summary.balance)}.`;
 
   const mixBudgetTotal = useMemo(
     () => mixLegend.reduce((s, d) => s + d.amount, 0),
@@ -183,10 +206,10 @@ export default function HomeInsightCharts({
   );
   const mixLede =
     mixLegend.length === 0
-      ? "Add budget categories with monthly amounts to see how your plan is divided."
+      ? "Create budget categories with monthly caps and we'll show how your plan splits across them."
       : mixBudgetTotal > 0
-        ? `All ${mixLegend.length} budget categories — ${formatUsd(mixBudgetTotal)} planned per month as of ${dayLabel}.`
-        : "Set monthly amounts on your budget categories to fill in this mix.";
+        ? `You have ${mixLegend.length} categories totaling ${formatUsd(mixBudgetTotal)} per month — here's how that plan is divided as of ${dayLabel}.`
+        : "Add monthly amounts to your categories and this chart will show where your budget weight sits.";
 
   return (
     <div className="fety-home-insight-charts">

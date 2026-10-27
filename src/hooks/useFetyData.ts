@@ -1,9 +1,16 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { computeSummary, todayISO } from "../lib/fetyCalculations";
+import { scheduledItemStoredCategory } from "../lib/scheduledItemCatalog";
+import {
+  goalIdForBudgetCategory,
+  iconForTransactionCategory,
+  isRemovedBudgetCategoryName,
+} from "../lib/transactionCategories";
 import {
   applyBillScheduleToStore,
   billSignature,
   incomeStreamSignature,
+  isScheduledTransaction,
   parseScheduledTransactionId,
   recurringTransactionSignature,
   skipKeyForOccurrence,
@@ -31,8 +38,10 @@ import {
   signAmountForFlow,
   typeIconsFromTransactionTypes,
 } from "../lib/transactionTypes";
+import { applyScheduledItemTransactionSync } from "../lib/scheduledItemCatalog";
 import type {
   Account,
+  AddTransactionInput,
   Bill,
   BudgetCategory,
   ChatMessage,
@@ -60,7 +69,6 @@ export function useFetyData() {
       return createEmptyStore();
     }
   });
-
   useEffect(() => {
     saveStore(store);
   }, [store]);
@@ -72,22 +80,28 @@ export function useFetyData() {
   }, []);
 
   const addTransaction = useCallback(
-    (input: {
-      desc: string;
-      amount: number;
-      type: TransactionType;
-      category: string;
-      dateISO?: string;
-      icon?: string;
-      fromAccountId?: string;
-      toAccountId?: string;
-      goalId?: string;
-    }) => {
+    (input: AddTransactionInput) => {
       let created: Transaction | null = null;
       patch((prev) => {
-        const flow = flowForTransactionType(prev, input.type);
-        const icon = input.icon ?? iconForTransactionType(prev, input.type);
-        const asOf = prev.profile.balanceAsOfISO;
+        let store = prev;
+        if (
+          input.updateScheduledItem &&
+          input.scheduledItemKind &&
+          input.scheduledItemId
+        ) {
+          store = applyScheduledItemTransactionSync(
+            store,
+            { kind: input.scheduledItemKind, id: input.scheduledItemId },
+            input.amount,
+            input.dateISO ?? new Date().toISOString().slice(0, 10),
+          );
+        }
+        const flow = flowForTransactionType(store, input.type);
+        const icon =
+          input.icon ??
+          iconForTransactionCategory(store, input.category) ??
+          iconForTransactionType(store, input.type);
+        const asOf = store.profile.balanceAsOfISO;
         const rawDate = input.dateISO ?? new Date().toISOString().slice(0, 10);
         const tx: Transaction = {
           id: newId("tx"),
@@ -99,10 +113,12 @@ export function useFetyData() {
           icon,
           fromAccountId: input.fromAccountId || undefined,
           toAccountId: input.toAccountId || undefined,
-          goalId: input.goalId || undefined,
+          goalId: input.goalId || goalIdForBudgetCategory(store, input.category) || undefined,
+          scheduledItemKind: input.scheduledItemKind,
+          scheduledItemId: input.scheduledItemId,
         };
         created = tx;
-        return { ...prev, transactions: [tx, ...prev.transactions] };
+        return { ...store, transactions: [tx, ...store.transactions] };
       });
       return created!;
     },
@@ -134,7 +150,7 @@ export function useFetyData() {
         ...prev,
         transactions: prev.transactions.map((t) => {
           if (t.id !== id) return t;
-          const next = { ...t, ...updates };
+          let next: Transaction = { ...t, ...updates };
           if (updates.amount !== undefined || updates.type !== undefined) {
             const type = updates.type ?? t.type;
             const raw = updates.amount !== undefined ? updates.amount : Math.abs(t.amount);
@@ -147,6 +163,24 @@ export function useFetyData() {
           if (updates.fromAccountId === "") next.fromAccountId = undefined;
           if (updates.toAccountId === "") next.toAccountId = undefined;
           if (updates.goalId === "") next.goalId = undefined;
+          if (updates.category !== undefined && updates.goalId === undefined) {
+            const linkedGoal = goalIdForBudgetCategory(prev, next.category);
+            if (linkedGoal) next.goalId = linkedGoal;
+          }
+          if (updates.category !== undefined && updates.icon === undefined) {
+            next.icon =
+              iconForTransactionCategory(prev, next.category) ?? iconForTransactionType(prev, next.type);
+          }
+          // Projected schedule rows are rebuilt from bills/income/recur; keep user edits as manual txs.
+          if (isScheduledTransaction(t.id)) {
+            const parsed = parseScheduledTransactionId(t.id);
+            next = {
+              ...next,
+              id: newId("tx"),
+              scheduledItemKind: parsed?.kind ?? t.scheduledItemKind,
+              scheduledItemId: parsed?.sourceId ?? t.scheduledItemId,
+            };
+          }
           return next;
         }),
       }));
@@ -155,10 +189,32 @@ export function useFetyData() {
   );
 
   const updateBill = useCallback(
-    (id: string, updates: Partial<Pick<Bill, "name" | "amount" | "dueDay" | "frequency" | "category" | "icon">>) => {
+    (id: string, updates: Partial<Pick<Bill, "name" | "amount" | "dueDay" | "frequency" | "category" | "icon" | "fromAccountId">>) => {
       patch((prev) => ({
         ...prev,
-        bills: prev.bills.map((b) => (b.id === id ? { ...b, ...updates } : b)),
+        bills: prev.bills.map((b) => {
+          if (b.id !== id) return b;
+          const next = { ...b, ...updates };
+          return { ...next, category: scheduledItemStoredCategory(next.name) };
+        }),
+      }));
+    },
+    [patch],
+  );
+
+  const updateCategory = useCallback(
+    (id: string, updates: Partial<Pick<BudgetCategory, "monthlyBudget" | "goalId">>) => {
+      patch((prev) => ({
+        ...prev,
+        categories: prev.categories.map((c) => {
+          if (c.id !== id) return c;
+          const next: BudgetCategory = { ...c, ...updates };
+          if (updates.monthlyBudget !== undefined) {
+            next.monthlyBudget = roundMoney(updates.monthlyBudget);
+          }
+          if (updates.goalId === "") next.goalId = undefined;
+          return next;
+        }),
       }));
     },
     [patch],
@@ -166,23 +222,21 @@ export function useFetyData() {
 
   const updateCategoryBudget = useCallback(
     (id: string, monthlyBudget: number) => {
-      patch((prev) => ({
-        ...prev,
-        categories: prev.categories.map((c) =>
-          c.id === id ? { ...c, monthlyBudget: roundMoney(monthlyBudget) } : c,
-        ),
-      }));
+      updateCategory(id, { monthlyBudget });
     },
-    [patch],
+    [updateCategory],
   );
 
   const addCategory = useCallback(
-    (input: { name: string; icon: string; monthlyBudget: number }) => {
+    (input: { name: string; icon: string; monthlyBudget: number; goalId?: string }) => {
+      const name = input.name.trim();
+      if (!name || isRemovedBudgetCategoryName(name)) return;
       const cat: BudgetCategory = {
         id: newId("cat"),
-        name: input.name,
+        name,
         icon: input.icon || "📁",
         monthlyBudget: roundMoney(input.monthlyBudget),
+        goalId: input.goalId || undefined,
       };
       patch((prev) => ({ ...prev, categories: [...prev.categories, cat] }));
     },
@@ -205,6 +259,7 @@ export function useFetyData() {
           frequency: input.frequency ?? "monthly",
           amount: Number(input.amount),
           dueDay: Number(input.dueDay),
+          category: scheduledItemStoredCategory(input.name),
         };
         const sig = billSignature(candidate);
         if (prev.bills.some((b) => billSignature(b) === sig)) {
@@ -229,13 +284,17 @@ export function useFetyData() {
       updates: Partial<
         Pick<
           IncomeStream,
-          "name" | "amount" | "dueDay" | "frequency" | "category" | "icon" | "startDateISO" | "endDateISO" | "semiMonthlyDays"
+          "name" | "amount" | "dueDay" | "frequency" | "category" | "icon" | "startDateISO" | "endDateISO" | "semiMonthlyDays" | "toAccountId"
         >
       >,
     ) => {
       patch((prev) => ({
         ...prev,
-        incomeStreams: (prev.incomeStreams ?? []).map((s) => (s.id === id ? { ...s, ...updates } : s)),
+        incomeStreams: (prev.incomeStreams ?? []).map((s) => {
+          if (s.id !== id) return s;
+          const next = { ...s, ...updates };
+          return { ...next, category: scheduledItemStoredCategory(next.name) };
+        }),
       }));
     },
     [patch],
@@ -250,6 +309,7 @@ export function useFetyData() {
           frequency: input.frequency ?? "monthly",
           amount: Number(input.amount),
           dueDay: Number(input.dueDay),
+          category: scheduledItemStoredCategory(input.name),
         };
         const sig = incomeStreamSignature(candidate);
         const streams = prev.incomeStreams ?? [];
@@ -279,9 +339,11 @@ export function useFetyData() {
     ) => {
       patch((prev) => ({
         ...prev,
-        recurringTransactions: (prev.recurringTransactions ?? []).map((r) =>
-          r.id === id ? { ...r, ...updates } : r,
-        ),
+        recurringTransactions: (prev.recurringTransactions ?? []).map((r) => {
+          if (r.id !== id) return r;
+          const next = { ...r, ...updates };
+          return { ...next, category: scheduledItemStoredCategory(next.name) };
+        }),
       }));
     },
     [patch],
@@ -297,6 +359,7 @@ export function useFetyData() {
           amount: Number(input.amount),
           dueDay: Number(input.dueDay),
           transactionType: input.transactionType || "expense",
+          category: scheduledItemStoredCategory(input.name),
         };
         const sig = recurringTransactionSignature(candidate);
         const items = prev.recurringTransactions ?? [];
@@ -652,6 +715,7 @@ export function useFetyData() {
     updateTransaction,
     updateBill,
     updateCategoryBudget,
+    updateCategory,
     addCategory,
     deleteCategory,
     addBill,

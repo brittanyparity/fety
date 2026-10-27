@@ -85,7 +85,7 @@ export default function IncomeScheduleFields({
         {!isSemiMonthly && (
           <div style={{ flex: compact ? undefined : "1 1 120px", minWidth: 120 }}>
             <label className="fety-label" style={{ display: "block", marginBottom: 4 }}>
-              {isWeekBased ? "Paid on (weekday)" : "Paid on (day of month)"}
+              {isWeekBased ? "Paid on (weekday)" : "Paid on the"}
             </label>
             {isWeekBased ? (
               <select value={dueDay} onChange={(e) => onDueDayChange(parseInt(e.target.value, 10))} style={baseInput}>
@@ -104,7 +104,7 @@ export default function IncomeScheduleFields({
         {isSemiMonthly && (
           <div style={{ flex: compact ? undefined : "1 1 200px", minWidth: 160 }}>
             <label className="fety-label" style={{ display: "block", marginBottom: 4 }}>
-              Paid on (days of month)
+              Paid on the
             </label>
             <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
               <DayOfMonthInput

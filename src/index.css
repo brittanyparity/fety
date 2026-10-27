@@ -569,6 +569,26 @@ html, body, #root {
   font-family: var(--font-sans);
 }
 
+.fety-cal-acct-details-explainer {
+  margin: 0 0 10px;
+  font-size: 10px;
+  line-height: 1.45;
+  color: var(--ink-3);
+}
+
+.fety-cal-day-insights-lede {
+  margin: 6px 0 0;
+  font-size: 11px;
+  line-height: 1.45;
+  color: var(--ink-3);
+  font-weight: 400;
+}
+
+.fety-cal-day-insights-lede strong {
+  font-weight: 600;
+  color: var(--ink-2);
+}
+
 .fety-cal-acct-details-body {
   padding: 8px 0 2px 16px;
   display: flex;
@@ -840,6 +860,215 @@ html, body, #root {
   width: 100%;
 }
 
+.fety-txn-toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 10px 16px;
+}
+
+.fety-txn-toolbar-filters {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  gap: 10px 12px;
+  flex: 1;
+  min-width: 0;
+}
+
+.fety-txn-toolbar-field {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 0;
+}
+
+.fety-txn-toolbar-field .fety-label {
+  line-height: 1.2;
+}
+
+.fety-txn-toolbar-control-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  min-height: 36px;
+}
+
+.fety-txn-toolbar-select {
+  box-sizing: border-box;
+  min-height: 36px;
+  border-radius: var(--radius-ctrl);
+  border: 1px solid var(--border);
+  font-size: 12px;
+  font-family: inherit;
+  background: var(--surface);
+  color: var(--ink);
+}
+
+.fety-txn-date-range-menu {
+  position: relative;
+  min-width: 168px;
+  max-width: min(240px, 50vw);
+}
+
+.fety-txn-date-range-trigger {
+  display: flex;
+  align-items: center;
+  box-sizing: border-box;
+  width: 100%;
+  min-height: 36px;
+  padding: 0 2.35rem 0 11px;
+  border-radius: var(--radius-ctrl);
+  border: 1px solid var(--border);
+  font-size: 12px;
+  font-family: inherit;
+  font-weight: 500;
+  background-color: var(--surface);
+  color: var(--ink);
+  cursor: pointer;
+  text-align: left;
+  background-repeat: no-repeat;
+  background-position: right 0.55rem center;
+  background-size: 0.75rem;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 12 12' fill='none'%3E%3Cpath stroke='%236b7280' stroke-width='1.5' stroke-linecap='round' stroke-linejoin='round' d='M3 4.5 6 7.5 9 4.5'/%3E%3C/svg%3E");
+}
+
+.fety-txn-date-range-trigger:hover {
+  border-color: var(--ink-3);
+}
+
+.fety-txn-date-range-trigger-label {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  width: 100%;
+}
+
+.fety-txn-date-range-panel {
+  left: 0;
+  transform: none;
+  z-index: 50;
+}
+
+.fety-txn-date-range-picker {
+  min-height: 0;
+}
+
+.fety-txn-date-range-actions {
+  display: flex;
+  justify-content: flex-end;
+  padding-top: 2px;
+}
+
+.fety-txn-date-range-clear {
+  border: none;
+  background: transparent;
+  color: var(--ink-2);
+  font-size: 11px;
+  font-weight: 600;
+  cursor: pointer;
+  font-family: inherit;
+  padding: 4px 6px;
+  border-radius: 6px;
+}
+
+.fety-txn-date-range-clear:hover {
+  color: var(--ink);
+  background: var(--paper);
+}
+
+.fety-txn-toolbar-select {
+  min-width: 160px;
+  max-width: min(220px, 42vw);
+}
+
+.fety-txn-toolbar-type-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+  min-height: 36px;
+}
+
+.fety-txn-type-pill {
+  padding: 0 14px;
+  height: 36px;
+  border-radius: 99px;
+  font-size: 12px;
+  border: 1px solid var(--border);
+  cursor: pointer;
+  background: var(--surface);
+  color: var(--ink-2);
+  font-family: inherit;
+  font-weight: 500;
+  white-space: nowrap;
+}
+
+.fety-txn-type-pill--active {
+  background: var(--ink);
+  color: #fff;
+  border-color: var(--ink);
+}
+
+.fety-txn-type-pill:hover:not(.fety-txn-type-pill--active) {
+  color: var(--ink);
+}
+
+.fety-txn-add-btn {
+  flex-shrink: 0;
+  margin-left: auto;
+  height: 36px;
+  padding: 0 14px;
+  border-radius: var(--radius-ctrl);
+  border: none;
+  background: var(--ink);
+  color: #fff;
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  line-height: 1.2;
+  white-space: nowrap;
+}
+
+.fety-txn-add-btn:hover {
+  filter: brightness(1.08);
+}
+
+.fety-txn-date-filter-clear {
+  border: 1px solid var(--border);
+  background: var(--paper);
+  color: var(--ink-2);
+  font-size: 11px;
+  font-weight: 600;
+  padding: 6px 10px;
+  border-radius: 99px;
+  cursor: pointer;
+  font-family: inherit;
+}
+
+.fety-txn-date-filter-clear:hover {
+  color: var(--ink);
+}
+
+.fety-txn-date-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 9px 18px;
+  background: var(--bg);
+}
+
+.fety-txn-date-header-tag {
+  font-size: 10px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--ink-3);
+}
+
 .fety-txn-add-form {
   display: flex;
   flex-direction: column;
@@ -962,6 +1191,11 @@ html, body, #root {
 
 .fety-chart-scroll-inner {
   width: 100%;
+}
+
+.fety-chart-fit {
+  width: 100%;
+  overflow: hidden;
 }
 
 .fety-breakdown-body {
@@ -2062,7 +2296,67 @@ html, body, #root {
   display: flex;
   flex-direction: column;
   min-height: 0;
-  padding-bottom: 14px;
+  padding-bottom: 10px;
+}
+
+.fety-home-calendar-legend {
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 10px 16px;
+  margin-top: 10px;
+  padding-top: 10px;
+  border-top: 1px solid var(--border);
+}
+
+.fety-home-calendar-legend-heading {
+  margin: 0;
+  font-size: 9px;
+  font-weight: 600;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--ink-3);
+  flex-shrink: 0;
+}
+
+.fety-home-calendar-legend-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px 16px;
+  flex: 1;
+  min-width: 0;
+}
+
+.fety-home-calendar-legend-list li {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 10px;
+  color: var(--ink-2);
+  line-height: 1.2;
+}
+
+.fety-home-calendar-legend-swatch {
+  width: 14px;
+  height: 14px;
+  border-radius: 4px;
+  border: 1px solid var(--border);
+  flex-shrink: 0;
+}
+
+.fety-home-calendar-legend-note-mark {
+  width: 14px;
+  height: 14px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  color: var(--ink-2);
 }
 
 .fety-home-calendar {
@@ -2145,7 +2439,7 @@ html, body, #root {
   min-height: 420px;
 }
 
-.fety-home-row--hero .fety-home-calendar-grid {
+.fety-home-row--hero .fety-home-calendar-grid:not(.fety-home-calendar-grid--year) {
   grid-auto-rows: minmax(86px, 1fr);
 }
 
@@ -2230,10 +2524,6 @@ html, body, #root {
 
 .fety-home-calendar-day-open:hover {
   background: rgba(255, 255, 255, 0.26);
-}
-
-.fety-home-calendar-day--selected .fety-home-calendar-day-top {
-  padding-right: 22px;
 }
 
 .fety-home-calendar-day-main {
@@ -2398,6 +2688,1241 @@ html, body, #root {
   line-height: 1.3;
 }
 
+.fety-home-calendar-day-foot-start,
+.fety-home-calendar-day-foot-end {
+  display: flex;
+  align-items: center;
+  min-width: 0;
+}
+
+.fety-home-calendar-day-foot-end {
+  margin-left: auto;
+}
+
+.fety-home-calendar-day-wrap {
+  min-width: 0;
+  min-height: 0;
+  height: 100%;
+  display: flex;
+}
+
+.fety-home-calendar-day-wrap > .fety-home-calendar-day {
+  flex: 1;
+  width: 100%;
+}
+
+.fety-home-calendar-day-date-label {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 2px;
+  min-width: 0;
+}
+
+.fety-home-calendar-day--year {
+  padding: 2px 3px;
+  border-radius: 6px;
+}
+
+.fety-home-calendar-day--year .fety-home-calendar-day-num {
+  font-size: 9px;
+}
+
+.fety-home-calendar-day--year .fety-home-calendar-day-month-abbr {
+  font-size: 8px;
+  font-weight: 700;
+  line-height: 1;
+  color: var(--ink);
+  letter-spacing: -0.02em;
+}
+
+.fety-home-calendar-day--year.fety-home-calendar-day--selected .fety-home-calendar-day-month-abbr {
+  color: #fff;
+}
+
+.fety-home-calendar-day--year.fety-home-calendar-day--today:not(.fety-home-calendar-day--selected)
+  .fety-home-calendar-day-month-abbr {
+  color: var(--clear-dk);
+}
+
+.fety-home-calendar-day--year .fety-home-calendar-day-item-text,
+.fety-home-calendar-day--year .fety-home-calendar-day-item-amt {
+  font-size: 7px;
+}
+
+.fety-home-open-day-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  margin: 0;
+  padding: 0;
+  border: none;
+  border-radius: 4px;
+  background: transparent;
+  color: var(--ink-2);
+  cursor: pointer;
+  flex-shrink: 0;
+}
+
+.fety-home-open-day-btn-label {
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+}
+
+.fety-home-open-day-btn--month-tile,
+.fety-home-open-day-btn--eq {
+  width: 18px;
+  height: 18px;
+  background: rgba(255, 255, 255, 0.16);
+  color: rgba(255, 255, 255, 0.95);
+}
+
+.fety-home-open-day-btn--month-tile:hover,
+.fety-home-open-day-btn--eq:hover {
+  background: rgba(255, 255, 255, 0.26);
+}
+
+.fety-home-open-day-btn--year-tile {
+  position: absolute;
+  top: 5px;
+  right: 3px;
+  z-index: 2;
+  padding: 2px 3px 1px;
+  border-radius: 4px;
+  background: rgba(255, 255, 255, 0.16);
+  color: rgba(255, 255, 255, 0.95);
+}
+
+.fety-home-open-day-btn--year-tile:hover {
+  background: rgba(255, 255, 255, 0.26);
+}
+
+.fety-home-open-day-btn--year-tile .fety-home-open-day-btn-label {
+  font-size: 7px;
+  line-height: 1;
+}
+
+.fety-home-open-day-btn--year-tile svg {
+  width: 8px;
+  height: 8px;
+}
+
+.fety-home-card--calendar {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  height: 100%;
+}
+
+.fety-home-add-tx--calendar {
+  align-self: flex-start;
+}
+
+.fety-home-calendar-view-segment {
+  flex-shrink: 0;
+  margin-bottom: 10px;
+  width: 100%;
+}
+
+.fety-home-calendar-view-segment-track {
+  --cal-view-count: 4;
+  position: relative;
+  display: grid;
+  grid-template-columns: repeat(var(--cal-view-count), minmax(0, 1fr));
+  align-items: center;
+  gap: 0;
+  padding: 3px;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  background: var(--bg);
+}
+
+.fety-home-calendar-view-segment-pill {
+  position: absolute;
+  top: 3px;
+  bottom: 3px;
+  left: 3px;
+  width: calc((100% - 6px) / var(--cal-view-count));
+  border-radius: 999px;
+  background: var(--ink);
+  transform: translateX(calc(var(--cal-view-index, 0) * 100%));
+  transition: transform 0.18s ease;
+  pointer-events: none;
+}
+
+.fety-home-calendar-view-segment-btn {
+  position: relative;
+  z-index: 1;
+  margin: 0;
+  padding: 6px 4px;
+  border: none;
+  border-radius: 999px;
+  background: transparent;
+  font: inherit;
+  font-size: 10px;
+  font-weight: 600;
+  color: var(--ink-2);
+  cursor: pointer;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.fety-home-calendar-view-segment-btn:hover {
+  color: var(--ink);
+}
+
+.fety-home-calendar-view-segment-btn[aria-selected="true"] {
+  color: #fff;
+}
+
+.fety-cal-period-menu--home {
+  position: relative;
+  flex: 0 0 200px;
+  width: 200px;
+  min-width: 200px;
+  max-width: 200px;
+}
+
+.fety-cal-period-menu-trigger {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  margin: 0;
+  padding: 4px 8px;
+  border: none;
+  border-radius: 8px;
+  background: transparent;
+  cursor: pointer;
+  font: inherit;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--ink);
+}
+
+.fety-cal-period-menu-trigger:hover {
+  background: var(--bg);
+}
+
+.fety-cal-period-menu-label {
+  display: block;
+  width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  text-align: center;
+}
+
+.fety-cal-period-menu:not(.fety-cal-period-menu--home) .fety-cal-period-menu-panel {
+  left: 50%;
+  transform: translateX(-50%);
+}
+
+.fety-cal-period-menu-panel {
+  position: absolute;
+  top: calc(100% + 6px);
+  left: 0;
+  transform: none;
+  z-index: 20;
+  padding: 0;
+  background: transparent;
+  border: none;
+  box-shadow: none;
+}
+
+.fety-cal-period-picker {
+  width: 280px;
+  max-width: min(280px, 92vw);
+  min-height: 280px;
+  box-sizing: border-box;
+  padding: 12px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  box-shadow: 0 10px 28px rgba(0, 0, 0, 0.1);
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.fety-cal-mini-month {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  flex: 1;
+  min-height: 0;
+}
+
+.fety-cal-mini-month-nav {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 6px;
+}
+
+.fety-cal-mini-month-title {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--ink);
+  text-align: center;
+  flex: 1;
+  min-width: 0;
+}
+
+.fety-cal-mini-month-arrow {
+  width: 28px;
+  height: 28px;
+  border-radius: 8px;
+  border: 1px solid var(--border);
+  background: var(--surface);
+  cursor: pointer;
+  font-size: 16px;
+  line-height: 1;
+  color: var(--ink-2);
+  flex-shrink: 0;
+}
+
+.fety-cal-mini-month-arrow:hover {
+  color: var(--ink);
+  border-color: var(--ink-3);
+}
+
+.fety-cal-mini-month-dow {
+  display: grid;
+  grid-template-columns: repeat(7, 1fr);
+  gap: 2px;
+  text-align: center;
+  font-size: 9px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  color: var(--ink-3);
+}
+
+.fety-cal-mini-month-grid {
+  display: grid;
+  grid-template-columns: repeat(7, 1fr);
+  gap: 2px;
+  flex: 1;
+}
+
+.fety-cal-mini-day {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  aspect-ratio: 1;
+  min-height: 0;
+  margin: 0;
+  padding: 0;
+  border: none;
+  border-radius: 0;
+  background: transparent;
+  font-size: 11px;
+  font-weight: 500;
+  color: var(--ink);
+  cursor: pointer;
+  line-height: 1;
+  isolation: isolate;
+}
+
+.fety-cal-mini-day-num {
+  position: relative;
+  z-index: 2;
+}
+
+.fety-cal-mini-day--pad {
+  pointer-events: none;
+}
+
+.fety-cal-mini-day:hover:not(.fety-cal-mini-day--pad):not(.fety-cal-mini-day--range-start):not(.fety-cal-mini-day--range-end):not(.fety-cal-mini-day--range-mid):not(.fety-cal-mini-day--range-preview-mid):not(.fety-cal-mini-day--range-preview-end) {
+  background: var(--bg);
+  border-radius: 8px;
+}
+
+.fety-cal-mini-day--selected {
+  border-radius: 50%;
+  background: var(--ink);
+  color: #fff;
+}
+
+.fety-cal-mini-day--selected .fety-cal-mini-day-num {
+  color: #fff;
+  font-weight: 600;
+}
+
+.fety-cal-mini-day--balance-tile {
+  box-sizing: border-box;
+  border-radius: 8px;
+  border: 2px solid transparent;
+}
+
+/* Range selection fills (weekly / bi-weekly picker) */
+.fety-cal-mini-day--range-start {
+  box-sizing: border-box;
+  border-radius: 8px;
+  border: 2px solid transparent;
+  background: var(--ink) !important;
+  z-index: 2;
+}
+
+.fety-cal-mini-day--range-mid,
+.fety-cal-mini-day--range-preview-mid {
+  box-sizing: border-box;
+  border-radius: 8px;
+  border: 2px solid transparent;
+  background: color-mix(in srgb, var(--ink) 16%, var(--surface)) !important;
+  z-index: 1;
+}
+
+/* End date: white tile + black border; black fill on hover (preview end) */
+.fety-cal-mini-day--range-end,
+.fety-cal-mini-day--range-preview-end {
+  box-sizing: border-box;
+  border-radius: 8px;
+  border: 2px solid var(--ink) !important;
+  background: var(--surface) !important;
+  z-index: 2;
+}
+
+.fety-cal-mini-day--range-preview-end:hover {
+  background: var(--ink) !important;
+  border-color: var(--ink) !important;
+}
+
+.fety-cal-mini-day--range-preview-end:hover .fety-cal-mini-day-num {
+  color: #fff;
+}
+
+.fety-cal-mini-day--range-start .fety-cal-mini-day-num,
+.fety-cal-mini-day--range-mid .fety-cal-mini-day-num,
+.fety-cal-mini-day--range-end .fety-cal-mini-day-num,
+.fety-cal-mini-day--range-preview-mid .fety-cal-mini-day-num,
+.fety-cal-mini-day--range-preview-end .fety-cal-mini-day-num {
+  font-weight: 700;
+}
+
+.fety-cal-period-monthly {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  flex: 1;
+}
+
+.fety-cal-period-year-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  width: 100%;
+  margin: 0;
+  padding: 8px 12px;
+  border-radius: 10px;
+  border: 1px solid var(--border);
+  background: var(--bg);
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--ink);
+  cursor: pointer;
+}
+
+.fety-cal-period-year-caret {
+  font-size: 10px;
+  color: var(--ink-3);
+}
+
+.fety-cal-period-year-grid {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 4px;
+}
+
+.fety-cal-period-year-opt {
+  margin: 0;
+  padding: 6px 4px;
+  border-radius: 8px;
+  border: 1px solid var(--border-soft);
+  background: var(--surface);
+  font-size: 11px;
+  font-weight: 500;
+  cursor: pointer;
+  color: var(--ink-2);
+}
+
+.fety-cal-period-year-opt--active {
+  background: var(--ink);
+  color: #fff;
+  border-color: var(--ink);
+}
+
+.fety-cal-period-month-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 6px;
+  flex: 1;
+  align-content: start;
+}
+
+.fety-cal-period-month-cell {
+  margin: 0;
+  padding: 14px 6px;
+  border-radius: 10px;
+  border: 1px solid var(--border-soft);
+  background: var(--surface);
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--ink);
+  cursor: pointer;
+}
+
+.fety-cal-period-month-cell:hover {
+  border-color: var(--ink-3);
+}
+
+.fety-cal-period-month-cell--active {
+  background: var(--ink);
+  color: #fff;
+  border-color: var(--ink);
+}
+
+.fety-cal-period-range {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  flex: 1;
+  min-height: 0;
+}
+
+.fety-home-calendar-scroll {
+  flex: 1;
+  min-height: 0;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+.fety-home-calendar-scroll--monthly {
+  overflow: hidden;
+}
+
+.fety-home-calendar-scroll--daily {
+  overflow: hidden;
+}
+
+.fety-home-calendar-scroll--weekly,
+.fety-home-calendar-scroll--biweekly {
+  overflow: hidden;
+}
+
+.fety-home-calendar-scroll--yearly {
+  overflow: hidden;
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+.fety-home-calendar-scroll--yearly .fety-home-calendar-yearly-frame {
+  flex: 1;
+  min-height: 0;
+  max-height: 100%;
+}
+
+.fety-home-calendar-scroll--yearly .fety-home-calendar-yearly-scroll {
+  flex: 1 1 0;
+  min-height: 0;
+  max-height: 100%;
+}
+
+.fety-home-calendar-scroll--yearly .fety-home-calendar--year-content {
+  height: auto;
+  flex: 0 0 auto;
+  min-height: 0;
+}
+
+.fety-home-calendar-scroll--yearly .fety-home-calendar {
+  height: auto;
+  flex: 0 0 auto;
+  min-height: 0;
+}
+
+.fety-home-calendar-scroll--yearly .fety-home-calendar-grid,
+.fety-home-calendar-scroll--yearly .fety-home-calendar-grid--year {
+  flex: 0 0 auto;
+  min-height: 0;
+  grid-auto-rows: minmax(40px, auto);
+}
+
+.fety-home-row--hero .fety-home-calendar-scroll--yearly .fety-home-calendar-grid--year {
+  grid-auto-rows: minmax(40px, auto);
+}
+
+.fety-home-calendar-grid--month {
+  flex: 1;
+  min-height: 0;
+}
+
+.fety-home-row--hero .fety-home-calendar-grid:not(.fety-home-calendar-grid--year) {
+  grid-auto-rows: minmax(0, 1fr);
+}
+
+.fety-home-calendar-grid--year {
+  grid-auto-rows: minmax(44px, auto);
+  min-height: 0;
+}
+
+.fety-home-calendar--year-content {
+  min-height: 0;
+  width: 100%;
+}
+
+.fety-home-cal-period {
+  flex: 1;
+  min-height: 0;
+  min-width: 0;
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+}
+
+.fety-home-cal-period--daily {
+  gap: 12px;
+  overflow: hidden;
+  padding: 2px 2px 4px;
+  min-height: 0;
+}
+
+.fety-home-cal-period-header {
+  flex-shrink: 0;
+}
+
+.fety-home-cal-period-header--with-open {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.fety-home-cal-period-title {
+  margin: 4px 0 0;
+  font-size: 17px;
+  font-weight: 600;
+  letter-spacing: -0.02em;
+  color: var(--ink);
+}
+
+.fety-home-cal-period-section {
+  flex-shrink: 0;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 12px 14px;
+}
+
+.fety-home-cal-period-section-label {
+  margin: 0 0 8px;
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--ink-3);
+}
+
+.fety-home-cal-period-section--notes {
+  margin-top: 18px;
+}
+
+.fety-home-cal-period-bal-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  min-width: 0;
+}
+
+.fety-home-cal-period-bal-label {
+  flex-shrink: 0;
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--ink-3);
+}
+
+.fety-home-cal-period-balance {
+  margin: 0;
+  font-size: 22px;
+  font-weight: 500;
+  font-family: var(--font-sans);
+  letter-spacing: -0.03em;
+  line-height: 1.15;
+  text-align: right;
+}
+
+.fety-home-cal-period-muted {
+  margin: 0;
+  font-size: 12px;
+  color: var(--ink-3);
+  line-height: 1.45;
+}
+
+.fety-home-cal-period-tx-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.fety-home-cal-period-tx-row {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  min-width: 0;
+}
+
+.fety-home-cal-period-tx-row--interactive {
+  align-items: center;
+  width: 100%;
+  padding: 6px 8px;
+  margin: -6px -8px;
+  border-radius: 10px;
+  border: none;
+  background: transparent;
+  cursor: pointer;
+  text-align: left;
+  box-sizing: content-box;
+}
+
+.fety-home-cal-period-tx-row--interactive:hover {
+  background: var(--bg);
+}
+
+.fety-home-cal-period-tx-edit {
+  flex-shrink: 0;
+  border: none;
+  background: transparent;
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--ink-2);
+  cursor: pointer;
+  padding: 2px 4px;
+  font-family: inherit;
+}
+
+.fety-home-cal-period-tx-icon {
+  flex-shrink: 0;
+  font-size: 14px;
+  line-height: 1.3;
+}
+
+.fety-home-cal-period-tx-name {
+  flex: 1;
+  min-width: 0;
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--ink);
+  line-height: 1.35;
+}
+
+.fety-home-cal-period-tx-amt {
+  flex-shrink: 0;
+  font-size: 13px;
+  font-weight: 600;
+  font-family: var(--font-sans);
+  line-height: 1.35;
+}
+
+.fety-home-cal-period-notes {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.fety-home-cal-period-notes li {
+  font-size: 13px;
+  line-height: 1.45;
+  color: var(--ink-2);
+  white-space: pre-wrap;
+}
+
+.fety-home-cal-period--weekly,
+.fety-home-cal-period--biweekly {
+  overflow: hidden;
+  height: 100%;
+}
+
+.fety-home-calendar--period-eq {
+  flex: 1;
+  min-height: 0;
+  min-width: 0;
+  width: 100%;
+  height: 100%;
+  overflow: hidden;
+}
+
+.fety-home-calendar--period-eq .fety-home-calendar-dow {
+  gap: 3px;
+  width: 100%;
+}
+
+.fety-home-cal-eq-grid {
+  display: grid;
+  grid-template-columns: repeat(7, minmax(0, 1fr));
+  gap: 3px;
+  flex: 1;
+  min-height: 0;
+  min-width: 0;
+  width: 100%;
+  height: 100%;
+}
+
+.fety-home-cal-eq-grid--biweekly {
+  grid-template-rows: repeat(2, minmax(0, 1fr));
+}
+
+.fety-home-cal-eq-cell {
+  min-width: 0;
+  max-width: 100%;
+  height: 100%;
+  min-height: 0;
+  display: flex;
+}
+
+.fety-home-cal-eq-cell > .fety-home-cal-eq {
+  flex: 1;
+  width: 100%;
+  max-width: 100%;
+}
+
+.fety-home-cal-eq {
+  position: relative;
+  isolation: isolate;
+  min-width: 0;
+  min-height: 0;
+  height: 100%;
+  width: 100%;
+  max-width: 100%;
+  margin: 0;
+  padding: 8px 8px 10px;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  cursor: pointer;
+  text-align: left;
+  font: inherit;
+  color: inherit;
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 3px;
+  overflow: hidden;
+  transition: filter 0.12s ease, box-shadow 0.12s ease;
+}
+
+.fety-home-cal-eq::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  pointer-events: none;
+  opacity: 0;
+  transition: opacity 0.12s ease;
+  background: rgba(17, 17, 17, 0.08);
+  z-index: 0;
+}
+
+.fety-home-cal-eq:hover {
+  filter: brightness(0.97);
+}
+
+.fety-home-cal-eq:hover::after {
+  opacity: 1;
+}
+
+.fety-home-cal-eq--selected:hover {
+  filter: brightness(1.08);
+}
+
+.fety-home-cal-eq--selected:hover::after {
+  background: rgba(255, 255, 255, 0.1);
+}
+
+.fety-home-cal-eq > * {
+  position: relative;
+  z-index: 1;
+}
+
+.fety-home-cal-eq--weekly {
+  padding: 9px 9px 11px;
+  gap: 3px;
+}
+
+.fety-home-cal-eq--biweekly {
+  padding: 6px 6px 8px;
+  gap: 2px;
+}
+
+.fety-home-cal-eq--selected {
+  box-shadow: inset 0 0 0 2px var(--later-dk);
+}
+
+.fety-home-cal-eq--today:not(.fety-home-cal-eq--selected) {
+  box-shadow: inset 0 0 0 2px var(--clear-dk);
+}
+
+.fety-home-cal-eq-head {
+  margin: 0 0 2px;
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: -0.02em;
+  color: var(--ink);
+  line-height: 1.2;
+  flex-shrink: 0;
+}
+
+.fety-home-cal-eq--biweekly .fety-home-cal-eq-head {
+  font-size: 9px;
+  margin-bottom: 1px;
+}
+
+.fety-home-cal-eq-bal-row {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 6px;
+  min-width: 0;
+}
+
+.fety-home-cal-eq-bal-label {
+  flex-shrink: 0;
+  font-size: 9px;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--ink-3);
+}
+
+.fety-home-cal-eq--biweekly .fety-home-cal-eq-bal-label {
+  font-size: 7px;
+}
+
+.fety-home-cal-eq-bal-row .fety-home-cal-eq-value {
+  margin: 0;
+  flex: 1;
+  min-width: 0;
+  text-align: right;
+}
+
+.fety-home-cal-eq-value {
+  margin: 0;
+  font-size: 11px;
+  font-weight: 600;
+  font-family: var(--font-sans);
+  letter-spacing: -0.02em;
+  line-height: 1.2;
+}
+
+.fety-home-cal-eq--biweekly .fety-home-cal-eq-value {
+  font-size: 8px;
+}
+
+.fety-home-cal-eq-value--end {
+  font-weight: 700;
+}
+
+.fety-home-cal-eq-rule {
+  height: 1px;
+  margin: 2px 0;
+  background: rgba(255, 255, 255, 0.55);
+  flex-shrink: 0;
+}
+
+.fety-home-cal-eq-tx {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-height: 0;
+}
+
+.fety-home-cal-eq--biweekly .fety-home-cal-eq-tx {
+  gap: 2px;
+}
+
+.fety-home-cal-eq-tx-line {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.fety-home-cal-eq-tx-title {
+  display: flex;
+  align-items: flex-start;
+  gap: 3px;
+  min-width: 0;
+}
+
+.fety-home-cal-eq-tx-icon {
+  flex-shrink: 0;
+  font-size: 9px;
+  line-height: 1.35;
+}
+
+.fety-home-cal-eq--biweekly .fety-home-cal-eq-tx-icon {
+  font-size: 7px;
+}
+
+.fety-home-cal-eq-tx-desc {
+  flex: 1;
+  min-width: 0;
+  font-size: 9px;
+  font-weight: 500;
+  color: var(--ink);
+  line-height: 1.3;
+  overflow-wrap: anywhere;
+  word-break: break-word;
+}
+
+.fety-home-cal-eq--biweekly .fety-home-cal-eq-tx-desc {
+  font-size: 7px;
+  line-height: 1.25;
+}
+
+.fety-home-cal-eq-tx-amt-row {
+  display: flex;
+  align-items: baseline;
+  justify-content: flex-end;
+  gap: 0;
+  min-width: 0;
+  padding-left: 12px;
+}
+
+.fety-home-cal-eq--biweekly .fety-home-cal-eq-tx-amt-row {
+  padding-left: 10px;
+}
+
+.fety-home-cal-eq-tx-amt {
+  flex-shrink: 0;
+  font-size: 10px;
+  font-weight: 600;
+  font-family: var(--font-sans);
+  line-height: 1.2;
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+.fety-home-cal-eq--biweekly .fety-home-cal-eq-tx-amt {
+  font-size: 8px;
+}
+
+.fety-home-cal-eq-empty {
+  margin: 0;
+  font-size: 10px;
+  color: var(--ink-3);
+  font-style: italic;
+}
+
+.fety-home-cal-eq-notes-block {
+  margin-top: 20px;
+  padding-top: 14px;
+  border-top: 1px solid rgba(17, 17, 17, 0.1);
+  flex-shrink: 0;
+}
+
+.fety-home-cal-eq-notes-label {
+  margin: 0 0 6px;
+  font-size: 9px;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--ink-3);
+}
+
+.fety-home-cal-eq--biweekly .fety-home-cal-eq-notes-block {
+  margin-top: 12px;
+  padding-top: 8px;
+}
+
+.fety-home-cal-eq--biweekly .fety-home-cal-eq-notes-label {
+  margin-bottom: 4px;
+  font-size: 7px;
+}
+
+.fety-home-cal-eq-notes {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  font-size: 9px;
+  line-height: 1.35;
+  color: var(--ink-2);
+}
+
+.fety-home-cal-eq-notes--compact {
+  font-size: 7px;
+}
+
+.fety-home-cal-eq-foot {
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  margin-top: 2px;
+}
+
+.fety-home-cal-eq--selected .fety-home-cal-eq-head,
+.fety-home-cal-eq--selected .fety-home-cal-eq-bal-label,
+.fety-home-cal-eq--selected .fety-home-cal-eq-tx-desc {
+  color: rgba(255, 255, 255, 0.92);
+}
+
+.fety-home-cal-eq--selected .fety-home-cal-eq-notes-block {
+  border-top-color: rgba(255, 255, 255, 0.35);
+}
+
+.fety-home-cal-eq--selected .fety-home-cal-eq-notes-label {
+  color: rgba(255, 255, 255, 0.65);
+}
+
+.fety-home-cal-eq--selected .fety-home-cal-eq-notes li {
+  color: rgba(255, 255, 255, 0.82);
+}
+
+.fety-home-cal-eq--today:not(.fety-home-cal-eq--selected) .fety-home-cal-eq-head {
+  color: var(--clear-dk);
+}
+
+.fety-home-cal-tile-scroll-wrap {
+  position: relative;
+  flex: 1;
+  min-height: 0;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+.fety-home-cal-tile-scroll-wrap--daily {
+  overflow: hidden;
+}
+
+.fety-home-cal-tile-scroll-wrap--daily .fety-home-cal-tile-scroll {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 2px 0 4px;
+}
+
+.fety-home-cal-tile-scroll-wrap--eq {
+  flex: 1;
+  min-height: 0;
+  width: 100%;
+}
+
+.fety-home-cal-tile-scroll {
+  flex: 1;
+  min-height: 0;
+  overflow: hidden;
+  overflow-y: auto;
+  scrollbar-width: none;
+}
+
+.fety-home-cal-tile-scroll::-webkit-scrollbar {
+  display: none;
+}
+
+.fety-home-cal-tile-scroll-nav {
+  position: absolute;
+  right: 4px;
+  top: 50%;
+  transform: translateY(-50%);
+  z-index: 3;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  pointer-events: none;
+}
+
+.fety-home-cal-tile-scroll-nav:focus-within,
+.fety-home-cal-tile-scroll-wrap:hover .fety-home-cal-tile-scroll-nav {
+  pointer-events: auto;
+}
+
+.fety-home-cal-tile-scroll-nav .fety-home-cal-tile-scroll-btn {
+  pointer-events: auto;
+}
+
+.fety-home-calendar-yearly-frame {
+  position: relative;
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.fety-home-calendar-yearly-scroll {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  overflow-x: hidden;
+  scrollbar-width: none;
+  padding: 2px 28px 8px 2px;
+}
+
+.fety-home-calendar-yearly-scroll::-webkit-scrollbar {
+  display: none;
+}
+
+.fety-home-calendar-yearly-scroll-nav {
+  position: absolute;
+  right: 6px;
+  top: 50%;
+  transform: translateY(-50%);
+  z-index: 4;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  pointer-events: auto;
+  opacity: 1;
+}
+
+.fety-home-card--calendar .fety-home-calendar-yearly-scroll-nav {
+  opacity: 1;
+  pointer-events: auto;
+}
+
+.fety-home-calendar-yearly-scroll-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  margin: 0;
+  padding: 0;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  background: var(--surface);
+  color: var(--ink-2);
+  cursor: pointer;
+  box-shadow: 0 1px 2px rgba(17, 17, 17, 0.06);
+  pointer-events: auto;
+}
+
+.fety-home-calendar-yearly-scroll-btn:hover {
+  background: var(--bg);
+  color: var(--ink);
+}
+
 .fety-modal {
   position: fixed;
   inset: 0;
@@ -2473,6 +3998,216 @@ html, body, #root {
   gap: 10px;
 }
 
+.fety-modal-panel--transaction {
+  width: min(100%, 520px);
+  max-height: min(92vh, 780px);
+  overflow-y: auto;
+}
+
+.fety-modal-panel--transaction .fety-modal-form {
+  gap: 6px;
+}
+
+.fety-txn-modal-section {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 10px 0 4px;
+  border-top: 1px solid var(--border-soft);
+}
+
+.fety-txn-modal-section-title {
+  margin: 0;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--ink-3);
+}
+
+.fety-txn-modal-section-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+}
+
+.fety-txn-modal-section-row select {
+  flex: 1 1 180px;
+  min-width: 0;
+}
+
+.fety-txn-list-edit {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  width: 100%;
+  min-width: 0;
+}
+
+.fety-txn-list-edit-fields {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+  gap: 8px;
+  align-items: end;
+}
+
+.fety-txn-list-edit-actions {
+  display: flex;
+  justify-content: flex-end;
+  align-items: center;
+  gap: 8px;
+  margin-top: 2px;
+}
+
+.fety-txn-list-edit-btn {
+  padding: 8px 12px;
+  border-radius: var(--radius-ctrl);
+  font-weight: 600;
+  font-size: 13px;
+  cursor: pointer;
+  font-family: inherit;
+}
+
+.fety-txn-list-edit-btn--primary {
+  border: none;
+  background: var(--ink);
+  color: #fff;
+}
+
+.fety-txn-list-edit-btn--secondary {
+  border: 1px solid var(--border);
+  background: transparent;
+  color: var(--ink);
+}
+
+select.fety-transaction-category-select,
+select.fety-transaction-goal-select,
+select.fety-txn-toolbar-select {
+  appearance: none;
+  -webkit-appearance: none;
+  -moz-appearance: none;
+  padding-block: 0;
+  padding-inline-start: 11px;
+  padding-inline-end: 2.35rem;
+  background-color: var(--surface);
+  background-repeat: no-repeat;
+  background-position: right 0.55rem center;
+  background-size: 0.75rem;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 12 12' fill='none'%3E%3Cpath stroke='%236b7280' stroke-width='1.5' stroke-linecap='round' stroke-linejoin='round' d='M3 4.5 6 7.5 9 4.5'/%3E%3C/svg%3E");
+}
+
+.fety-modal-pill-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  align-items: center;
+}
+
+.fety-modal-pill {
+  margin: 0;
+  padding: 6px 14px;
+  border-radius: 99px;
+  font-size: 11px;
+  font-weight: 600;
+  border: 1px solid var(--border);
+  cursor: pointer;
+  background: var(--surface);
+  color: var(--ink-2);
+  line-height: 1.2;
+  transition: background 0.15s ease, color 0.15s ease, border-color 0.15s ease;
+}
+
+.fety-modal-pill:hover {
+  color: var(--ink);
+  border-color: var(--ink-3);
+}
+
+.fety-modal-pill--active {
+  background: var(--ink);
+  color: #fff;
+  border-color: var(--ink);
+}
+
+.fety-modal-pill--type-active {
+  background: var(--surface);
+  color: var(--ink-2);
+  border-color: var(--ink);
+}
+
+.fety-modal-pill--add-category {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  flex-shrink: 0;
+}
+
+.fety-modal-pill--outline {
+  background: transparent;
+  border-style: dashed;
+  flex-shrink: 0;
+}
+
+.fety-txn-modal-check {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 12px;
+  color: var(--ink-2);
+  cursor: pointer;
+  user-select: none;
+}
+
+.fety-txn-modal-check input {
+  width: 15px;
+  height: 15px;
+  accent-color: var(--ink);
+}
+
+.fety-txn-modal-inline-form {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 10px;
+  border-radius: 10px;
+  border: 1px solid var(--border-soft);
+  background: var(--bg);
+}
+
+.fety-txn-modal-inline-fields {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  gap: 8px;
+}
+
+.fety-txn-modal-inline-fields input,
+.fety-txn-modal-inline-fields .fety-currency-input-wrap {
+  flex: 1 1 120px;
+  min-width: 0;
+}
+
+.fety-txn-schedule-prompt {
+  padding: 12px 14px;
+  border-radius: 12px;
+  border: 1px solid var(--border);
+  background: var(--paper);
+}
+
+.fety-txn-schedule-prompt-title {
+  margin: 0 0 6px;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--ink);
+}
+
+.fety-txn-schedule-prompt-copy {
+  margin: 0 0 10px;
+  font-size: 12px;
+  line-height: 1.45;
+  color: var(--ink-2);
+}
+
 .fety-modal-form-row {
   display: flex;
   align-items: flex-end;
@@ -2480,10 +4215,25 @@ html, body, #root {
 }
 
 .fety-modal-routing {
-  padding: 10px;
+  padding: 12px 14px;
   border-radius: 10px;
   border: 1px solid var(--border);
   background: var(--bg);
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+  width: 100%;
+  box-sizing: border-box;
+}
+
+.fety-modal-routing > .fety-label:first-child {
+  grid-column: 1 / -1;
+  margin: 0 0 2px;
+}
+
+.fety-modal-routing-field label {
+  display: block;
+  margin-bottom: 4px;
 }
 
 .fety-modal-actions {
@@ -3541,13 +5291,31 @@ html, body, #root {
   -webkit-box-orient: vertical;
 }
 
-.fety-cal-day-note-dot {
-  width: 5px;
-  height: 5px;
-  border-radius: 99px;
-  background: var(--ink);
+.fety-cal-day-note-icon {
+  display: block;
   flex-shrink: 0;
-  opacity: 0.45;
+  color: var(--ink);
+  opacity: 0.48;
+}
+
+.fety-cal-day-note-icon--on-dark {
+  color: #fff;
+  opacity: 0.88;
+}
+
+.fety-home-cal-section-label--with-icon {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+}
+
+.fety-home-cal-section-label--with-icon .fety-cal-day-note-icon {
+  opacity: 0.55;
+}
+
+.fety-home-cal-eq--selected .fety-home-cal-eq-notes-label .fety-cal-day-note-icon {
+  color: rgba(255, 255, 255, 0.72);
+  opacity: 1;
 }
 
 .fety-cal-note-footer {
@@ -4809,25 +6577,24 @@ html, body, #root {
     font-size: 22px !important;
   }
 
-  .fety-budget-summary-grid {
-    grid-template-columns: 1fr !important;
+  .fety-budget-summary-bar {
+    flex-direction: column;
   }
 
-  .fety-budget-summary-grid > div {
-    padding: 12px 14px !important;
+  .fety-budget-summary-cell {
+    padding: 14px 16px;
+    border-right: none !important;
+    border-bottom: 1px solid var(--border);
+    align-items: flex-start !important;
     text-align: left !important;
-    display: flex;
-    align-items: baseline;
-    justify-content: space-between;
-    gap: 12px;
   }
 
-  .fety-budget-summary-grid .fety-label {
-    margin-bottom: 0 !important;
+  .fety-budget-summary-cell:last-child {
+    border-bottom: none;
   }
 
-  .fety-budget-summary-grid > div > p:last-child {
-    font-size: 18px !important;
+  .fety-budget-category-grid {
+    grid-template-columns: 1fr !important;
   }
 
   .fety-networth-summary-grid,
@@ -5205,6 +6972,632 @@ html, body, #root {
   flex-wrap: wrap;
   gap: 10px;
   align-items: center;
+}
+
+.fety-budget-page {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.fety-budget-summary-bar {
+  display: flex;
+  align-items: stretch;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  overflow: hidden;
+}
+
+.fety-budget-summary-cell {
+  flex: 1;
+  min-width: 0;
+  padding: 18px 20px;
+  text-align: center;
+  border-right: 1px solid var(--border);
+}
+
+.fety-budget-summary-cell:last-child {
+  border-right: none;
+}
+
+.fety-budget-summary-label {
+  margin: 0 0 8px;
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--ink-3);
+}
+
+.fety-budget-summary-value {
+  margin: 0;
+  font-size: 26px;
+  font-weight: 400;
+  letter-spacing: -0.03em;
+  color: var(--ink);
+  line-height: 1.1;
+}
+
+.fety-budget-summary-value--with-marker {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+}
+
+.fety-budget-summary-value--remaining {
+  color: var(--amber-dk);
+}
+
+.fety-budget-summary-value--over {
+  color: var(--trouble-dk);
+}
+
+.fety-budget-marker {
+  width: 9px;
+  height: 9px;
+  border-radius: 2px;
+  flex-shrink: 0;
+}
+
+.fety-budget-marker--spent {
+  background: var(--trouble-dk);
+}
+
+.fety-budget-marker--remaining {
+  background: var(--amber-dk);
+}
+
+.fety-budget-category-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 12px;
+  align-items: stretch;
+}
+
+.fety-budget-category-grid--list {
+  grid-template-columns: 1fr;
+}
+
+.fety-budget-category-tile {
+  position: relative;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  padding: 16px 18px 14px;
+  min-width: 0;
+}
+
+.fety-budget-category-tile-top {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 10px;
+  margin-bottom: 12px;
+  min-height: 28px;
+}
+
+.fety-budget-category-name {
+  margin: 0;
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 15px;
+  font-weight: 600;
+  letter-spacing: -0.02em;
+  color: var(--ink);
+  line-height: 1.25;
+}
+
+.fety-budget-category-icon {
+  flex-shrink: 0;
+  font-size: 18px;
+  line-height: 1;
+}
+
+.fety-budget-category-name-text {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.fety-budget-over-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  flex-shrink: 0;
+  font-size: 9px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--trouble-dk);
+}
+
+.fety-budget-category-tile-meta {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 6px;
+  flex-shrink: 0;
+}
+
+.fety-budget-tile-actions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 6px;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.15s ease;
+}
+
+.fety-budget-category-tile:hover .fety-budget-tile-actions,
+.fety-budget-category-tile:focus-within .fety-budget-tile-actions {
+  opacity: 1;
+  pointer-events: auto;
+}
+
+.fety-budget-tile-btn {
+  margin: 0;
+  padding: 0 10px;
+  height: 28px;
+  border-radius: 8px;
+  border: 1px solid var(--border);
+  background: var(--surface);
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--ink-2);
+  cursor: pointer;
+  line-height: 1;
+}
+
+.fety-budget-tile-btn:hover {
+  color: var(--ink);
+  border-color: var(--ink-3);
+}
+
+.fety-budget-tile-btn--remove {
+  color: var(--trouble-dk);
+  border-color: var(--border-soft);
+}
+
+.fety-budget-tile-btn--remove:hover {
+  border-color: var(--trouble-dk);
+}
+
+.fety-budget-category-amounts {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 10px;
+  margin-bottom: 10px;
+}
+
+.fety-budget-category-spent {
+  font-size: 22px;
+  font-weight: 400;
+  letter-spacing: -0.03em;
+  color: var(--ink);
+  line-height: 1.1;
+}
+
+.fety-budget-category-cap {
+  font-size: 14px;
+  font-weight: 400;
+  color: var(--ink-3);
+  line-height: 1.2;
+}
+
+.fety-budget-category-bar {
+  height: 8px;
+  border-radius: 99px;
+  background: var(--paper);
+  overflow: hidden;
+}
+
+.fety-budget-category-bar-fill {
+  height: 100%;
+  border-radius: inherit;
+  transition: width 0.2s ease;
+}
+
+.fety-budget-category-bar-fill--default {
+  background: var(--ink);
+}
+
+.fety-budget-category-bar-fill--tight {
+  background: var(--amber-dk);
+}
+
+.fety-budget-category-bar-fill--over {
+  background: var(--trouble-dk);
+}
+
+.fety-budget-category-foot {
+  margin: 8px 0 0;
+  font-size: 12px;
+  color: var(--ink-3);
+  line-height: 1.3;
+}
+
+.fety-budget-category-foot--over {
+  color: var(--trouble-dk);
+}
+
+.fety-budget-category-edit {
+  margin-top: 4px;
+}
+
+.fety-budget-scheduled-section {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  margin-top: 8px;
+  padding-top: 20px;
+  border-top: 1px solid var(--border);
+}
+
+.fety-budget-scheduled-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.fety-budget-scheduled-title {
+  margin: 0;
+  font-size: 18px;
+  font-weight: 600;
+  letter-spacing: -0.03em;
+  color: var(--ink);
+  line-height: 1.25;
+}
+
+.fety-modal-panel--scheduled {
+  width: min(100%, 560px);
+  max-height: min(90vh, 720px);
+}
+
+.fety-budget-scheduled-add-form {
+  gap: 14px;
+}
+
+.fety-budget-scheduled-add-tabs {
+  display: inline-flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.fety-budget-scheduled-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 12px;
+  align-items: start;
+}
+
+.fety-budget-scheduled-column {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  min-width: 0;
+}
+
+.fety-budget-scheduled-kind-tile {
+  flex-shrink: 0;
+}
+
+.fety-budget-scheduled-kind-tile .fety-budget-category-tile-top {
+  margin-bottom: 2px;
+}
+
+.fety-budget-scheduled-kind-tile .fety-budget-tile-actions {
+  display: none;
+}
+
+.fety-budget-scheduled-panel {
+  min-width: 0;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  padding: 18px 20px;
+}
+
+.fety-budget-scheduled-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+@media (max-width: 960px) {
+  .fety-budget-category-grid:not(.fety-budget-category-grid--list) {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .fety-budget-scheduled-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .fety-goals-grid:not(.fety-goals-grid--list) {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+.fety-goals-page {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.fety-goals-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 12px;
+  align-items: stretch;
+}
+
+.fety-goals-grid--list {
+  grid-template-columns: 1fr;
+}
+
+.fety-goals-card {
+  min-width: 0;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 16px;
+  padding: 20px 22px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.fety-goals-card-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.fety-goals-card-head-main {
+  min-width: 0;
+  flex: 1;
+}
+
+.fety-goals-card-head-side {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 8px;
+  flex-shrink: 0;
+}
+
+.fety-goals-card-name {
+  margin: 0;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 15px;
+  font-weight: 600;
+  letter-spacing: -0.02em;
+  color: var(--ink);
+  line-height: 1.25;
+  min-width: 0;
+}
+
+.fety-goals-card-icon {
+  flex-shrink: 0;
+  font-size: 20px;
+  line-height: 1;
+}
+
+.fety-goals-card-name-text {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.fety-goals-card-byline {
+  margin: 6px 0 0;
+  padding-left: 28px;
+  font-size: 10px;
+  font-weight: 500;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--ink-3);
+  line-height: 1.2;
+}
+
+.fety-goals-status {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 9px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  line-height: 1;
+  white-space: nowrap;
+}
+
+.fety-goals-status-dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 999px;
+  flex-shrink: 0;
+}
+
+.fety-goals-status--on_track {
+  color: var(--clear-dk);
+}
+
+.fety-goals-status--on_track .fety-goals-status-dot {
+  background: var(--clear-dk);
+}
+
+.fety-goals-status--behind {
+  color: var(--trouble-dk);
+}
+
+.fety-goals-status--behind .fety-goals-status-dot {
+  background: var(--trouble-dk);
+}
+
+.fety-goals-card-actions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 6px;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.15s ease;
+}
+
+.fety-goals-card:hover .fety-goals-card-actions,
+.fety-goals-card:focus-within .fety-goals-card-actions {
+  opacity: 1;
+  pointer-events: auto;
+}
+
+.fety-goals-amount-row {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.fety-goals-saved {
+  margin: 0;
+  font-size: 26px;
+  font-weight: 400;
+  letter-spacing: -0.03em;
+  color: var(--ink);
+  line-height: 1.1;
+}
+
+.fety-goals-target {
+  margin: 0;
+  font-size: 12px;
+  font-weight: 400;
+  color: var(--ink-3);
+  line-height: 1.2;
+  flex-shrink: 0;
+}
+
+.fety-goals-bar {
+  height: 10px;
+  border-radius: 999px;
+  background: var(--paper);
+  overflow: hidden;
+}
+
+.fety-goals-bar-fill {
+  height: 100%;
+  border-radius: 999px;
+  background: var(--later-dk);
+  transition: width 0.25s ease;
+}
+
+.fety-goals-card--behind .fety-goals-bar-fill {
+  background: var(--trouble-dk);
+}
+
+.fety-goals-foot {
+  margin: 0;
+  font-size: 11px;
+  color: var(--ink-3);
+  line-height: 1.35;
+}
+
+.fety-goals-add-btn {
+  margin: 0;
+  min-height: 100%;
+  align-self: stretch;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 22px 20px;
+  border-radius: 16px;
+  border: 2px dashed var(--border);
+  background: transparent;
+  color: var(--ink-3);
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  line-height: 1.2;
+  transition: color 0.15s ease, border-color 0.15s ease;
+}
+
+.fety-goals-add-btn:hover {
+  color: var(--ink-2);
+  border-color: var(--ink-3);
+}
+
+.fety-budget-add-category-btn {
+  margin: 0;
+  min-height: 100%;
+  align-self: stretch;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 22px 20px;
+  border-radius: 14px;
+  border: 2px dashed var(--border);
+  background: transparent;
+  color: var(--ink-3);
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  line-height: 1.2;
+  transition: color 0.15s ease, border-color 0.15s ease;
+}
+
+.fety-budget-add-category-btn:hover {
+  color: var(--ink-2);
+  border-color: var(--ink-3);
+}
+
+.fety-budget-add-category-form {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  padding: 18px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.fety-budget-add-category-fields {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  gap: 10px;
+}
+
+@media (max-width: 640px) {
+  .fety-goals-grid:not(.fety-goals-grid--list) {
+    grid-template-columns: 1fr;
+  }
+}
+
+.fety-profile-test-planner {
+  align-self: flex-start;
+  padding: 10px 16px;
+  border-radius: var(--radius-ctrl);
+  border: 1px dashed var(--border);
+  background: var(--surface);
+  color: var(--ink-2);
+  cursor: pointer;
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.fety-profile-test-planner:hover {
+  color: var(--ink);
+  border-color: var(--ink-3);
 }
 
 .fety-explore-banner {
@@ -5875,3 +8268,459 @@ html, body, #root {
 ::-webkit-scrollbar { width: 4px; height: 4px; }
 ::-webkit-scrollbar-track { background: transparent; }
 ::-webkit-scrollbar-thumb { background: var(--border); border-radius: var(--radius-track); }
+
+/* ─── Planner workspace ─────────────────────────────────────────────────────── */
+
+.fety-planner-root {
+  flex: 1;
+  min-width: 0;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  background: var(--bg);
+  overflow: hidden;
+}
+
+.fety-planner-toolbar {
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 14px 20px;
+  border-bottom: 1px solid var(--border);
+  background: var(--surface);
+  flex-wrap: wrap;
+}
+
+.fety-planner-toolbar-start {
+  display: flex;
+  align-items: baseline;
+  gap: 12px;
+  min-width: 0;
+}
+
+.fety-planner-title {
+  margin: 0;
+  font-size: 20px;
+  font-weight: 600;
+  letter-spacing: -0.02em;
+  color: var(--ink);
+}
+
+.fety-planner-scenario-name {
+  min-width: 160px;
+  max-width: 280px;
+  padding: 6px 10px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--bg);
+  font: inherit;
+  font-size: 13px;
+  color: var(--ink-2);
+}
+
+.fety-planner-toolbar-controls {
+  display: flex;
+  align-items: flex-end;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.fety-planner-control {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.fety-planner-control select {
+  padding: 6px 10px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--bg);
+  font: inherit;
+  font-size: 12px;
+  color: var(--ink);
+}
+
+.fety-planner-btn {
+  margin: 0;
+  padding: 8px 14px;
+  border-radius: 999px;
+  font: inherit;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  border: 1px solid var(--border);
+}
+
+.fety-planner-btn--ghost {
+  background: var(--surface);
+  color: var(--ink-2);
+}
+
+.fety-planner-btn--ghost:hover {
+  background: var(--bg);
+  color: var(--ink);
+}
+
+.fety-planner-btn--primary {
+  background: var(--ink);
+  color: #fff;
+  border-color: var(--ink);
+}
+
+.fety-planner-btn--primary:hover {
+  filter: brightness(1.08);
+}
+
+.fety-planner-body {
+  flex: 1;
+  min-height: 0;
+  display: grid;
+  grid-template-columns: minmax(200px, 240px) minmax(0, 1fr) minmax(220px, 280px);
+  gap: 0;
+}
+
+.fety-planner-palette {
+  border-right: 1px solid var(--border);
+  background: var(--surface);
+  padding: 16px 12px;
+  overflow-y: auto;
+}
+
+.fety-planner-palette-heading {
+  margin: 0 0 4px;
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--ink-3);
+}
+
+.fety-planner-palette-sub {
+  margin: 0 0 12px;
+  font-size: 12px;
+  line-height: 1.45;
+  color: var(--ink-3);
+}
+
+.fety-planner-palette-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.fety-planner-palette-item {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  width: 100%;
+  margin: 0;
+  padding: 10px;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: var(--bg);
+  text-align: left;
+  cursor: pointer;
+  font: inherit;
+  color: inherit;
+}
+
+.fety-planner-palette-item:hover:not(:disabled) {
+  border-color: var(--ink-3);
+  background: var(--surface);
+}
+
+.fety-planner-palette-item:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+.fety-planner-palette-icon {
+  flex-shrink: 0;
+  font-size: 16px;
+  line-height: 1.2;
+}
+
+.fety-planner-palette-text {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.fety-planner-palette-label {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--ink);
+}
+
+.fety-planner-palette-desc {
+  font-size: 10px;
+  line-height: 1.35;
+  color: var(--ink-3);
+}
+
+.fety-planner-link-hint {
+  margin: 14px 0 0;
+  font-size: 11px;
+  line-height: 1.45;
+  color: var(--ink-3);
+}
+
+.fety-planner-canvas-wrap {
+  position: relative;
+  min-width: 0;
+  min-height: 0;
+  overflow: hidden;
+  background:
+    radial-gradient(circle at 1px 1px, var(--border-soft) 1px, transparent 0) 0 0 / 20px 20px,
+    var(--bg);
+}
+
+.fety-planner-canvas {
+  position: relative;
+  width: 100%;
+  height: 100%;
+  min-height: 420px;
+  overflow: auto;
+  cursor: default;
+}
+
+.fety-planner-edges {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  min-width: 1200px;
+  min-height: 800px;
+  pointer-events: none;
+}
+
+.fety-planner-edge {
+  fill: none;
+  stroke: var(--ink-3);
+  stroke-width: 2;
+  opacity: 0.55;
+}
+
+.fety-planner-node {
+  position: absolute;
+  z-index: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 10px 10px 12px;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  background: var(--surface);
+  box-shadow: 0 1px 3px rgba(17, 17, 17, 0.06);
+  cursor: grab;
+  touch-action: none;
+}
+
+.fety-planner-node:active {
+  cursor: grabbing;
+}
+
+.fety-planner-node--selected {
+  border-color: var(--later-dk);
+  box-shadow: 0 0 0 2px rgba(17, 17, 17, 0.08);
+}
+
+.fety-planner-node--linking {
+  outline: 2px dashed var(--clear-dk);
+  outline-offset: 2px;
+}
+
+.fety-planner-node-head {
+  display: flex;
+  align-items: flex-start;
+  gap: 6px;
+  min-width: 0;
+}
+
+.fety-planner-node-icon {
+  flex-shrink: 0;
+  font-size: 14px;
+  line-height: 1.2;
+}
+
+.fety-planner-node-title {
+  font-size: 12px;
+  font-weight: 600;
+  line-height: 1.3;
+  color: var(--ink);
+}
+
+.fety-planner-node-body {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.fety-planner-node-muted {
+  margin: 0;
+  font-size: 10px;
+  line-height: 1.4;
+  color: var(--ink-3);
+}
+
+.fety-planner-field {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+  flex: 1;
+}
+
+.fety-planner-field--wide {
+  flex: 1 1 100%;
+}
+
+.fety-planner-field span {
+  font-size: 9px;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--ink-3);
+}
+
+.fety-planner-field input,
+.fety-planner-field select {
+  width: 100%;
+  padding: 4px 6px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  font: inherit;
+  font-size: 11px;
+  background: var(--bg);
+  color: var(--ink);
+}
+
+.fety-planner-node-remove {
+  align-self: flex-start;
+  margin: 0;
+  padding: 0;
+  border: none;
+  background: none;
+  font-size: 10px;
+  font-weight: 600;
+  color: var(--trouble-dk);
+  cursor: pointer;
+}
+
+.fety-planner-port {
+  position: absolute;
+  top: 50%;
+  width: 12px;
+  height: 12px;
+  margin: 0;
+  padding: 0;
+  border: 2px solid var(--surface);
+  border-radius: 999px;
+  background: var(--ink-3);
+  transform: translateY(-50%);
+  cursor: crosshair;
+  z-index: 2;
+}
+
+.fety-planner-port--in {
+  left: -6px;
+}
+
+.fety-planner-port--out {
+  right: -6px;
+  background: var(--clear-dk);
+}
+
+.fety-planner-port:hover {
+  transform: translateY(-50%) scale(1.15);
+}
+
+.fety-planner-results {
+  border-left: 1px solid var(--border);
+  background: var(--surface);
+  padding: 16px 14px;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.fety-planner-results-heading {
+  margin: 0;
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--ink-3);
+}
+
+.fety-planner-stat-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+}
+
+.fety-planner-stat {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 10px;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: var(--bg);
+}
+
+.fety-planner-stat strong {
+  font-size: 15px;
+  font-weight: 600;
+  font-family: var(--font-sans);
+  letter-spacing: -0.02em;
+  color: var(--ink);
+}
+
+.fety-planner-notes {
+  margin: 0;
+  padding-left: 18px;
+  font-size: 11px;
+  line-height: 1.45;
+  color: var(--ink-2);
+}
+
+.fety-planner-chart {
+  flex: 1;
+  min-height: 200px;
+}
+
+.fety-planner-chart-empty {
+  margin: 0;
+  padding: 24px 8px;
+  font-size: 12px;
+  line-height: 1.45;
+  color: var(--ink-3);
+  text-align: center;
+}
+
+@media (max-width: 960px) {
+  .fety-planner-body {
+    grid-template-columns: 1fr;
+    grid-template-rows: auto minmax(320px, 1fr) auto;
+  }
+
+  .fety-planner-palette {
+    border-right: none;
+    border-bottom: 1px solid var(--border);
+    max-height: 220px;
+  }
+
+  .fety-planner-results {
+    border-left: none;
+    border-top: 1px solid var(--border);
+  }
+}

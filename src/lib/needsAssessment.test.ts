@@ -152,7 +152,7 @@ describe("assessFinancialNeeds", () => {
         incomeStreams: [{ id: "i1", name: "Pay", amount: 2000, dueDay: 1, frequency: "monthly", category: "Income", icon: "💵" }],
         bills: [
           { id: "b1", name: "Rent", amount: 1500, dueDay: 1, frequency: "monthly", category: "Housing", icon: "🏠" },
-          { id: "b2", name: "Car", amount: 400, dueDay: 5, frequency: "monthly", category: "Bills", icon: "🚗" },
+          { id: "b2", name: "Car", amount: 400, dueDay: 5, frequency: "monthly", category: "Transportation", icon: "🚗" },
         ],
         goals: [],
       }),

@@ -173,19 +173,26 @@ export function spendingPowerBalanceBar(
   goalsPct: number;
   powerPct: number;
   remainderPct: number;
+  /** Bar widths are scaled from obligations + power when cash on hand is zero. */
+  scaleFromProjections: boolean;
 } {
   const balance = Math.max(0, insight.balance);
   if (balance <= 0) {
+    const budgetedExpenses = Math.max(0, regularObligationsMonthly);
+    const goalsAmount = Math.max(0, goalsSavedTotal);
+    const spendingPowerAmount = Math.max(0, insight.periodPower);
+    const totalScale = Math.max(budgetedExpenses + goalsAmount + spendingPowerAmount, 1);
     return {
       balance: 0,
-      budgetedExpenses: 0,
-      goalsAmount: 0,
-      spendingPowerAmount: 0,
+      budgetedExpenses,
+      goalsAmount,
+      spendingPowerAmount,
       remainder: 0,
-      budgetedPct: 0,
-      goalsPct: 0,
-      powerPct: 0,
+      budgetedPct: (budgetedExpenses / totalScale) * 100,
+      goalsPct: (goalsAmount / totalScale) * 100,
+      powerPct: (spendingPowerAmount / totalScale) * 100,
       remainderPct: 0,
+      scaleFromProjections: true,
     };
   }
 
@@ -208,5 +215,6 @@ export function spendingPowerBalanceBar(
     goalsPct: (goalsAmount / balance) * 100,
     powerPct: (spendingPowerAmount / balance) * 100,
     remainderPct: (remainder / balance) * 100,
+    scaleFromProjections: false,
   };
 }

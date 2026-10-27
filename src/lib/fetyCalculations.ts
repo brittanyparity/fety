@@ -7,8 +7,15 @@ import type {
   FetyStore,
   Transaction,
 } from "../types/fety";
+import { isScheduledBillTransaction } from "./billScheduling";
 import { flowForTransactionType } from "./transactionTypes";
-import { globalBalanceContribution, goalSavedTotal, accountBalanceWithTransactions } from "./ledger";
+import {
+  endingBalanceFromAccounts,
+  globalBalanceContribution,
+  goalSavedTotal,
+  accountBalanceProjectedThrough,
+} from "./ledger";
+import { filterBudgetCategories } from "./transactionCategories";
 
 /** Calendar / UI date key in the user's local timezone (YYYY-MM-DD). */
 export function dateToISOLocal(d: Date): string {
@@ -20,6 +27,12 @@ export function dateToISOLocal(d: Date): string {
 
 export function todayISO(): string {
   return dateToISOLocal(new Date());
+}
+
+/** Last calendar day that may change stored balances (today in local time). */
+export function ledgerThroughISO(requestedISO: string): string {
+  const today = todayISO();
+  return requestedISO > today ? today : requestedISO;
 }
 
 export function formatDisplayDate(dateISO: string): string {
@@ -149,8 +162,21 @@ export function balanceAsOfISO(store: FetyStore): string {
   return store.profile.balanceAsOfISO ?? "1970-01-01";
 }
 
-/** Cash position after all transactions on `dateISO` (through that day, inclusive). */
+function dayBeforeISO(dateISO: string): string {
+  const d = new Date(`${dateISO}T12:00:00`);
+  d.setDate(d.getDate() - 1);
+  return dateToISOLocal(d);
+}
+
+function usesAccountLedger(store: FetyStore): boolean {
+  return (store.accounts?.length ?? 0) > 0;
+}
+
+/** Cash position after all transactions on `dateISO` (through that day, inclusive), including future projections. */
 export function endingBalanceOnDate(store: FetyStore, dateISO: string): number {
+  if (usesAccountLedger(store)) {
+    return endingBalanceFromAccounts(store, dateISO);
+  }
   const asOf = balanceAsOfISO(store);
   let balance = store.profile.startingBalance;
   const txs = store.transactions
@@ -190,14 +216,14 @@ export function computeSummary(store: FetyStore, ref = new Date()): FinanceSumma
     .filter((t) => isOutflow(t, store) && inRange(t.dateISO, mStart, mEnd))
     .reduce((s, t) => s + Math.abs(t.amount), 0);
 
-  const monthlyBudgetTotal = store.categories.reduce((s, c) => s + c.monthlyBudget, 0);
+  const monthlyBudgetTotal = filterBudgetCategories(store.categories).reduce((s, c) => s + c.monthlyBudget, 0);
   const weeklyBudget = Math.round(monthlyBudgetTotal / 4.33);
   const weeklySpendingPower = Math.max(0, weeklyBudget - weeklySpent);
   const weeklyUsedPct = weeklyBudget > 0 ? Math.min(100, Math.round((weeklySpent / weeklyBudget) * 100)) : 0;
 
   const savingsTotal = store.goals.reduce((s, g) => s + goalSavedTotal(store, g), 0);
 
-  const categoriesWithSpent = store.categories.map((c) => ({
+  const categoriesWithSpent = filterBudgetCategories(store.categories).map((c) => ({
     ...c,
     spent: categorySpentInMonth(store, c.name, ref),
   }));
@@ -219,6 +245,7 @@ export function computeSummary(store: FetyStore, ref = new Date()): FinanceSumma
 }
 
 function itemTypeForTransaction(t: Transaction, store: FetyStore): CalDayItemType {
+  if (isScheduledBillTransaction(t.id)) return "bill";
   const flow = flowForTransactionType(store, t.type);
   if (flow === "income") return t.amount >= 500 ? "paycheck" : "income";
   if (flow === "bill") return "bill";
@@ -230,13 +257,16 @@ export function buildCalendarMap(store: FetyStore, year: number): CalendarMap {
   const map: CalendarMap = new Map();
   const yearPrefix = String(year);
   const asOf = balanceAsOfISO(store);
+  const accountLedger = usesAccountLedger(store);
 
   let balance = store.profile.startingBalance;
-  const sorted = [...store.transactions]
-    .filter((t) => t.dateISO >= asOf)
-    .sort((a, b) => a.dateISO.localeCompare(b.dateISO));
-  for (const t of sorted) {
-    if (t.dateISO < `${yearPrefix}-01-01`) balance += globalBalanceContribution(t, store);
+  if (!accountLedger) {
+    const sorted = [...store.transactions]
+      .filter((t) => t.dateISO >= asOf)
+      .sort((a, b) => a.dateISO.localeCompare(b.dateISO));
+    for (const t of sorted) {
+      if (t.dateISO < `${yearPrefix}-01-01`) balance += globalBalanceContribution(t, store);
+    }
   }
 
   const byDate = new Map<string, Transaction[]>();
@@ -253,17 +283,6 @@ export function buildCalendarMap(store: FetyStore, year: number): CalendarMap {
     for (let day = 1; day <= daysInMonth; day++) {
       const date = new Date(year, month, day);
       const key = calKey(date);
-      if (key < asOf) {
-        map.set(key, {
-          date,
-          startBal: store.profile.startingBalance,
-          endBal: store.profile.startingBalance,
-          income: 0,
-          expenses: 0,
-          items: [],
-        });
-        continue;
-      }
       const txns = byDate.get(key) ?? [];
       const items: CalDayItem[] = txns.map((t) => ({
         id: t.id,
@@ -280,6 +299,26 @@ export function buildCalendarMap(store: FetyStore, year: number): CalendarMap {
       const expenses = txns
         .filter((t) => globalBalanceContribution(t, store) < 0)
         .reduce((s, t) => s + globalBalanceContribution(t, store), 0);
+
+      if (accountLedger) {
+        const endBal = endingBalanceOnDate(store, key);
+        const startBal = key < asOf ? endBal : endingBalanceOnDate(store, dayBeforeISO(key));
+        map.set(key, { date, startBal, endBal, income, expenses, items });
+        continue;
+      }
+
+      if (key < asOf) {
+        map.set(key, {
+          date,
+          startBal: store.profile.startingBalance,
+          endBal: store.profile.startingBalance,
+          income: 0,
+          expenses: 0,
+          items: [],
+        });
+        continue;
+      }
+
       const startBal = balance;
       const endBal = startBal + income + expenses;
       balance = endBal;
@@ -288,6 +327,15 @@ export function buildCalendarMap(store: FetyStore, year: number): CalendarMap {
   }
 
   return map;
+}
+
+/** Merge day maps for multiple calendar years (e.g. week spanning Dec–Jan). */
+export function mergeCalendarMaps(store: FetyStore, years: number[]): CalendarMap {
+  const merged: CalendarMap = new Map();
+  for (const year of years) {
+    for (const [key, day] of buildCalendarMap(store, year)) merged.set(key, day);
+  }
+  return merged;
 }
 
 /** Background tint for yearly tiles from daily net cash flow. */
@@ -330,6 +378,7 @@ function daysInBalanceRange(range: BalanceChartRange, ref: Date): number {
 function labelForBalancePoint(d: Date, range: BalanceChartRange): string {
   if (range === "7d") return DAY_LABELS[d.getDay()];
   if (range === "month") return String(d.getDate());
+  if (range === "14d") return `${d.getMonth() + 1}/${d.getDate()}`;
   return d.toLocaleDateString("en-US", { month: "short", day: "numeric" });
 }
 
@@ -337,8 +386,7 @@ function labelForBalancePoint(d: Date, range: BalanceChartRange): string {
 function labelForBalancePoint30d(d: Date, firstDayOfMonthOnChart: boolean): string {
   const dayNum = String(d.getDate());
   if (!firstDayOfMonthOnChart) return dayNum;
-  const month = d.toLocaleDateString("en-US", { month: "short" });
-  return `${month} ${dayNum}`;
+  return `${d.getMonth() + 1}/${dayNum}`;
 }
 
 export type BalanceChartPoint = {
@@ -374,7 +422,7 @@ export function endingBalancesForRange(
     d.setDate(ref.getDate() - i);
     const key = calKey(d);
     const bal = accountId
-      ? accountBalanceWithTransactions(store, accountId, key)
+      ? accountBalanceProjectedThrough(store, accountId, key)
       : endingBalanceOnDate(store, key);
     let label: string;
     if (range === "30d") {
@@ -457,7 +505,7 @@ export function categorySpendSharesForPeriod(
   ref = new Date(),
 ): { name: string; value: number }[] {
   const { start, end } = categoryPeriodBounds(period, ref);
-  const cats = store.categories.map((c) => ({
+  const cats = filterBudgetCategories(store.categories).map((c) => ({
     name: c.name,
     value: categorySpentInRange(store, c.name, start, end),
   }));

@@ -14,12 +14,17 @@ import { normalizeCalendarNotes } from "./calendarNotes";
 import { applyBillScheduleToStore, dedupeBills, isScheduledTransaction } from "./billScheduling";
 import { normalizeAccountRecord } from "./ledger";
 import { roundMoney } from "./scheduleAmounts";
-import { defaultTransactionTypes, typeIconsFromTransactionTypes } from "./transactionTypes";
+import {
+  defaultTransactionTypes,
+  standardizeTransactionTypesStore,
+  typeIconsFromTransactionTypes,
+} from "./transactionTypes";
+import { scheduledItemStoredCategoryFromItem } from "./scheduledItemCatalog";
+import { filterBudgetCategories, remapLegacyTransactionCategoryLabel } from "./transactionCategories";
 
 export const DEFAULT_TYPE_ICONS: TypeIconMap = {
-  income: "💵",
+  deposit: "💵",
   expense: "🛒",
-  bill: "📋",
   transfer: "🏦",
 };
 
@@ -112,10 +117,10 @@ function seedGoalTransactions(): Transaction[] {
 function seedTransactions(): Transaction[] {
   return [
     { id: "t1", dateISO: isoDaysAgo(0), desc: "Whole Foods Market", category: "Groceries", amount: -52.4, type: "expense", icon: "🛒" },
-    { id: "t2", dateISO: isoDaysAgo(0), desc: "Freelance Invoice", category: "Income", amount: 350, type: "income", icon: "💼" },
-    { id: "t3", dateISO: isoDaysAgo(1), desc: "Electric Bill", category: "Bills", amount: -142, type: "bill", icon: "⚡" },
+    { id: "t2", dateISO: isoDaysAgo(0), desc: "Freelance Invoice", category: "Other", amount: 350, type: "deposit", icon: "💼" },
+    { id: "t3", dateISO: isoDaysAgo(1), desc: "Electric Bill", category: "Electric", amount: -142, type: "expense", icon: "⚡" },
     { id: "t4", dateISO: isoDaysAgo(1), desc: "Amazon", category: "Shopping", amount: -89.99, type: "expense", icon: "📦" },
-    { id: "t5", dateISO: isoDaysAgo(17), desc: "Employer Paycheck", category: "Income", amount: 2800, type: "income", icon: "💵" },
+    { id: "t5", dateISO: isoDaysAgo(17), desc: "Employer Paycheck", category: "Other", amount: 2800, type: "deposit", icon: "💵" },
     { id: "t6", dateISO: isoDaysAgo(17), desc: "Gas Station", category: "Transportation", amount: -48, type: "expense", icon: "⛽" },
     { id: "t7", dateISO: isoDaysAgo(19), desc: "Trader Joe's", category: "Groceries", amount: -87.32, type: "expense", icon: "🛒" },
     ...seedGoalTransactions(),
@@ -158,15 +163,14 @@ const DEFAULT_CATEGORIES: BudgetCategory[] = [
   { id: "c4", name: "Transportation", icon: "🚗", monthlyBudget: 250 },
   { id: "c5", name: "Shopping", icon: "🛍️", monthlyBudget: 400 },
   { id: "c6", name: "Entertainment", icon: "🎬", monthlyBudget: 150 },
-  { id: "c7", name: "Bills", icon: "⚡", monthlyBudget: 900 },
   { id: "c8", name: "Personal", icon: "💆", monthlyBudget: 200 },
 ];
 
 const DEFAULT_BILLS: Bill[] = [
-  { id: "b1", name: "Rent", amount: 2000, dueDay: 2, frequency: "monthly", category: "Housing", icon: "🏠", autopay: true },
-  { id: "b2", name: "Electric", amount: 142, dueDay: 5, frequency: "monthly", category: "Bills", icon: "⚡" },
-  { id: "b3", name: "Internet", amount: 65, dueDay: 14, frequency: "monthly", category: "Bills", icon: "🌐" },
-  { id: "b4", name: "Phone", amount: 85, dueDay: 5, frequency: "monthly", category: "Bills", icon: "📱" },
+  { id: "b1", name: "Rent", amount: 2000, dueDay: 2, frequency: "monthly", category: "Rent", icon: "🏠", autopay: true },
+  { id: "b2", name: "Electric", amount: 142, dueDay: 5, frequency: "monthly", category: "Electric", icon: "⚡" },
+  { id: "b3", name: "Internet", amount: 65, dueDay: 14, frequency: "monthly", category: "Internet", icon: "🌐" },
+  { id: "b4", name: "Phone", amount: 85, dueDay: 5, frequency: "monthly", category: "Phone", icon: "📱" },
 ];
 
 const DEFAULT_GOALS: Goal[] = [
@@ -286,6 +290,7 @@ export function createEmptyStore(): FetyStore {
     dashboardCustomizedByUser: false,
     calendarNotes: {},
     insightTipProgress: { doneIds: [], archivedIds: [] },
+    transactionTypesStandardV1: true,
   };
 }
 
@@ -301,7 +306,7 @@ export function createExploreStore(): FetyStore {
         amount: 2800,
         dueDay: 1,
         frequency: "semimonthly",
-        category: "Income",
+        category: "Other",
         icon: "💵",
         semiMonthlyDays: [1, 15],
         startDateISO: isoDaysAgo(90),
@@ -338,7 +343,35 @@ export function createDefaultStore(): FetyStore {
     widgetsPersonalizedV1: false,
     widgetsPersonalizedV2: true,
     dashboardCustomizedByUser: false,
+    transactionTypesStandardV1: true,
   };
+}
+
+/** Strip retired budget tiles and remap legacy category labels on records. */
+function stripRemovedBudgetCategories(store: FetyStore): FetyStore {
+  const categories = filterBudgetCategories(store.categories ?? []);
+  const remap = (category: string) => remapLegacyTransactionCategoryLabel(category);
+  const transactions = (store.transactions ?? []).map((t) => ({ ...t, category: remap(t.category) }));
+  const bills = (store.bills ?? []).map((b) => ({
+    ...b,
+    category: scheduledItemStoredCategoryFromItem({ ...b, category: remap(b.category) }),
+  }));
+  const incomeStreams = (store.incomeStreams ?? []).map((s) => ({
+    ...s,
+    category: scheduledItemStoredCategoryFromItem({ ...s, category: remap(s.category) }),
+  }));
+  const recurringTransactions = (store.recurringTransactions ?? []).map((r) => ({
+    ...r,
+    category: scheduledItemStoredCategoryFromItem({ ...r, category: remap(r.category) }),
+  }));
+  const unchanged =
+    categories.length === (store.categories ?? []).length &&
+    transactions.every((t, i) => t.category === store.transactions[i]?.category) &&
+    bills.every((b, i) => b.category === store.bills[i]?.category) &&
+    incomeStreams.every((s, i) => s.category === store.incomeStreams?.[i]?.category) &&
+    recurringTransactions.every((r, i) => r.category === store.recurringTransactions?.[i]?.category);
+  if (unchanged) return store;
+  return { ...store, categories, transactions, bills, incomeStreams, recurringTransactions };
 }
 
 function migrateStore(store: FetyStore): FetyStore {
@@ -382,6 +415,9 @@ function migrateStore(store: FetyStore): FetyStore {
   if (!next.transactionTypes?.length) {
     const types = defaultTransactionTypes(next.typeIcons);
     next = { ...next, transactionTypes: types, typeIcons: typeIconsFromTransactionTypes(types) };
+  }
+  if (!next.transactionTypesStandardV1) {
+    next = standardizeTransactionTypesStore(next);
   }
   if (!next.lockedDashboardWidgets) {
     next = { ...next, lockedDashboardWidgets: [] };
@@ -443,17 +479,19 @@ function migrateStore(store: FetyStore): FetyStore {
   }
   next = {
     ...next,
-    categories: (next.categories ?? []).map((c) => ({
+    categories: filterBudgetCategories(next.categories ?? []).map((c) => ({
       ...c,
       monthlyBudget: roundMoney(c.monthlyBudget),
     })),
   };
+  next = stripRemovedBudgetCategories(next);
   next = {
     ...next,
     accounts: (next.accounts ?? []).map((a) => normalizeAccountRecord(a, next)),
     transactions: next.transactions.filter((t) => !isScheduledTransaction(t.id)),
   };
   next = applyBillScheduleToStore(next);
+  next = stripRemovedBudgetCategories(next);
   return ensureDemoGoalLinkedActivity(next);
 }
 

@@ -321,28 +321,28 @@ function isSummaryRow(desc: string, row: string[]): boolean {
 }
 
 function guessCategory(desc: string, type: TransactionType): string {
-  if (type === "income") return "Income";
+  if (type === "deposit") return "Other";
   const lower = desc.toLowerCase();
   if (/rent|mortgage/.test(lower)) return "Housing";
   if (/grocery|whole foods|trader|market/.test(lower)) return "Groceries";
   if (/gas|uber|lyft|parking/.test(lower)) return "Transportation";
   if (/amazon|target|shopping/.test(lower)) return "Shopping";
   if (/netflix|spotify|movie/.test(lower)) return "Entertainment";
-  if (/electric|internet|phone|utility|bill/.test(lower)) return "Bills";
+  if (/electric|utility/.test(lower)) return "Electric";
+  if (/internet/.test(lower)) return "Internet";
+  if (/phone/.test(lower)) return "Phone";
   if (/restaurant|chipotle|coffee|dining/.test(lower)) return "Dining Out";
   return "Other";
 }
 
 function guessType(amount: number, desc: string): TransactionType {
-  if (amount > 0) return "income";
-  if (/bill|rent|electric|insurance|subscription/.test(desc.toLowerCase())) return "bill";
+  if (amount > 0) return "deposit";
   if (/transfer|savings/.test(desc.toLowerCase())) return "transfer";
   return "expense";
 }
 
 function guessIcon(type: TransactionType): string {
-  if (type === "income") return "💼";
-  if (type === "bill") return "📄";
+  if (type === "deposit") return "💼";
   if (type === "transfer") return "🏦";
   return "📥";
 }
@@ -401,7 +401,7 @@ export function rowsToImportDrafts(
     }
     const type = guessType(amount, desc);
     if (category === "Other") category = guessCategory(desc, type);
-    if (!categoryNames.includes(category) && category !== "Income" && category !== "Other") {
+    if (!categoryNames.includes(category) && category !== "Other") {
       category = categoryNames.find((c) => c.toLowerCase() === category.toLowerCase()) ?? category;
     }
 
@@ -410,7 +410,7 @@ export function rowsToImportDrafts(
       include: true,
       dateISO,
       desc,
-      amount: type === "income" ? Math.abs(amount) : -Math.abs(amount),
+      amount: type === "deposit" ? Math.abs(amount) : -Math.abs(amount),
       type,
       category,
       icon: guessIcon(type),

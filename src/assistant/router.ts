@@ -27,7 +27,7 @@ function buildCreateTransactionAction(args: Record<string, unknown>): ToolAction
   const desc = String(args.desc ?? "Transaction");
   const category = String(args.category ?? "Other");
   const dateISO = String(args.dateISO ?? new Date().toISOString().slice(0, 10));
-  const icon = type === "income" ? "💼" : type === "bill" ? "📄" : type === "transfer" ? "🏦" : "💬";
+  const icon = type === "deposit" ? "💼" : type === "transfer" ? "🏦" : "💬";
   return {
     tool: "create_transaction",
     payload: { desc, amount, type, category, dateISO, icon },
@@ -46,10 +46,10 @@ export function executeToolAction(action: ToolAction, deps: ToolDeps, summary: F
         dateISO: p.dateISO,
         icon: p.icon,
       });
-      const signed = p.type === "income" ? `+${usd(p.amount)}` : `-${usd(Math.abs(p.amount))}`;
+      const signed = p.type === "deposit" ? `+${usd(p.amount)}` : `-${usd(Math.abs(p.amount))}`;
       return {
         text: `Done. I added ${signed} for ${p.desc}. Check Insights for updated spending power.`,
-        tag: p.type === "income" ? "Income recorded" : "Transaction added",
+        tag: p.type === "deposit" ? "Deposit recorded" : "Transaction added",
       };
     }
     case "update_transaction": {

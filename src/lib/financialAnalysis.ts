@@ -10,6 +10,7 @@ import type {
 import type { Bill, FetyStore, IncomeStream, RecurringTransaction } from "../types/fety";
 import { computeSummary } from "./fetyCalculations";
 import { formatUsd, monthlyFromFrequency } from "./scheduleAmounts";
+import { filterBudgetCategories } from "./transactionCategories";
 
 function streamMonthly(stream: IncomeStream): number {
   return monthlyFromFrequency(stream.amount, stream.frequency);
@@ -121,8 +122,9 @@ export function analyzeStore(store: FetyStore, ref = new Date()): FinancialAnaly
       value: spendTotal > 0 ? Math.round((monthly / spendTotal) * 100) : 0,
     }));
 
-  const budgetTotal = store.categories.reduce((s, c) => s + Math.max(0, c.monthlyBudget), 0);
-  const budgetCategoryShares = store.categories
+  const budgetCategories = filterBudgetCategories(store.categories);
+  const budgetTotal = budgetCategories.reduce((s, c) => s + Math.max(0, c.monthlyBudget), 0);
+  const budgetCategoryShares = budgetCategories
     .slice()
     .sort((a, b) => b.monthlyBudget - a.monthlyBudget || a.name.localeCompare(b.name))
     .map((c) => {
@@ -379,7 +381,7 @@ export function analyzeStore(store: FetyStore, ref = new Date()): FinancialAnaly
 }
 
 export function pageForAction(action: FetyActionTarget): AnalysisTourStep["page"] {
-  if (action.type === "calendar") return "calendar";
+  if (action.type === "calendar") return "dashboard";
   if (action.type === "goals") return "goals";
   if (action.type === "spending" || action.type === "transactions") return "spending";
   if (action.type === "budget" || action.type === "bills") return "budget";
@@ -515,8 +517,8 @@ export function buildPersonalizedTour(
       title: "Calendar",
       explanation:
         "This gives you a time-based view of when money is coming in and going out — often easier than a spreadsheet.",
-      page: "calendar",
-      target: "calendar",
+      page: "dashboard",
+      target: "home-calendar",
       phase: "product",
       relatedInsightId: "cash-flow-timing",
       action: { type: "calendar" },

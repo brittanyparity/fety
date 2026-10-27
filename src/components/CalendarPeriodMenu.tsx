@@ -1,8 +1,22 @@
 import { useEffect, useRef, useState } from "react";
-
-type CalView = "monthly" | "weekly" | "biweekly" | "daily" | "yearly";
+import type { CalView } from "../lib/calendarView";
+import CalendarMiniMonth, { diffCalendarDays, noonDate } from "./CalendarMiniMonth";
 
 const MONTH_ABBR = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+const MONTH_FULL = [
+  "January",
+  "February",
+  "March",
+  "April",
+  "May",
+  "June",
+  "July",
+  "August",
+  "September",
+  "October",
+  "November",
+  "December",
+];
 
 function mondayOfWeek(d: Date): Date {
   const mon = new Date(d);
@@ -27,7 +41,6 @@ export function calendarPeriodLabel(calView: CalView, focusDate: Date, year: num
   if (calView === "daily") {
     return focusDate.toLocaleDateString("en-US", { weekday: "long", month: "long", day: "numeric", year: "numeric" });
   }
-  if (calView === "yearly") return String(year);
   if (calView === "weekly") return formatWeekRange(mondayOfWeek(focusDate));
   if (calView === "biweekly") return formatBiweekRange(mondayOfWeek(focusDate));
   return `${focusDate.toLocaleDateString("en-US", { month: "long" })} ${focusDate.getFullYear()}`;
@@ -38,14 +51,36 @@ export function CalendarPeriodMenu({
   focusDate,
   year,
   onFocusDate,
+  endingBalanceForDate,
+  variant = "default",
 }: {
   calView: CalView;
   focusDate: Date;
   year: number;
   onFocusDate: (d: Date) => void;
+  endingBalanceForDate?: (dateISO: string) => number;
+  variant?: "default" | "home";
 }) {
   const [open, setOpen] = useState(false);
   const rootRef = useRef<HTMLDivElement>(null);
+
+  const [viewYear, setViewYear] = useState(focusDate.getFullYear());
+  const [viewMonth, setViewMonth] = useState(focusDate.getMonth());
+  const [yearPickerOpen, setYearPickerOpen] = useState(false);
+  const [pickerYear, setPickerYear] = useState(focusDate.getFullYear());
+
+  const [rangeStart, setRangeStart] = useState<Date | null>(null);
+  const [rangeEnd, setRangeEnd] = useState<Date | null>(null);
+
+  useEffect(() => {
+    if (!open) return;
+    setViewYear(focusDate.getFullYear());
+    setViewMonth(focusDate.getMonth());
+    setPickerYear(focusDate.getFullYear());
+    setYearPickerOpen(false);
+    setRangeStart(null);
+    setRangeEnd(null);
+  }, [open, focusDate, calView]);
 
   useEffect(() => {
     if (!open) return;
@@ -57,126 +92,179 @@ export function CalendarPeriodMenu({
   }, [open]);
 
   const label = calendarPeriodLabel(calView, focusDate, year);
+  const home = variant === "home";
 
-  const menuStyle: React.CSSProperties = {
-    position: "absolute",
-    top: "calc(100% + 6px)",
-    left: "50%",
-    transform: "translateX(-50%)",
-    minWidth: 160,
-    maxHeight: 280,
-    overflowY: "auto",
-    background: "var(--surface)",
-    border: "1px solid var(--border)",
-    borderRadius: 12,
-    boxShadow: "0 8px 24px rgba(0,0,0,0.08)",
-    zIndex: 20,
-    padding: 6,
+  const close = () => setOpen(false);
+
+  const onViewMonthChange = (y: number, m: number) => {
+    setViewYear(y);
+    setViewMonth(m);
   };
 
-  const itemBtn = (active: boolean): React.CSSProperties => ({
-    display: "block",
-    width: "100%",
-    textAlign: "left",
-    padding: "8px 10px",
-    borderRadius: 8,
-    border: "none",
-    background: active ? "var(--bg)" : "transparent",
-    cursor: "pointer",
-    fontSize: 11.5,
-    fontWeight: active ? 600 : 500,
-    color: "var(--ink)",
-  });
+  const applyMonth = (monthIndex: number) => {
+    const last = new Date(pickerYear, monthIndex + 1, 0).getDate();
+    const day = Math.min(focusDate.getDate(), last);
+    onFocusDate(noonDate(pickerYear, monthIndex, day));
+    close();
+  };
 
-  let items: { key: string; label: string; date: Date }[] = [];
+  const yearOptions = Array.from({ length: 11 }, (_, i) => pickerYear - 5 + i);
 
-  if (calView === "monthly") {
-    items = MONTH_ABBR.map((abbr, i) => ({
-      key: String(i),
-      label: abbr,
-      date: new Date(focusDate.getFullYear(), i, Math.min(focusDate.getDate(), new Date(focusDate.getFullYear(), i + 1, 0).getDate())),
-    }));
-  } else if (calView === "yearly") {
-    const y0 = year - 5;
-    items = Array.from({ length: 11 }, (_, i) => {
-      const y = y0 + i;
-      return { key: String(y), label: String(y), date: new Date(y, focusDate.getMonth(), focusDate.getDate()) };
-    });
-  } else if (calView === "weekly") {
-    const base = mondayOfWeek(focusDate);
-    items = Array.from({ length: 12 }, (_, i) => {
-      const mon = new Date(base);
-      mon.setDate(base.getDate() + (i - 6) * 7);
-      return { key: mon.toISOString(), label: formatWeekRange(mon), date: mon };
-    });
-  } else if (calView === "biweekly") {
-    const base = mondayOfWeek(focusDate);
-    items = Array.from({ length: 10 }, (_, i) => {
-      const mon = new Date(base);
-      mon.setDate(base.getDate() + (i - 5) * 14);
-      return { key: mon.toISOString(), label: formatBiweekRange(mon), date: mon };
-    });
-  } else if (calView === "daily") {
-    const today = new Date();
-    today.setHours(12, 0, 0, 0);
-    items = Array.from({ length: 21 }, (_, i) => {
-      const d = new Date(today);
-      d.setDate(today.getDate() - 10 + i);
-      return {
-        key: d.toISOString(),
-        label: d.toLocaleDateString("en-US", { weekday: "short", month: "short", day: "numeric", year: "numeric" }),
-        date: d,
-      };
-    });
-  }
+  const handleDailySelect = (d: Date) => {
+    onFocusDate(d);
+    close();
+  };
+
+  const handleRangeSelect = (d: Date, spanDays: number) => {
+    if (!rangeStart || (rangeStart && rangeEnd)) {
+      setRangeStart(d);
+      setRangeEnd(null);
+      return;
+    }
+    const start = rangeStart;
+    const end = d;
+    const len = Math.abs(diffCalendarDays(start, end)) + 1;
+    if (len !== spanDays) {
+      setRangeStart(d);
+      setRangeEnd(null);
+      return;
+    }
+    const a = diffCalendarDays(start, end) >= 0 ? start : end;
+    const b = diffCalendarDays(start, end) >= 0 ? end : start;
+    setRangeEnd(b);
+    window.setTimeout(() => {
+      onFocusDate(mondayOfWeek(a));
+      close();
+    }, 180);
+  };
+
+  const pickerContent = (
+    <div className="fety-cal-period-picker" role="document" aria-label="Choose calendar period">
+      {calView === "daily" ? (
+        <CalendarMiniMonth
+          viewYear={viewYear}
+          viewMonth={viewMonth}
+          focusDate={focusDate}
+          selectedDay={focusDate}
+          onViewMonthChange={onViewMonthChange}
+          onSelectDay={handleDailySelect}
+          endingBalanceForDate={endingBalanceForDate}
+        />
+      ) : null}
+
+      {calView === "monthly" ? (
+        <div className="fety-cal-period-monthly">
+          <button
+            type="button"
+            className="fety-cal-period-year-btn"
+            onClick={() => setYearPickerOpen((v) => !v)}
+            aria-expanded={yearPickerOpen}
+          >
+            {pickerYear}
+            <span className="fety-cal-period-year-caret" aria-hidden>
+              ▾
+            </span>
+          </button>
+          {yearPickerOpen ? (
+            <div className="fety-cal-period-year-grid">
+              {yearOptions.map((y) => (
+                <button
+                  key={y}
+                  type="button"
+                  className={`fety-cal-period-year-opt${y === pickerYear ? " fety-cal-period-year-opt--active" : ""}`}
+                  onClick={() => {
+                    setPickerYear(y);
+                    setYearPickerOpen(false);
+                  }}
+                >
+                  {y}
+                </button>
+              ))}
+            </div>
+          ) : null}
+          <div className="fety-cal-period-month-grid">
+            {MONTH_FULL.map((name, i) => (
+              <button
+                key={name}
+                type="button"
+                className={`fety-cal-period-month-cell${i === focusDate.getMonth() && pickerYear === focusDate.getFullYear() ? " fety-cal-period-month-cell--active" : ""}`}
+                onClick={() => applyMonth(i)}
+              >
+                {MONTH_ABBR[i]}
+              </button>
+            ))}
+          </div>
+        </div>
+      ) : null}
+
+      {calView === "weekly" ? (
+        <div className="fety-cal-period-range">
+          <CalendarMiniMonth
+            viewYear={viewYear}
+            viewMonth={viewMonth}
+            focusDate={focusDate}
+            rangeStart={rangeStart}
+            rangeEnd={rangeEnd}
+            rangeMode
+            rangeSpanDays={7}
+            endingBalanceForDate={endingBalanceForDate}
+            onViewMonthChange={onViewMonthChange}
+            onSelectDay={(d) => handleRangeSelect(d, 7)}
+          />
+        </div>
+      ) : null}
+
+      {calView === "biweekly" ? (
+        <div className="fety-cal-period-range">
+          <CalendarMiniMonth
+            viewYear={viewYear}
+            viewMonth={viewMonth}
+            focusDate={focusDate}
+            rangeStart={rangeStart}
+            rangeEnd={rangeEnd}
+            rangeMode
+            rangeSpanDays={14}
+            endingBalanceForDate={endingBalanceForDate}
+            onViewMonthChange={onViewMonthChange}
+            onSelectDay={(d) => handleRangeSelect(d, 14)}
+          />
+        </div>
+      ) : null}
+    </div>
+  );
 
   return (
-    <div ref={rootRef} style={{ position: "relative", minWidth: 140 }}>
+    <div
+      ref={rootRef}
+      className={`fety-cal-period-menu${home ? " fety-cal-period-menu--home" : ""}`}
+      style={home ? undefined : { position: "relative", minWidth: 140 }}
+    >
       <button
         type="button"
+        className={home ? "fety-cal-period-menu-trigger" : undefined}
         onClick={() => setOpen((o) => !o)}
-        style={{
-          fontSize: 12,
-          fontWeight: 600,
-          color: "var(--ink)",
-          minWidth: 140,
-          textAlign: "center",
-          border: "none",
-          background: "transparent",
-          cursor: "pointer",
-          padding: "4px 8px",
-          borderRadius: 8,
-        }}
+        style={
+          home
+            ? undefined
+            : {
+                fontSize: 12,
+                fontWeight: 600,
+                color: "var(--ink)",
+                minWidth: 140,
+                textAlign: "center",
+                border: "none",
+                background: "transparent",
+                cursor: "pointer",
+                padding: "4px 8px",
+                borderRadius: 8,
+              }
+        }
+        aria-expanded={open}
+        aria-haspopup="dialog"
       >
-        {label}
+        <span className={home ? "fety-cal-period-menu-label" : undefined}>{label}</span>
       </button>
-      {open && items.length > 0 && (
-        <div style={menuStyle} role="listbox">
-          {items.map((it) => {
-            const active =
-              calView === "monthly"
-                ? it.date.getMonth() === focusDate.getMonth()
-                : calView === "yearly"
-                  ? it.date.getFullYear() === year
-                  : calView === "daily"
-                    ? it.date.toDateString() === focusDate.toDateString()
-                    : mondayOfWeek(it.date).toDateString() === mondayOfWeek(focusDate).toDateString();
-            return (
-              <button
-                key={it.key}
-                type="button"
-                style={itemBtn(active)}
-                onClick={() => {
-                  onFocusDate(it.date);
-                  setOpen(false);
-                }}
-              >
-                {it.label}
-              </button>
-            );
-          })}
-        </div>
-      )}
+      {open ? <div className="fety-cal-period-menu-panel">{pickerContent}</div> : null}
     </div>
   );
 }

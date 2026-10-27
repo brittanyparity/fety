@@ -3,7 +3,8 @@ import { describe, it } from "node:test";
 import { createEmptyStore } from "./fetyStorage";
 import { applyBillScheduleToStore } from "./billScheduling";
 import { analyzeStore, buildChatBriefingTips, buildPersonalizedTour, pageForAction } from "./financialAnalysis";
-import { computeSummary } from "./fetyCalculations";
+import { buildCalendarMap, computeSummary, endingBalanceOnDate, todayISO } from "./fetyCalculations";
+import { accountBalanceWithTransactions } from "./ledger";
 import { monthlyFromFrequency } from "./scheduleAmounts";
 import type { FetyStore } from "../types/fety";
 
@@ -140,7 +141,7 @@ describe("analyzeStore", () => {
         { id: "i1", name: "Paycheck", amount: 3000, dueDay: 15, frequency: "monthly", category: "Income", icon: "💵" },
       ],
       bills: [
-        { id: "b1", name: "Utilities", amount: 180, dueDay: 10, frequency: "monthly", category: "Utilities", icon: "⚡" },
+        { id: "b1", name: "Electric", amount: 180, dueDay: 10, frequency: "monthly", category: "Electric", icon: "⚡" },
       ],
     });
     const analysis = analyzeStore(store);
@@ -183,7 +184,7 @@ describe("analyzeStore", () => {
 
 describe("pageForAction", () => {
   it("routes each action to the matching page", () => {
-    assert.equal(pageForAction({ type: "calendar" }), "calendar");
+    assert.equal(pageForAction({ type: "calendar" }), "dashboard");
     assert.equal(pageForAction({ type: "goals", goalId: "g1" }), "goals");
     assert.equal(pageForAction({ type: "budget" }), "budget");
     assert.equal(pageForAction({ type: "bills" }), "budget");
@@ -350,5 +351,129 @@ describe("ledger start date and current balance", () => {
     });
     const summary = computeSummary(store, new Date(2026, 9, 20));
     assert.equal(summary.categoriesWithSpent[0]?.spent, 40);
+  });
+});
+
+describe("account-linked balances", () => {
+  it("updates account balance and calendar totals when a transaction uses fromAccountId", () => {
+    const store = withMoney({
+      profile: {
+        displayName: "Alex",
+        email: "",
+        currency: "USD",
+        startingBalance: 0,
+        balanceAsOfISO: "2026-01-01",
+      },
+      accounts: [
+        {
+          id: "a1",
+          name: "Checking",
+          type: "Checking",
+          balance: 1000,
+          icon: "🏦",
+          kind: "asset",
+          balanceAsOfISO: "2026-01-01",
+        },
+      ],
+      transactions: [
+        {
+          id: "t1",
+          dateISO: "2026-01-10",
+          desc: "Groceries",
+          category: "Groceries",
+          amount: -75,
+          type: "expense",
+          icon: "🛒",
+          fromAccountId: "a1",
+        },
+      ],
+    });
+
+    assert.equal(accountBalanceWithTransactions(store, "a1"), 925);
+    assert.equal(endingBalanceOnDate(store, "2026-01-10"), 925);
+    const day = buildCalendarMap(store, 2026).get("2026-01-10");
+    assert.equal(day?.endBal, 925);
+    assert.equal(day?.startBal, 1000);
+  });
+
+  it("updates the destination account for income with toAccountId", () => {
+    const store = withMoney({
+      profile: {
+        displayName: "Alex",
+        email: "",
+        currency: "USD",
+        startingBalance: 0,
+        balanceAsOfISO: "2026-01-01",
+      },
+      accounts: [
+        {
+          id: "a1",
+          name: "Checking",
+          type: "Checking",
+          balance: 200,
+          icon: "🏦",
+          kind: "asset",
+          balanceAsOfISO: "2026-01-01",
+        },
+      ],
+      transactions: [
+        {
+          id: "t1",
+          dateISO: "2026-01-05",
+          desc: "Paycheck",
+          category: "Income",
+          amount: 500,
+          type: "deposit",
+          icon: "💵",
+          toAccountId: "a1",
+        },
+      ],
+    });
+
+    assert.equal(accountBalanceWithTransactions(store, "a1"), 700);
+    assert.equal(endingBalanceOnDate(store, "2026-01-05"), 700);
+  });
+
+  it("caps net worth account balances at today but projects calendar balances on future dates", () => {
+    const today = todayISO();
+    const store = withMoney({
+      profile: {
+        displayName: "Alex",
+        email: "",
+        currency: "USD",
+        startingBalance: 1000,
+        balanceAsOfISO: "2020-01-01",
+      },
+      accounts: [
+        {
+          id: "a1",
+          name: "Checking",
+          type: "Checking",
+          balance: 1000,
+          icon: "🏦",
+          kind: "asset",
+          balanceAsOfISO: "2020-01-01",
+        },
+      ],
+      transactions: [
+        {
+          id: "t-future",
+          dateISO: "2099-06-01",
+          desc: "Future bill",
+          category: "Bills",
+          amount: -500,
+          type: "expense",
+          icon: "📄",
+          fromAccountId: "a1",
+        },
+      ],
+    });
+
+    assert.equal(accountBalanceWithTransactions(store, "a1"), 1000);
+    assert.equal(endingBalanceOnDate(store, today), 1000);
+    assert.equal(endingBalanceOnDate(store, "2099-06-01"), 500);
+    const futureDay = buildCalendarMap(store, 2099).get("2099-06-01");
+    assert.equal(futureDay?.items.length, 1);
+    assert.equal(futureDay?.endBal, 500);
   });
 });

@@ -4,6 +4,7 @@ import CurrencyInput, { amountToEditString } from "../components/CurrencyInput";
 import DayOfMonthInput from "../components/DayOfMonthInput";
 import { todayISO } from "../lib/fetyCalculations";
 import { newId } from "../lib/fetyStorage";
+import { isRemovedBudgetCategoryName } from "../lib/transactionCategories";
 import { everydayToStoredSchedule, monthlyFromFrequency, roundMoney, type EverydayFrequency } from "../lib/scheduleAmounts";
 import type {
   Bill,
@@ -85,7 +86,7 @@ const INCOME_PRESETS = [
 const OBLIGATION_PRESETS = [
   { name: "Rent", icon: "🏠", category: "Housing" },
   { name: "Mortgage", icon: "🏡", category: "Housing" },
-  { name: "Utilities", icon: "⚡", category: "Utilities" },
+  { name: "Electric", icon: "⚡", category: "Electric" },
   { name: "Insurance", icon: "🛡️", category: "Insurance" },
   { name: "Phone", icon: "📱", category: "Subscriptions" },
   { name: "Internet", icon: "🌐", category: "Subscriptions" },
@@ -180,7 +181,7 @@ function upsertCategory(
   monthlyBudget: number,
 ): BudgetCategory[] {
   const trimmed = name.trim();
-  if (!trimmed) return categories;
+  if (!trimmed || isRemovedBudgetCategoryName(trimmed)) return categories;
   const existing = categories.find((c) => c.name.toLowerCase() === trimmed.toLowerCase());
   if (existing) {
     return categories.map((c) =>
@@ -380,7 +381,7 @@ export function OnboardingView({
   };
 
   const finish = () => {
-    let categories: BudgetCategory[] = [{ id: newId("cat"), name: "Income", icon: "💵", monthlyBudget: 0 }];
+    let categories: BudgetCategory[] = [];
 
     const startISO = balanceAsOfISO || todayISO();
     const streams: IncomeStream[] = incomes
@@ -391,7 +392,7 @@ export function OnboardingView({
         amount: parseFloat(row.amount) || 0,
         dueDay: row.dueDay,
         frequency: row.frequency,
-        category: "Income",
+        category: "Other",
         icon: row.icon,
         startDateISO: startISO,
         semiMonthlyDays: row.frequency === "semimonthly" ? row.semiMonthlyDays : undefined,
@@ -454,7 +455,7 @@ export function OnboardingView({
         startingBalance: parseFloat(startingBalance) || 0,
         balanceAsOfISO: balanceAsOfISO || todayISO(),
       },
-      categories: categories.filter((c) => c.name !== "Income" || streams.length > 0),
+      categories,
       incomeStreams: streams,
       bills,
       recurringTransactions: recurring,

@@ -2,15 +2,19 @@ import { useState, useRef, useEffect, useCallback, useMemo, type ReactNode } fro
 import { FetyLogo } from "./FetyLogo";
 import { useFetyData } from "./hooks/useFetyData";
 import { calendarNotePreview, hasCalendarNote, noteForCalendarDay } from "./lib/calendarNotes";
-import { buildCalendarMap, computeSummary, dateToISOLocal, endingBalanceOnDate, endingBalancesForRange, formatNavDate, monthsSpending, categorySpendSharesForPeriod, todayISO, type BalanceChartRange, type CategorySpendPeriod, type SpendTrendMonths } from "./lib/fetyCalculations";
-import { formatTransactionDetailLine, goalSavedTotal, accountBalanceWithTransactions, accountBalanceAsOfISO, formatAccountBalanceDisplay, isDebtAccount, netWorthTotalsOnDate } from "./lib/ledger";
+import { buildCalendarMap, computeSummary, dateToISOLocal, endingBalanceOnDate, endingBalancesForRange, formatNavDate, monthsSpending, categorySpendSharesForPeriod, todayISO, type BalanceChartPoint, type BalanceChartRange, type CategorySpendPeriod, type SpendTrendMonths } from "./lib/fetyCalculations";
+import { formatTransactionDetailLine, goalSavedTotal } from "./lib/ledger";
 import { flowForTransactionType, getTransactionTypes, isTransferTransactionType } from "./lib/transactionTypes";
-import { calendarEndingBalanceBg, calendarEndingBalanceBgStrong, calBalanceColor, calNetWorthColor, calSignedColor } from "./lib/calendarUi";
+import { calendarEndingBalanceBg, calendarEndingBalanceBgStrong, calBalanceColor, calSignedColor } from "./lib/calendarUi";
 import { CalendarPeriodMenu } from "./components/CalendarPeriodMenu";
+import CalendarNoteIcon from "./components/CalendarNoteIcon";
+import CalendarAccountsBreakdown from "./components/CalendarAccountsBreakdown";
 import DayNotesPanel from "./components/DayNotesPanel";
 import { notesForCalendarDay } from "./lib/calendarNotes";
-import EmojiIconPicker from "./components/EmojiIconPicker";
 import CurrencyInput, { amountToEditString } from "./components/CurrencyInput";
+import EditTransactionModal from "./components/EditTransactionModal";
+import TransactionAccountFields from "./components/TransactionAccountFields";
+import TransactionCategorySelect from "./components/TransactionCategorySelect";
 import { toggleWidgetOnDashboard, WIDGET_SIZE_SECTIONS } from "./lib/widgetLayout";
 import { useIsNarrow } from "./hooks/useIsNarrow";
 import WidgetPeriodFilter from "./components/WidgetPeriodFilter";
@@ -32,20 +36,22 @@ import {
 import { IncomeAllocationChart } from "./views/InsightsBriefing";
 import InboxDropdown from "./components/InboxDropdown";
 import HomeView from "./views/HomeView";
+import { isPlannerHash, openPlannerHash, syncPlannerHash } from "./lib/plannerAccess";
+import PlannerWorkspaceView from "./views/planner/PlannerWorkspaceView";
 import InboxView from "./views/InboxView";
 import type { FetyActionTarget, FinancialAnalysis } from "./types/analysis";
 import type { FinancialAssessment } from "./types/widgets";
 import {
-  AreaChart, Area, BarChart, Bar,
+  AreaChart, Area, BarChart, Bar, Line,
   XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer,
   PieChart, Pie, Cell,
 } from "recharts";
 import { nextBillOccurrenceOnOrAfter } from "./lib/billScheduling";
+import type { CalView } from "./lib/calendarView";
 
 // ─── Types ─────────────────────────────────────────────────────────────────────
 type Page = "dashboard" | "budget" | "spending" | "goals" | "profile" | "networth" | "calendar" | "inbox";
 type ViewMode = "cards" | "list";
-type CalView = "monthly" | "weekly" | "biweekly" | "daily" | "yearly";
 
 type CalendarDayOpenRequest = { dateISO: string };
 
@@ -106,7 +112,7 @@ function DayInsightsSection({ day, store }: { day: CalDay | null; store: FetySto
     return (
       <div className="fety-cal-day-insights fety-cal-day-insights--empty">
         <p className="fety-label">Day insights</p>
-        <p>Select a date to see its starting balance, income, bills, expenses, and ending balance.</p>
+        <p>Pick a day to see how money moved, where each account stood, and how that day rolls up to net worth.</p>
       </div>
     );
   }
@@ -116,6 +122,10 @@ function DayInsightsSection({ day, store }: { day: CalDay | null; store: FetySto
       <div className="fety-cal-day-insights-head">
         <p className="fety-label">Day insights</p>
         <h3>{day.date.toLocaleDateString("en-US", { weekday: "long", month: "long", day: "numeric" })}</h3>
+        <p className="fety-cal-day-insights-lede">
+          Starting and ending balances include scheduled transactions. Open <strong>Accounts &amp; net worth</strong>{" "}
+          below to see how cash is split across each account.
+        </p>
       </div>
       <div className="fety-cal-day-insights-stats">
         {[
@@ -167,7 +177,7 @@ const monthlySpend = [
 ];
 const donutData = [
   { name: "Housing", value: 44 }, { name: "Food",     value: 14 },
-  { name: "Bills",   value: 20 }, { name: "Shopping", value:  9 }, { name: "Other", value: 13 },
+  { name: "Personal", value: 20 }, { name: "Shopping", value:  9 }, { name: "Other", value: 13 },
 ];
 const DONUT_COLORS = ["#111111", "#6B6B6B", "#B8A6FF", "#E4FF3F", "#EDEDED"];
 
@@ -178,16 +188,15 @@ const budgetCategories = [
   { name: "Transportation", icon: "🚗", budget:  250, spent:  180, color: "var(--ink)" },
   { name: "Shopping",       icon: "🛍️", budget:  400, spent:  425, color: "var(--trouble-dk)" },
   { name: "Entertainment",  icon: "🎬", budget:  150, spent:   98, color: "var(--ink)" },
-  { name: "Bills",          icon: "⚡", budget:  900, spent:  890, color: "var(--ink)" },
-  { name: "Personal",       icon: "💆", budget:  200, spent:   62, color: "var(--ink)" },
+  { name: "Personal",       icon: "💆", budget: 1100, spent:  952, color: "var(--ink)" },
 ];
 
 const INIT_TRANSACTIONS = [
   { date: "Today",     desc: "Whole Foods Market",  category: "Groceries",      amount:  -52.40, type: "expense"  as const, icon: "🛒" },
-  { date: "Today",     desc: "Freelance Invoice",   category: "Income",         amount:  350.00, type: "income"   as const, icon: "💼" },
-  { date: "Yesterday", desc: "Electric Bill",       category: "Bills",          amount: -142.00, type: "expense"  as const, icon: "⚡" },
+  { date: "Today",     desc: "Freelance Invoice",   category: "Other",          amount:  350.00, type: "deposit"  as const, icon: "💼" },
+  { date: "Yesterday", desc: "Electric Bill",       category: "Electric",       amount: -142.00, type: "expense"  as const, icon: "⚡" },
   { date: "Yesterday", desc: "Amazon",              category: "Shopping",       amount:  -89.99, type: "expense"  as const, icon: "📦" },
-  { date: "Sep 1",     desc: "Employer Paycheck",   category: "Income",         amount: 2800.00, type: "income"   as const, icon: "💵" },
+  { date: "Sep 1",     desc: "Employer Paycheck",   category: "Other",          amount: 2800.00, type: "deposit"  as const, icon: "💵" },
   { date: "Sep 1",     desc: "Gas Station",         category: "Transportation", amount:  -48.00, type: "expense"  as const, icon: "⛽" },
   { date: "Aug 30",    desc: "Trader Joe's",        category: "Groceries",      amount:  -87.32, type: "expense"  as const, icon: "🛒" },
   { date: "Aug 30",    desc: "Savings Transfer",    category: "Savings",        amount: -200.00, type: "transfer" as const, icon: "🏦" },
@@ -208,7 +217,6 @@ const DAYS_SHORT = ["Sun","Mon","Tue","Wed","Thu","Fri","Sat"];
 
 const NAV_ITEMS: { id: Page; label: string }[] = [
   { id: "dashboard", label: "Home"         },
-  { id: "calendar",  label: "Planner"      },
   { id: "spending",  label: "Transactions" },
   { id: "budget",    label: "Budget"       },
   { id: "goals",     label: "Goals"        },
@@ -471,6 +479,64 @@ function ScrollableChart({
   );
 }
 
+function isZeroBalanceChartValue(bal: number): boolean {
+  return Math.abs(bal) < 0.005;
+}
+
+function BalanceChartXTick({
+  x = 0,
+  y = 0,
+  payload,
+  index = 0,
+  total,
+  fontSize,
+}: {
+  x?: number;
+  y?: number;
+  payload?: { value?: string };
+  index?: number;
+  total: number;
+  fontSize: number;
+}) {
+  const label = payload?.value ?? "";
+  const last = Math.max(0, total - 1);
+  const textAnchor = index === 0 ? "start" : index === last ? "end" : "middle";
+  return (
+    <text
+      x={x}
+      y={y}
+      dy={14}
+      textAnchor={textAnchor}
+      fontSize={fontSize}
+      fill="var(--ink-3)"
+      fontFamily="var(--font-sans)"
+    >
+      {label}
+    </text>
+  );
+}
+
+function enrichBalanceChartSeries(points: BalanceChartPoint[]) {
+  return points.map((p, i) => {
+    const next = points[i + 1]?.bal;
+    const prev = points[i - 1]?.bal;
+    const zero = isZeroBalanceChartValue(p.bal);
+    const positive = p.bal > 0.005;
+    const negative = p.bal < -0.005;
+    const bridgePositive =
+      zero && ((next != null && next > 0.005) || (prev != null && prev > 0.005));
+    const bridgeNegative =
+      zero && ((next != null && next < -0.005) || (prev != null && prev < -0.005));
+
+    return {
+      ...p,
+      balPositive: positive ? p.bal : bridgePositive ? 0 : null,
+      balZero: zero ? p.bal : null,
+      balNegative: negative ? p.bal : bridgeNegative ? 0 : null,
+    };
+  });
+}
+
 function BalanceChartWidget() {
   const { store, summary: s, focusDateISO } = widgetLive();
   const chartRef = useMemo(() => new Date(`${focusDateISO}T12:00:00`), [focusDateISO]);
@@ -478,12 +544,10 @@ function BalanceChartWidget() {
   const [accountId, setAccountId] = useState<string>("all");
   const selectedAccount = accountId === "all" ? null : accountId;
   const weekData = endingBalancesForRange(store, range, chartRef, selectedAccount);
+  const chartData = useMemo(() => enrichBalanceChartSeries(weekData), [weekData]);
   const endBal = weekData[weekData.length - 1]?.bal ?? (selectedAccount ? 0 : s.balance);
-  const dataMax = weekData.length ? Math.max(...weekData.map((d) => d.bal)) : 0;
-  const dataMin = weekData.length ? Math.min(...weekData.map((d) => d.bal)) : 0;
-  const zeroOffset =
-    dataMax <= 0 ? 0 : dataMin >= 0 ? 1 : dataMax / (dataMax - dataMin);
-  const endColor = endBal < 0 ? "var(--trouble-dk)" : "var(--ink)";
+  const endColor =
+    endBal < -0.005 ? "var(--trouble-dk)" : endBal > 0.005 ? "var(--ink)" : "var(--amber-dk)";
   const subtitle =
     range === "7d"
       ? "Last 7 days"
@@ -496,6 +560,8 @@ function BalanceChartWidget() {
     accountId === "all"
       ? "All cash"
       : store.accounts.find((a) => a.id === accountId)?.name ?? "Account";
+  const balanceChartHeight = 168;
+  const balanceTickFontSize = range === "7d" ? 9 : weekData.length <= 14 ? 9 : 8;
 
   return (
     <div>
@@ -521,23 +587,25 @@ function BalanceChartWidget() {
           </select>
         </label>
       </div>
-      <ScrollableChart pointCount={weekData.length} height={160} minPointWidth={range === "7d" ? 44 : 32}>
-        {(width) => (
-          <ResponsiveContainer width={width} height={160}>
-            <AreaChart data={weekData}>
-              <defs>
-                <linearGradient id="balanceStrokeSplit" x1="0" y1="0" x2="0" y2="1">
-                  <stop offset={zeroOffset} stopColor="var(--clear-dk)" stopOpacity={1} />
-                  <stop offset={zeroOffset} stopColor="var(--trouble-dk)" stopOpacity={1} />
-                </linearGradient>
-                <linearGradient id="balanceFillSplit" x1="0" y1="0" x2="0" y2="1">
-                  <stop offset={zeroOffset} stopColor="var(--clear)" stopOpacity={0.45} />
-                  <stop offset={zeroOffset} stopColor="var(--trouble)" stopOpacity={0.4} />
-                  <stop offset="1" stopColor="var(--trouble)" stopOpacity={0.05} />
-                </linearGradient>
-              </defs>
+      <div className="fety-chart-fit" style={{ height: balanceChartHeight }}>
+        <ResponsiveContainer width="100%" height={balanceChartHeight}>
+          <AreaChart
+            data={chartData}
+            margin={{ top: 4, right: 2, left: 0, bottom: 8 }}
+          >
               <CartesianGrid strokeDasharray="3 3" stroke="var(--border-soft)" vertical={false} />
-              <XAxis dataKey="d" tick={{ fontSize: 10, fill: "var(--ink-3)", fontFamily: "var(--font-sans)" }} axisLine={false} tickLine={false} interval={0} />
+              <XAxis
+                dataKey="d"
+                height={36}
+                padding={{ left: 16, right: 16 }}
+                tick={(props) => (
+                  <BalanceChartXTick {...props} total={weekData.length} fontSize={balanceTickFontSize} />
+                )}
+                axisLine={false}
+                tickLine={false}
+                interval={0}
+                minTickGap={0}
+              />
               <YAxis tick={{ fontSize: 10, fill: "var(--ink-3)", fontFamily: "var(--font-sans)" }} axisLine={false} tickLine={false} tickFormatter={(v) => `$${Number(v) / 1000}k`} width={36} />
               <Tooltip
                 labelFormatter={(_, items) => {
@@ -547,11 +615,34 @@ function BalanceChartWidget() {
                 formatter={(v: unknown) => [usdF(Number(v)), "Balance"]}
                 contentStyle={{ fontSize: 11, borderRadius: 8, border: "1px solid var(--border)", fontFamily: "var(--font-sans)" }}
               />
-              <Area type="monotone" dataKey="bal" stroke="url(#balanceStrokeSplit)" strokeWidth={2.5} fill="url(#balanceFillSplit)" baseValue={0} dot={false} />
+              <Area
+                type="monotone"
+                dataKey="balPositive"
+                stroke="none"
+                fill="var(--clear)"
+                fillOpacity={0.45}
+                baseValue={0}
+                dot={false}
+                connectNulls
+                isAnimationActive={false}
+              />
+              <Area
+                type="monotone"
+                dataKey="balNegative"
+                stroke="none"
+                fill="var(--trouble)"
+                fillOpacity={0.4}
+                baseValue={0}
+                dot={false}
+                connectNulls
+                isAnimationActive={false}
+              />
+              <Line type="monotone" dataKey="balZero" stroke="var(--amber-dk)" strokeWidth={2.5} dot={false} connectNulls isAnimationActive={false} />
+              <Line type="monotone" dataKey="balPositive" stroke="var(--clear-dk)" strokeWidth={2.5} dot={false} connectNulls isAnimationActive={false} />
+              <Line type="monotone" dataKey="balNegative" stroke="var(--trouble-dk)" strokeWidth={2.5} dot={false} connectNulls isAnimationActive={false} />
             </AreaChart>
-          </ResponsiveContainer>
-        )}
-      </ScrollableChart>
+        </ResponsiveContainer>
+      </div>
     </div>
   );
 }
@@ -864,7 +955,7 @@ const ALL_WIDGETS: WidgetDef[] = [
     render: () => {
       const { store } = widgetLive();
       const nextIncome = store.transactions
-        .filter((t) => t.type === "income" && t.dateISO >= todayISO())
+        .filter((t) => flowForTransactionType(store, t.type) === "income" && t.dateISO >= todayISO())
         .sort((a, b) => a.dateISO.localeCompare(b.dateISO))[0];
       const payDate = nextIncome ? new Date(`${nextIncome.dateISO}T12:00:00`) : null;
       const payLabel = payDate ? payDate.toLocaleDateString("en-US", { month: "short", day: "numeric" }) : "—";
@@ -1354,38 +1445,8 @@ function CalendarView({
   const [calView, setCalView] = useState<CalView>("monthly");
   const [focusDate, setFocusDate] = useState(() => new Date());
   const [selected, setSelected] = useState<string | null>(null);
-  const [scrollToKey, setScrollToKey] = useState<string | null>(null);
-  const dayCellRefs = useRef<Map<string, HTMLButtonElement>>(new Map());
-
-  const registerDayRef = useCallback((key: string, el: HTMLButtonElement | null) => {
-    if (el) dayCellRefs.current.set(key, el);
-    else dayCellRefs.current.delete(key);
-  }, []);
-
-  const fmt = (d: Date) => `${MONTHS[d.getMonth()]} ${d.getFullYear()}`;
   const year = focusDate.getFullYear();
   const calendarMap = useMemo(() => buildCalendarMap(store, year), [store, year]);
-
-  useEffect(() => {
-    if (!scrollToKey || calView !== "yearly") return;
-    const timer = window.setTimeout(() => {
-      dayCellRefs.current.get(scrollToKey)?.scrollIntoView({ block: "center", behavior: "smooth" });
-      setScrollToKey(null);
-    }, 80);
-    return () => window.clearTimeout(timer);
-  }, [scrollToKey, calView, calendarMap]);
-
-  useEffect(() => {
-    if (calView !== "yearly") return;
-    const today = todayISO();
-    const target =
-      selected && selected.startsWith(String(year))
-        ? selected
-        : today.startsWith(String(year))
-          ? today
-          : `${year}-01-01`;
-    setScrollToKey(target);
-  }, [calView, year, selected]);
 
   const jumpToDateISO = useCallback(
     (iso: string) => {
@@ -1393,10 +1454,9 @@ function CalendarView({
       if (!Number.isNaN(d.getTime())) {
         if (d.getFullYear() !== year) setFocusDate(d);
         setSelected(iso);
-        if (calView === "yearly") setScrollToKey(iso);
       }
     },
-    [calView, year],
+    [year],
   );
 
   const addMonth = (n: number) => {
@@ -1408,11 +1468,6 @@ function CalendarView({
     setFocusDate((p) => { const d = new Date(p); d.setDate(d.getDate() + n * 7); return d; });
   };
   const addDay = (n: number) => setFocusDate((p) => { const d = new Date(p); d.setDate(d.getDate() + n); return d; });
-  const addYear = (n: number) => {
-    setSelected(null);
-    setFocusDate((p) => { const d = new Date(p); d.setFullYear(d.getFullYear() + n); return d; });
-  };
-
   const selectDay = (key: string) => setSelected((prev) => (prev === key ? null : key));
 
   const selectedDay = selected ? calendarMap.get(selected) ?? null : null;
@@ -1441,18 +1496,15 @@ function CalendarView({
     { id: "weekly", label: "Weekly" },
     { id: "biweekly", label: "Bi-Weekly" },
     { id: "monthly", label: "Monthly" },
-    { id: "yearly", label: "Yearly" },
   ];
 
   const navBack = () => {
     if (calView === "daily") addDay(-1);
-    else if (calView === "yearly") addYear(-1);
     else if (calView === "monthly" || calView === "biweekly") addMonth(-1);
     else addWeek(-1);
   };
   const navForward = () => {
     if (calView === "daily") addDay(1);
-    else if (calView === "yearly") addYear(1);
     else if (calView === "monthly" || calView === "biweekly") addMonth(1);
     else addWeek(1);
   };
@@ -1498,6 +1550,7 @@ function CalendarView({
               calView={calView}
               focusDate={focusDate}
               year={year}
+              endingBalanceForDate={(iso) => endingBalanceOnDate(store, iso)}
               onFocusDate={(d) => {
                 setFocusDate(d);
                 if (calView === "daily") setSelected(CAL_KEY(d));
@@ -1513,10 +1566,9 @@ function CalendarView({
 
       <div className="fety-calendar-body" data-cal-view={calView} style={{ flex: 1, overflow: "hidden", display: "flex", minHeight: 0 }}>
         <div className="fety-calendar-main" style={{ flex: 1, display: "flex", flexDirection: "column", minHeight: 0, minWidth: 0 }}>
-          {calView === "yearly" && <YearlyWeekdayBar />}
           <div
-            className={`fety-calendar-scroll${calView === "yearly" ? " fety-yearly-scroll" : ""}`}
-            style={{ flex: 1, overflowY: "auto", padding: calView === "yearly" ? "8px 16px 0" : "16px 20px", minHeight: 0 }}
+            className="fety-calendar-scroll"
+            style={{ flex: 1, overflowY: "auto", padding: "16px 20px", minHeight: 0 }}
           >
             {calView === "monthly" && (
               <MonthlyCalGrid
@@ -1554,161 +1606,10 @@ function CalendarView({
               </>
             )}
             {(calView === "weekly" || calView === "biweekly") && renderCalendarDayDetail("inline")}
-            {calView === "yearly" && (
-              <YearlyCalGrid
-                year={year}
-                calendarMap={calendarMap}
-                calendarNotes={store.calendarNotes}
-                selected={selected}
-                onSelect={selectDay}
-                registerDayRef={registerDayRef}
-              />
-            )}
           </div>
-          {calView === "yearly" && <YearlyCalLegend />}
         </div>
 
-        {(calView === "yearly" || (calView === "monthly" && selected && selectedDay)) &&
-          renderCalendarDayDetail("sidebar")}
-      </div>
-    </div>
-  );
-}
-
-// ─── Yearly Calendar Grid ──────────────────────────────────────────────────────
-function YearlyCalGrid({
-  year,
-  calendarMap,
-  calendarNotes,
-  selected,
-  onSelect,
-  registerDayRef,
-}: {
-  year: number;
-  calendarMap: CalendarMap;
-  calendarNotes?: FetyStore["calendarNotes"];
-  selected: string | null;
-  onSelect: (k: string) => void;
-  registerDayRef?: (key: string, el: HTMLButtonElement | null) => void;
-}) {
-  const cells: (Date | null)[] = [];
-  const jan1 = new Date(year, 0, 1);
-  for (let i = 0; i < jan1.getDay(); i++) cells.push(null);
-  for (let month = 0; month < 12; month++) {
-    const daysInMonth = new Date(year, month + 1, 0).getDate();
-    for (let day = 1; day <= daysInMonth; day++) cells.push(new Date(year, month, day));
-  }
-  while (cells.length % 7 !== 0) cells.push(null);
-
-  const today = new Date();
-
-  return (
-    <div className="fety-cal-year-scroll-wrap">
-      <div className="fety-cal-year-grid" style={{ display: "grid", gridTemplateColumns: "repeat(7, 1fr)", gap: 2 }}>
-        {cells.map((date, i) => {
-          if (!date) return <div key={`pad-${i}`} style={{ minHeight: 46, borderRadius: 8, background: "transparent" }} />;
-          const key = CAL_KEY(date);
-          const data = calendarMap.get(key);
-          const net = data ? data.endBal - data.startBal : 0;
-          const isSelected = selected === key;
-          const isToday = date.toDateString() === today.toDateString();
-          const isFirstOfMonth = date.getDate() === 1;
-          const tileBg = data ? calendarEndingBalanceBg(data.endBal, isSelected) : calendarEndingBalanceBg(0, false);
-
-          return (
-            <button
-              key={key}
-              type="button"
-              ref={(el) => registerDayRef?.(key, el)}
-              onClick={() => onSelect(key)}
-              title={data ? `${date.toLocaleDateString("en-US")} · ${compactUsd(data.startBal)} → ${compactUsd(data.endBal)}` : undefined}
-              style={{
-                borderRadius: 8,
-                padding: "4px 5px",
-                border: isSelected ? "2px solid var(--ink)" : isToday ? "1px solid var(--clear-dk)" : "1px solid var(--border)",
-                background: tileBg,
-                cursor: "pointer",
-                textAlign: "left",
-                minHeight: 46,
-                display: "flex",
-                flexDirection: "column",
-                gap: 2,
-                transition: "border-color 0.12s, box-shadow 0.12s",
-              }}
-            >
-              <div style={{ display: "flex", alignItems: "baseline", gap: 4, lineHeight: 1 }}>
-                {isFirstOfMonth && (
-                  <span style={{ fontSize: 7, fontWeight: 700, color: isSelected ? "rgba(255,255,255,0.55)" : "var(--ink-3)", textTransform: "uppercase", letterSpacing: "0.06em" }}>
-                    {MONTHS[date.getMonth()].slice(0, 3)}
-                  </span>
-                )}
-                <span style={{ fontSize: 10, fontWeight: 600, color: isSelected ? calSignedColor(net, true) : isToday ? "var(--clear-dk)" : "var(--ink)" }}>
-                  {date.getDate()}
-                </span>
-                {hasCalendarNote(calendarNotes, key) ? (
-                  <span className="fety-cal-day-note-dot" style={isSelected ? { background: "#fff", opacity: 0.85 } : undefined} aria-hidden />
-                ) : null}
-              </div>
-              {hasCalendarNote(calendarNotes, key) ? (
-                <CalDayNotePreview notes={calendarNotes ?? {}} dateISO={key} selected={isSelected} />
-              ) : null}
-              {data && (
-                <div className="fety-cal-year-bal" style={{ display: "flex", flexDirection: "column", gap: 1, marginTop: "auto" }}>
-                  <div style={{ fontSize: 7.5, lineHeight: 1.2, color: isSelected ? "rgba(255,255,255,0.55)" : "var(--ink-3)" }}>
-                    S{" "}
-                    <span style={{ fontFamily: "var(--font-sans)", fontWeight: 600, color: calSignedColor(data.startBal) }}>
-                      {compactUsd(data.startBal)}
-                    </span>
-                  </div>
-                  <div style={{ fontSize: 7.5, lineHeight: 1.2, color: isSelected ? "rgba(255,255,255,0.55)" : "var(--ink-3)" }}>
-                    E{" "}
-                    <span style={{ fontFamily: "var(--font-sans)", fontWeight: 700, color: calBalanceColor(data.endBal, isSelected) }}>
-                      {compactUsd(data.endBal)}
-                    </span>
-                  </div>
-                </div>
-              )}
-            </button>
-          );
-        })}
-      </div>
-    </div>
-  );
-}
-
-function YearlyWeekdayBar() {
-  return (
-    <div className="fety-yearly-dow-wrap">
-      <div className="fety-yearly-dow">
-        {DAYS_SHORT.map((d) => (
-          <div key={d}>{d}</div>
-        ))}
-      </div>
-    </div>
-  );
-}
-
-function YearlyCalLegend() {
-  return (
-    <div className="fety-yearly-legend">
-      <div style={{ display: "flex", gap: 16, flexWrap: "wrap", alignItems: "center" }}>
-        <span style={{ fontSize: 10, fontWeight: 600, color: "var(--ink-2)" }}>Ending balance</span>
-        <div style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 10, color: "var(--ink-3)" }}>
-          <div style={{ width: 14, height: 14, borderRadius: 4, background: "rgba(145, 216, 182, 0.55)", border: "1px solid var(--border)" }} />
-          Positive Account Balance
-        </div>
-        <div style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 10, color: "var(--ink-3)" }}>
-          <div style={{ width: 14, height: 14, borderRadius: 4, background: "rgba(255, 217, 107, 0.58)", border: "1px solid var(--border)" }} />
-          Zero
-        </div>
-        <div style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 10, color: "var(--ink-3)" }}>
-          <div style={{ width: 14, height: 14, borderRadius: 4, background: "rgba(255, 111, 94, 0.5)", border: "1px solid var(--border)" }} />
-          Negative Account Balance
-        </div>
-        <div style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 10, color: "var(--ink-3)" }}>
-          <div style={{ width: 14, height: 14, borderRadius: 4, background: "var(--ink)", border: "1px solid var(--border)" }} />
-          Selected
-        </div>
+        {calView === "monthly" && selected && selectedDay && renderCalendarDayDetail("sidebar")}
       </div>
     </div>
   );
@@ -1781,7 +1682,7 @@ function MonthlyCalGrid({
                   {date.getDate()}
                 </span>
                 {hasCalendarNote(calendarNotes, key) ? (
-                  <span className="fety-cal-day-note-dot" style={isSelected ? { background: "#fff", opacity: 0.85 } : undefined} aria-hidden />
+                  <CalendarNoteIcon size={10} className={isSelected ? "fety-cal-day-note-icon--on-dark" : undefined} />
                 ) : null}
               </div>
 
@@ -1906,92 +1807,6 @@ function WeeklyCalGrid({
 }
 
 // ─── Daily Calendar View ───────────────────────────────────────────────────────
-function CalendarAccountsBreakdown({ store, dateISO, compact }: { store: FetyStore; dateISO: string; compact?: boolean }) {
-  const accounts = store.accounts;
-  const rows = useMemo(() => {
-    return [...accounts]
-      .filter((a) => dateISO >= accountBalanceAsOfISO(a, store))
-      .sort((a, b) => {
-        const da = isDebtAccount(a) ? 1 : 0;
-        const db = isDebtAccount(b) ? 1 : 0;
-        if (da !== db) return da - db;
-        return a.name.localeCompare(b.name);
-      })
-      .map((a) => ({
-        account: a,
-        balance: accountBalanceWithTransactions(store, a.id, dateISO),
-      }));
-  }, [accounts, store, dateISO]);
-
-  const totals = useMemo(() => netWorthTotalsOnDate(store, dateISO), [store, dateISO]);
-
-  if (accounts.length === 0) {
-    return (
-      <p style={{ fontSize: 10, color: "var(--ink-3)", margin: compact ? "8px 0 0" : "10px 0 0", lineHeight: 1.4 }}>
-        Add accounts on Net Worth to see balances by account here.
-      </p>
-    );
-  }
-
-  const assets = rows.filter((r) => !isDebtAccount(r.account));
-  const debts = rows.filter((r) => isDebtAccount(r.account));
-  const pending = accounts.filter((a) => dateISO < accountBalanceAsOfISO(a, store));
-
-  return (
-    <details className={`fety-cal-acct-details${compact ? " fety-cal-acct-details-compact" : ""}`}>
-      <summary>
-        <span className="fety-cal-acct-details-label">Net Worth</span>
-        <span className="fety-cal-acct-details-meta" style={{ color: calNetWorthColor(totals.net) }}>
-          {usdF(totals.net)}
-        </span>
-      </summary>
-      <div className="fety-cal-acct-details-body">
-        {rows.length === 0 && pending.length > 0 ? (
-          <p style={{ fontSize: 10, color: "var(--ink-3)", margin: 0, lineHeight: 1.4 }}>
-            No accounts active on this date yet. Earliest balance as of{" "}
-            {pending
-              .map((a) => accountBalanceAsOfISO(a, store))
-              .sort()[0]}
-            .
-          </p>
-        ) : null}
-        {assets.length > 0 ? (
-          <div className="fety-cal-acct-details-group">
-            <p className="fety-cal-acct-details-heading">Assets</p>
-            {assets.map(({ account, balance }) => (
-              <div key={account.id} className="fety-cal-acct-details-row">
-                <span className="fety-cal-acct-details-name">
-                  {account.icon} {account.name}
-                </span>
-                <span className="fety-cal-acct-details-amt">{formatAccountBalanceDisplay(account, balance)}</span>
-              </div>
-            ))}
-          </div>
-        ) : null}
-        {debts.length > 0 ? (
-          <div className="fety-cal-acct-details-group">
-            <p className="fety-cal-acct-details-heading">Debt</p>
-            {debts.map(({ account, balance }) => (
-              <div key={account.id} className="fety-cal-acct-details-row">
-                <span className="fety-cal-acct-details-name">
-                  {account.icon} {account.name}
-                </span>
-                <span className="fety-cal-acct-details-amt fety-cal-acct-details-amt-debt">
-                  {formatAccountBalanceDisplay(account, balance)}
-                </span>
-              </div>
-            ))}
-          </div>
-        ) : null}
-        <div className="fety-cal-acct-details-totals">
-          <span>Total Assets {usdF(totals.assets)}</span>
-          <span>Total Debts {usdF(totals.debts)}</span>
-        </div>
-      </div>
-    </details>
-  );
-}
-
 function DailyCalView({ date, calendarMap, store }: { date: Date; calendarMap: CalendarMap; store: FetyStore }) {
   const key = CAL_KEY(date);
   const data = calendarMap.get(key);
@@ -2123,6 +1938,7 @@ function CalendarSidePanel({
       amount: number;
       type: TransactionType;
       category: string;
+      dateISO?: string;
       icon: string;
       fromAccountId?: string;
       toAccountId?: string;
@@ -2134,26 +1950,17 @@ function CalendarSidePanel({
   const accounts = ledgerStore.accounts;
   const goals = ledgerStore.goals;
   const defaultTypeId = transactionTypes.find((t) => t.id === "expense")?.id ?? transactionTypes[0]?.id ?? "expense";
-  const iconForType = (typeId: string) => transactionTypes.find((t) => t.id === typeId)?.icon ?? "💬";
   const txById = useMemo(() => new Map(ledgerStore.transactions.map((t) => [t.id, t])), [ledgerStore.transactions]);
   const [showAdd, setShowAdd] = useState(false);
   const [addDesc, setAddDesc] = useState("");
   const [addAmount, setAddAmount] = useState("");
   const [addType, setAddType] = useState<TransactionType>(defaultTypeId);
-  const [addCategory, setAddCategory] = useState(categories[0]?.name ?? "Other");
-  const [addIcon, setAddIcon] = useState("");
-  const [editId, setEditId] = useState<string | null>(null);
-  const [editDesc, setEditDesc] = useState("");
-  const [editAmount, setEditAmount] = useState("");
-  const [editType, setEditType] = useState<TransactionType>(defaultTypeId);
-  const [editCategory, setEditCategory] = useState("Other");
-  const [editIcon, setEditIcon] = useState("");
+  const [addCategory, setAddCategory] = useState("");
   const [addFromAccountId, setAddFromAccountId] = useState("");
   const [addToAccountId, setAddToAccountId] = useState("");
   const [addGoalId, setAddGoalId] = useState("");
-  const [editFromAccountId, setEditFromAccountId] = useState("");
-  const [editToAccountId, setEditToAccountId] = useState("");
-  const [editGoalId, setEditGoalId] = useState("");
+  const [editOpen, setEditOpen] = useState(false);
+  const [editingTransaction, setEditingTransaction] = useState<Transaction | null>(null);
   const narrow = useIsNarrow();
 
   const panelInput: React.CSSProperties = {
@@ -2166,6 +1973,8 @@ function CalendarSidePanel({
     background: "var(--surface)",
   };
 
+  const { padding: _panelInputPadding, background: _panelInputBg, ...panelInputShell } = panelInput;
+
   const renderRoutingSelects = (
     type: TransactionType,
     fromId: string,
@@ -2175,31 +1984,29 @@ function CalendarSidePanel({
     onTo: (v: string) => void,
     onGoal: (v: string) => void,
   ) => {
-    const isTransfer = isTransferTransactionType(ledgerStore, type);
-    const acctEmpty = accounts.length === 0 ? "Add accounts on Net Worth" : "Select account";
     const validGoalId = goals.some((g) => g.id === goalIdVal) ? goalIdVal : "";
     return (
       <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-        {isTransfer ? (
-          <div style={{ padding: 8, borderRadius: 8, border: "1px solid var(--border)", background: "var(--bg)" }}>
-            <p className="fety-label" style={{ marginBottom: 6 }}>Transfer between accounts</p>
-            <select value={fromId} onChange={(e) => onFrom(e.target.value)} style={{ ...panelInput, marginBottom: 6 }} disabled={accounts.length === 0}>
-              <option value="">{acctEmpty} (from)</option>
-              {accounts.map((a) => (
-                <option key={a.id} value={a.id}>{a.name}</option>
-              ))}
-            </select>
-            <select value={toId} onChange={(e) => onTo(e.target.value)} style={panelInput} disabled={accounts.length === 0}>
-              <option value="">{acctEmpty} (to)</option>
-              {accounts.map((a) => (
-                <option key={a.id} value={a.id}>{a.name}</option>
-              ))}
-            </select>
-          </div>
-        ) : null}
+        <TransactionAccountFields
+          store={ledgerStore}
+          transactionType={type}
+          accounts={accounts}
+          fromAccountId={fromId}
+          toAccountId={toId}
+          onFromAccountId={onFrom}
+          onToAccountId={onTo}
+          inputStyle={panelInput}
+          spreadTransfer
+        />
         <div>
           <p className="fety-label" style={{ marginBottom: 4 }}>Apply to goal</p>
-          <select value={validGoalId} onChange={(e) => onGoal(e.target.value)} style={panelInput} disabled={goals.length === 0}>
+          <select
+            className="fety-transaction-goal-select"
+            value={validGoalId}
+            onChange={(e) => onGoal(e.target.value)}
+            style={panelInputShell}
+            disabled={goals.length === 0}
+          >
             <option value="">{goals.length === 0 ? "Create goals on Goals page" : "— None —"}</option>
             {goals.map((g) => (
               <option key={g.id} value={g.id}>{g.icon} {g.name}</option>
@@ -2210,63 +2017,50 @@ function CalendarSidePanel({
     );
   };
 
-  const showBalanceSheet = variant === "sidebar" && (calView === "monthly" || calView === "yearly");
+  const showBalanceSheet = variant === "sidebar" && calView === "monthly";
   const isSidebar = variant === "sidebar";
-  const showClose = isSidebar ? calView !== "yearly" : calView === "weekly" || calView === "biweekly";
+  const showClose = isSidebar || calView === "weekly" || calView === "biweekly";
 
   const submitAdd = (e: React.FormEvent) => {
     e.preventDefault();
     if (!day) return;
     const n = parseFloat(addAmount);
-    if (!addDesc.trim() || !Number.isFinite(n)) return;
+    if (!addDesc.trim() || !Number.isFinite(n) || !addCategory.trim()) return;
     onAddTransaction({
       desc: addDesc.trim(),
       amount: n,
       type: addType,
       category: addCategory,
       dateISO: CAL_KEY(day.date),
-      icon: addIcon.trim() || undefined,
       fromAccountId: addFromAccountId || undefined,
       toAccountId: addToAccountId || undefined,
       goalId: addGoalId || undefined,
     });
     setAddDesc("");
     setAddAmount("");
-    setAddIcon("");
+    setAddCategory("");
     setAddFromAccountId("");
     setAddToAccountId("");
     setAddGoalId("");
     setShowAdd(false);
   };
 
-  const startEdit = (item: CalDay["items"][0]) => {
-    const tx = txById.get(item.id);
-    setEditId(item.id);
-    setEditDesc(item.desc);
-    setEditAmount(amountToEditString(item.amount));
-    setEditType(item.txnType);
-    setEditCategory(item.category);
-    setEditIcon(item.icon);
-    setEditFromAccountId(tx?.fromAccountId ?? "");
-    setEditToAccountId(tx?.toAccountId ?? "");
-    setEditGoalId(tx?.goalId ?? "");
-  };
-
-  const saveEdit = () => {
-    if (!editId) return;
-    const n = parseFloat(editAmount);
-    if (!editDesc.trim() || !Number.isFinite(n)) return;
-    onUpdateTransaction(editId, {
-      desc: editDesc.trim(),
-      amount: n,
-      type: editType,
-      category: editCategory,
-      icon: editIcon.trim() || iconForType(editType),
-      fromAccountId: editFromAccountId || undefined,
-      toAccountId: editToAccountId || undefined,
-      goalId: editGoalId || undefined,
-    });
-    setEditId(null);
+  const openEditTransaction = (item: CalDay["items"][0]) => {
+    if (!day) return;
+    const dateISO = selectedISO ?? CAL_KEY(day.date);
+    const stored = txById.get(item.id);
+    setEditingTransaction(
+      stored ?? {
+        id: item.id,
+        dateISO,
+        desc: item.desc,
+        category: item.category,
+        amount: item.amount,
+        type: item.txnType,
+        icon: item.icon,
+      },
+    );
+    setEditOpen(true);
   };
 
   return (
@@ -2278,19 +2072,6 @@ function CalendarSidePanel({
           : undefined
       }
     >
-      {isSidebar && calView === "yearly" && (
-        <div style={{ padding: "12px 14px", borderBottom: "1px solid var(--border)", background: "var(--bg)" }}>
-          <button
-            type="button"
-            onClick={() => onJumpToDate(todayISO())}
-            style={{ width: "100%", padding: "8px 0", borderRadius: 8, border: "none", background: "var(--ink)", color: "#fff", fontSize: 12, fontWeight: 600, cursor: "pointer" }}
-          >
-            Jump to Today
-          </button>
-          <p style={{ fontSize: 9, color: "var(--ink-3)", marginTop: 6 }}>Scrolls the {year} grid to today.</p>
-        </div>
-      )}
-
       {!day ? (
         <div style={{ padding: 20, textAlign: "center", color: "var(--ink-3)", fontSize: 12 }}>Select a day to add notes and transactions.</div>
       ) : (
@@ -2315,49 +2096,21 @@ function CalendarSidePanel({
             />
 
             {showBalanceSheet && (
-              narrow && calView === "yearly" ? (
-                <details className="fety-cal-balance-sheet">
-                  <summary className="fety-cal-balance-sheet-summary">
-                    <span className="fety-label">Balance sheet</span>
-                    <span
-                      className="fety-cal-balance-sheet-meta"
-                      style={{ color: calBalanceColor(day.endBal) }}
-                    >
-                      {usd(day.endBal)}
-                    </span>
-                  </summary>
-                  <div className="fety-cal-balance-sheet-body">
-                    {[
-                      { label: "Starting", value: usd(day.startBal), color: calBalanceColor(day.startBal) },
-                      { label: "Income", value: day.income > 0 ? `+${usd(day.income)}` : "—", color: calSignedColor(day.income) },
-                      { label: "Expenses", value: day.expenses < 0 ? usd(day.expenses) : "—", color: calSignedColor(day.expenses) },
-                      { label: "Ending", value: usd(day.endBal), color: calBalanceColor(day.endBal) },
-                    ].map((r, i) => (
-                      <div key={r.label} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", paddingTop: i > 0 ? 7 : 0, paddingBottom: 7, borderTop: i > 0 ? "1px solid var(--border)" : undefined }}>
-                        <span style={{ fontSize: 11, color: "var(--ink-3)" }}>{r.label}</span>
-                        <span style={{ fontSize: 12, fontWeight: 600, fontFamily: "var(--font-sans)", color: r.color }}>{r.value}</span>
-                      </div>
-                    ))}
-                    <CalendarAccountsBreakdown store={ledgerStore} dateISO={CAL_KEY(day.date)} compact />
+              <div style={{ background: "var(--bg)", border: "1px solid var(--border)", borderRadius: 12, padding: "12px 14px", marginBottom: 12 }}>
+                <p className="fety-label" style={{ marginBottom: 10 }}>Balance sheet</p>
+                {[
+                  { label: "Starting", value: usd(day.startBal), color: calBalanceColor(day.startBal) },
+                  { label: "Income", value: day.income > 0 ? `+${usd(day.income)}` : "—", color: calSignedColor(day.income) },
+                  { label: "Expenses", value: day.expenses < 0 ? usd(day.expenses) : "—", color: calSignedColor(day.expenses) },
+                  { label: "Ending", value: usd(day.endBal), color: calBalanceColor(day.endBal) },
+                ].map((r, i) => (
+                  <div key={r.label} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", paddingTop: i > 0 ? 7 : 0, paddingBottom: 7, borderTop: i > 0 ? "1px solid var(--border)" : undefined }}>
+                    <span style={{ fontSize: 11, color: "var(--ink-3)" }}>{r.label}</span>
+                    <span style={{ fontSize: 12, fontWeight: 600, fontFamily: "var(--font-sans)", color: r.color }}>{r.value}</span>
                   </div>
-                </details>
-              ) : (
-                <div style={{ background: "var(--bg)", border: "1px solid var(--border)", borderRadius: 12, padding: "12px 14px", marginBottom: 12 }}>
-                  <p className="fety-label" style={{ marginBottom: 10 }}>Balance sheet</p>
-                  {[
-                    { label: "Starting", value: usd(day.startBal), color: calBalanceColor(day.startBal) },
-                    { label: "Income", value: day.income > 0 ? `+${usd(day.income)}` : "—", color: calSignedColor(day.income) },
-                    { label: "Expenses", value: day.expenses < 0 ? usd(day.expenses) : "—", color: calSignedColor(day.expenses) },
-                    { label: "Ending", value: usd(day.endBal), color: calBalanceColor(day.endBal) },
-                  ].map((r, i) => (
-                    <div key={r.label} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", paddingTop: i > 0 ? 7 : 0, paddingBottom: 7, borderTop: i > 0 ? "1px solid var(--border)" : undefined }}>
-                      <span style={{ fontSize: 11, color: "var(--ink-3)" }}>{r.label}</span>
-                      <span style={{ fontSize: 12, fontWeight: 600, fontFamily: "var(--font-sans)", color: r.color }}>{r.value}</span>
-                    </div>
-                  ))}
-                  <CalendarAccountsBreakdown store={ledgerStore} dateISO={CAL_KEY(day.date)} compact />
-                </div>
-              )
+                ))}
+                <CalendarAccountsBreakdown store={ledgerStore} dateISO={CAL_KEY(day.date)} compact />
+              </div>
             )}
 
             <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 8 }}>
@@ -2369,16 +2122,8 @@ function CalendarSidePanel({
 
             {showAdd && (
               <form onSubmit={submitAdd} style={{ background: "var(--bg)", border: "1px solid var(--border)", borderRadius: 10, padding: 10, marginBottom: 10, display: "flex", flexDirection: "column", gap: 6 }}>
-                <div style={{ display: "flex", alignItems: "flex-end", gap: 6 }}>
-                  <EmojiIconPicker
-                    value={addIcon}
-                    defaultEmoji={iconForType(addType)}
-                    onChange={setAddIcon}
-                    compact
-                  />
-                  <div className="fety-form-desc" style={{ flex: 1, minWidth: 0 }}>
-                    <input value={addDesc} onChange={(e) => setAddDesc(e.target.value)} placeholder="Description" style={{ ...panelInput, width: "100%" }} />
-                  </div>
+                <div className="fety-form-desc">
+                  <input value={addDesc} onChange={(e) => setAddDesc(e.target.value)} placeholder="Name" style={{ ...panelInput, width: "100%" }} aria-label="Name" />
                 </div>
                 <CurrencyInput value={addAmount} onChange={setAddAmount} placeholder="0.00" compact style={{ borderRadius: 8 }} />
                 <select value={addType} onChange={(e) => setAddType(e.target.value)} style={panelInput}>
@@ -2388,11 +2133,14 @@ function CalendarSidePanel({
                     </option>
                   ))}
                 </select>
-                <select value={addCategory} onChange={(e) => setAddCategory(e.target.value)} style={panelInput}>
-                  {[...categories.map((c) => c.name), "Income", "Other"].filter((v, i, a) => a.indexOf(v) === i).map((name) => (
-                    <option key={name} value={name}>{name}</option>
-                  ))}
-                </select>
+                <TransactionCategorySelect
+                  store={ledgerStore}
+                  transactionType={addType}
+                  value={addCategory}
+                  onChange={setAddCategory}
+                  style={panelInput}
+                  required
+                />
                 {renderRoutingSelects(addType, addFromAccountId, addToAccountId, addGoalId, setAddFromAccountId, setAddToAccountId, setAddGoalId)}
                 <button type="submit" style={{ padding: "7px 0", borderRadius: 8, border: "none", background: "var(--ink)", color: "#fff", fontSize: 11, fontWeight: 600, cursor: "pointer" }}>Save transaction</button>
               </form>
@@ -2402,79 +2150,105 @@ function CalendarSidePanel({
               <p style={{ fontSize: 11, color: "var(--ink-3)", textAlign: "center", padding: "12px 0" }}>No transactions</p>
             ) : (
               <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
-                {day.items.map((item) =>
-                  editId === item.id ? (
-                    <div key={item.id} style={{ background: "var(--bg)", border: "1px solid var(--border)", borderRadius: 10, padding: 10, display: "flex", flexDirection: "column", gap: 6 }}>
-                      <div style={{ display: "flex", alignItems: "flex-end", gap: 6 }}>
-                        <EmojiIconPicker
-                          value={editIcon}
-                          defaultEmoji={iconForType(editType)}
-                          onChange={setEditIcon}
-                          compact
-                        />
-                        <div className="fety-form-desc" style={{ flex: 1, minWidth: 0 }}>
-                          <input value={editDesc} onChange={(e) => setEditDesc(e.target.value)} style={{ ...panelInput, width: "100%" }} placeholder="Description" />
-                        </div>
-                      </div>
-                      <CurrencyInput value={editAmount} onChange={setEditAmount} placeholder="0.00" compact style={{ borderRadius: 8 }} />
-                      <select value={editType} onChange={(e) => setEditType(e.target.value)} style={panelInput}>
-                        {transactionTypes.map((tt) => (
-                          <option key={tt.id} value={tt.id}>
-                            {tt.name}
-                          </option>
-                        ))}
-                      </select>
-                      <select value={editCategory} onChange={(e) => setEditCategory(e.target.value)} style={panelInput}>
-                        {[...categories.map((c) => c.name), "Income", "Other"].filter((v, i, a) => a.indexOf(v) === i).map((name) => (
-                          <option key={name} value={name}>{name}</option>
-                        ))}
-                      </select>
-                      {renderRoutingSelects(editType, editFromAccountId, editToAccountId, editGoalId, setEditFromAccountId, setEditToAccountId, setEditGoalId)}
-                      <div style={{ display: "flex", gap: 6 }}>
-                        <button type="button" onClick={saveEdit} style={{ flex: 1, padding: "6px 0", borderRadius: 8, border: "none", background: "var(--ink)", color: "#fff", fontSize: 10, fontWeight: 600, cursor: "pointer" }}>Save</button>
-                        <button type="button" onClick={() => setEditId(null)} style={{ flex: 1, padding: "6px 0", borderRadius: 8, border: "1px solid var(--border)", background: "transparent", fontSize: 10, cursor: "pointer" }}>Cancel</button>
-                      </div>
+                {day.items.map((item) => (
+                  <div
+                    key={item.id}
+                    role="button"
+                    tabIndex={0}
+                    onClick={() => openEditTransaction(item)}
+                    onKeyDown={(e) => {
+                      if (e.key === "Enter" || e.key === " ") {
+                        e.preventDefault();
+                        openEditTransaction(item);
+                      }
+                    }}
+                    style={{
+                      display: "flex",
+                      alignItems: "center",
+                      gap: 8,
+                      background: "var(--bg)",
+                      border: "1px solid var(--border)",
+                      borderRadius: 10,
+                      padding: "9px 11px",
+                      cursor: "pointer",
+                    }}
+                  >
+                    <span style={{ fontSize: 15 }}>{item.icon}</span>
+                    <div style={{ flex: 1, minWidth: 0 }}>
+                      <p style={{ fontSize: 11, fontWeight: 600, color: "var(--ink)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{item.desc}</p>
+                      <p style={{ fontSize: 9, color: "var(--ink-3)" }}>
+                        {item.category}
+                        {(() => {
+                          const tx = txById.get(item.id);
+                          const detail = tx ? formatTransactionDetailLine(tx, ledgerStore) : null;
+                          return detail ? ` · ${detail}` : "";
+                        })()}
+                      </p>
                     </div>
-                  ) : (
-                    <div key={item.id} style={{ display: "flex", alignItems: "center", gap: 8, background: "var(--bg)", border: "1px solid var(--border)", borderRadius: 10, padding: "9px 11px" }}>
-                      <span style={{ fontSize: 15 }}>{item.icon}</span>
-                      <div style={{ flex: 1, minWidth: 0 }}>
-                        <p style={{ fontSize: 11, fontWeight: 600, color: "var(--ink)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{item.desc}</p>
-                        <p style={{ fontSize: 9, color: "var(--ink-3)" }}>
-                          {item.category}
-                          {(() => {
-                            const tx = txById.get(item.id);
-                            const detail = tx ? formatTransactionDetailLine(tx, ledgerStore) : null;
-                            return detail ? ` · ${detail}` : "";
-                          })()}
-                        </p>
-                      </div>
-                      <span
-                        style={{
-                          fontFamily: "var(--font-sans)",
-                          fontWeight: 600,
-                          fontSize: 11,
-                          color:
-                            flowForTransactionType(ledgerStore, item.txnType) === "transfer"
-                              ? "var(--ink-2)"
-                              : item.amount >= 0
-                                ? "var(--clear-dk)"
-                                : "var(--trouble-dk)",
-                          flexShrink: 0,
-                        }}
-                      >
-                        {flowForTransactionType(ledgerStore, item.txnType) === "transfer"
-                          ? usdF(Math.abs(item.amount))
-                          : `${item.amount >= 0 ? "+" : ""}${usdF(item.amount)}`}
-                      </span>
-                      <button type="button" onClick={() => startEdit(item)} title="Edit" style={{ border: "none", background: "transparent", cursor: "pointer", fontSize: 10, color: "var(--ink-3)", padding: 2 }}>✎</button>
-                      <button type="button" onClick={() => onDeleteTransaction(item.id)} title="Remove" style={{ border: "none", background: "transparent", cursor: "pointer", fontSize: 10, color: "var(--trouble-dk)", padding: 2 }}>×</button>
-                    </div>
-                  ),
-                )}
+                    <span
+                      style={{
+                        fontFamily: "var(--font-sans)",
+                        fontWeight: 600,
+                        fontSize: 11,
+                        color:
+                          flowForTransactionType(ledgerStore, item.txnType) === "transfer"
+                            ? "var(--ink-2)"
+                            : item.amount >= 0
+                              ? "var(--clear-dk)"
+                              : "var(--trouble-dk)",
+                        flexShrink: 0,
+                      }}
+                    >
+                      {flowForTransactionType(ledgerStore, item.txnType) === "transfer"
+                        ? usdF(Math.abs(item.amount))
+                        : `${item.amount >= 0 ? "+" : ""}${usdF(item.amount)}`}
+                    </span>
+                    <button
+                      type="button"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        openEditTransaction(item);
+                      }}
+                      style={{
+                        border: "none",
+                        background: "transparent",
+                        cursor: "pointer",
+                        fontSize: 10,
+                        fontWeight: 600,
+                        color: "var(--ink-2)",
+                        padding: "2px 4px",
+                      }}
+                    >
+                      Edit
+                    </button>
+                    <button
+                      type="button"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        onDeleteTransaction(item.id);
+                      }}
+                      title="Remove"
+                      style={{ border: "none", background: "transparent", cursor: "pointer", fontSize: 10, color: "var(--trouble-dk)", padding: 2 }}
+                    >
+                      ×
+                    </button>
+                  </div>
+                ))}
               </div>
             )}
           </div>
+
+          <EditTransactionModal
+            open={editOpen}
+            transaction={editingTransaction}
+            store={ledgerStore}
+            onClose={() => {
+              setEditOpen(false);
+              setEditingTransaction(null);
+            }}
+            onSave={onUpdateTransaction}
+            onDelete={onDeleteTransaction}
+          />
         </>
       )}
     </div>
@@ -2486,14 +2260,18 @@ function DashboardView({
   store,
   onTipAction,
   onAddTransaction,
-  onOpenCalendarDay,
+  addTransactionActions,
+  onUpdateTransaction,
+  onDeleteTransaction,
   onAddCalendarNote,
   onDeleteCalendarNote,
 }: {
   store: FetyStore;
   onTipAction: (action: FetyActionTarget) => void;
   onAddTransaction: ReturnType<typeof useFetyData>["addTransaction"];
-  onOpenCalendarDay: (dateISO: string) => void;
+  addTransactionActions: import("./components/AddTransactionModal").AddTransactionModalActions;
+  onUpdateTransaction: ReturnType<typeof useFetyData>["updateTransaction"];
+  onDeleteTransaction: ReturnType<typeof useFetyData>["deleteTransaction"];
   onAddCalendarNote: (dateISO: string, text: string) => void;
   onDeleteCalendarNote: (dateISO: string, noteId: string) => void;
 }) {
@@ -2511,7 +2289,9 @@ function DashboardView({
       onFocusDateChange={setFocusDateISO}
       onAction={onTipAction}
       onAddTransaction={onAddTransaction}
-      onOpenCalendarDay={onOpenCalendarDay}
+      addTransactionActions={addTransactionActions}
+      onUpdateTransaction={onUpdateTransaction}
+      onDeleteTransaction={onDeleteTransaction}
       onAddCalendarNote={onAddCalendarNote}
       onDeleteCalendarNote={onDeleteCalendarNote}
       balanceChart={<BalanceChartWidget />}
@@ -2527,7 +2307,7 @@ const PAGE_META: Record<Page, { title: string; sub: string }> = {
   goals:     { title: "Goals", sub: "Money you're holding for later." },
   profile:   { title: "Profile Settings", sub: "Personal info and data preferences." },
   networth:  { title: "Net Worth", sub: "Account balances, debt, and recent activity per account." },
-  calendar:  { title: "Calendar", sub: "Cash flow and spending power, day by day." },
+  calendar:  { title: "Planner", sub: "Node-based scenarios—connect actions and see outcomes over time." },
   inbox:     { title: "Inbox", sub: "Tips and updates from Fety — same messages as the header preview." },
 };
 
@@ -2541,6 +2321,8 @@ export default function App() {
     updateTransaction,
     updateBill,
     updateCategoryBudget,
+    updateCategory,
+    addCategory,
     deleteCategory,
     addBill,
     deleteBill,
@@ -2575,6 +2357,15 @@ export default function App() {
   } = useFetyData();
 
   const transactionTypes = useMemo(() => getTransactionTypes(store), [store]);
+  const addTransactionActions = useMemo(
+    () => ({
+      onAddCategory: addCategory,
+      onAddBill: addBill,
+      onAddIncomeStream: addIncomeStream,
+      onAddRecurringTransaction: addRecurringTransaction,
+    }),
+    [addCategory, addBill, addIncomeStream, addRecurringTransaction],
+  );
   const transactionTypeInUse = useCallback(
     (id: string) =>
       store.transactions.some((t) => t.type === id) ||
@@ -2590,7 +2381,6 @@ export default function App() {
   const [exploreBannerDismissed, setExploreBannerDismissed] = useState(false);
   const [tourTarget, setTourTarget] = useState<string | null>(null);
   const [focusAction, setFocusAction] = useState<FetyActionTarget | null>(null);
-  const [calendarDayOpen, setCalendarDayOpen] = useState<CalendarDayOpenRequest | null>(null);
   const [inboxFocusTipId, setInboxFocusTipId] = useState<string | null>(null);
 
   const openInbox = useCallback((tipId?: string) => {
@@ -2600,13 +2390,23 @@ export default function App() {
 
   const clearInboxFocusTip = useCallback(() => setInboxFocusTipId(null), []);
 
-  const openCalendarDay = useCallback((dateISO: string) => {
-    setCalendarDayOpen({ dateISO });
+  const openPlanner = useCallback(() => {
+    openPlannerHash();
     setPage("calendar");
-    setTourTarget("calendar");
   }, []);
 
-  const consumeCalendarDayOpen = useCallback(() => setCalendarDayOpen(null), []);
+  useEffect(() => {
+    const applyHash = () => {
+      if (isPlannerHash()) setPage("calendar");
+    };
+    applyHash();
+    window.addEventListener("hashchange", applyHash);
+    return () => window.removeEventListener("hashchange", applyHash);
+  }, []);
+
+  useEffect(() => {
+    syncPlannerHash(page === "calendar");
+  }, [page]);
   const analysis = useMemo(() => analyzeStore(store), [store]);
   const assessment = useMemo(() => assessFinancialNeeds(store), [store]);
   const tourSteps = useMemo(() => buildPersonalizedTour(store, analysis), [store, analysis]);
@@ -2614,7 +2414,7 @@ export default function App() {
   const applyFetyAction = useCallback((action: FetyActionTarget) => {
     setFocusAction(action);
     setPage(pageForAction(action));
-    if (action.type === "calendar") setTourTarget("calendar");
+    if (action.type === "calendar") setTourTarget("home-calendar");
     else if (action.type === "transactions" || action.type === "spending") setTourTarget("transactions");
     else if (action.type === "goals") setTourTarget(action.goalId ? `goal-${action.goalId}` : null);
     else if (action.type === "bills") setTourTarget("budget-bills");
@@ -2648,12 +2448,16 @@ export default function App() {
             bills={store.bills}
             incomeStreams={store.incomeStreams ?? []}
             recurringTransactions={store.recurringTransactions ?? []}
+            transactions={store.transactions}
+            profile={store.profile}
             transactionTypes={transactionTypes}
             viewMode={viewMode}
             highlightCategoryId={focusAction?.type === "budget" ? focusAction.categoryId : undefined}
             highlightBills={focusAction?.type === "bills"}
             highlightTarget={tourTarget}
             onUpdateBudget={updateCategoryBudget}
+            onUpdateCategory={updateCategory}
+            onAddCategory={addCategory}
             onDeleteCategory={deleteCategory}
             onUpdateBill={updateBill}
             onAddBill={addBill}
@@ -2664,10 +2468,6 @@ export default function App() {
             onUpdateRecurringTransaction={updateRecurringTransaction}
             onAddRecurringTransaction={addRecurringTransaction}
             onDeleteRecurringTransaction={deleteRecurringTransaction}
-            onAddTransactionType={addTransactionType}
-            onUpdateTransactionType={updateTransactionType}
-            onDeleteTransactionType={deleteTransactionType}
-            transactionTypeInUse={transactionTypeInUse}
             accounts={store.accounts}
             goals={store.goals}
             typeIcons={store.typeIcons}
@@ -2679,6 +2479,9 @@ export default function App() {
           <TransactionsManageView
             transactions={store.transactions}
             categories={store.categories}
+            bills={store.bills}
+            incomeStreams={store.incomeStreams ?? []}
+            recurringTransactions={store.recurringTransactions ?? []}
             transactionTypes={transactionTypes}
             accounts={store.accounts}
             goals={store.goals}
@@ -2687,8 +2490,10 @@ export default function App() {
             onAdd={addTransaction}
             onUpdate={updateTransaction}
             onDelete={deleteTransaction}
+            addTransactionActions={addTransactionActions}
             initialAccountFilter={transactionsAccountFilter}
             earliestDateISO={store.profile.balanceAsOfISO}
+            endingBalanceForDate={(iso) => endingBalanceOnDate(store, iso)}
           />
           </div>
         );
@@ -2718,6 +2523,7 @@ export default function App() {
                 setShowSplash(true);
               }
             }}
+            onOpenTestPlanner={openPlanner}
           />
         );
       case "networth":
@@ -2752,7 +2558,9 @@ export default function App() {
             store={store}
             onTipAction={applyFetyAction}
             onAddTransaction={addTransaction}
-            onOpenCalendarDay={openCalendarDay}
+            addTransactionActions={addTransactionActions}
+            onUpdateTransaction={updateTransaction}
+            onDeleteTransaction={deleteTransaction}
             onAddCalendarNote={addCalendarNote}
             onDeleteCalendarNote={deleteCalendarNote}
           />
@@ -2833,21 +2641,11 @@ export default function App() {
 
         <div style={{ flex: 1, display: "flex", overflow: "hidden", minHeight: 0 }}>
           {page === "calendar" ? (
-            <CalendarView
-              store={store}
-              transactionTypes={transactionTypes}
-              dayOpenRequest={calendarDayOpen}
-              onConsumeDayOpenRequest={consumeCalendarDayOpen}
-              onAddTransaction={addTransaction}
-              onUpdateTransaction={updateTransaction}
-              onDeleteTransaction={deleteTransaction}
-              onAddCalendarNote={addCalendarNote}
-              onDeleteCalendarNote={deleteCalendarNote}
-            />
+            <PlannerWorkspaceView store={store} />
           ) : (
             <>
               <main className="fety-main-scroll" style={{ flex: 1, overflowY: "auto", padding: "24px 24px 48px", minWidth: 0 }}>
-                {page !== "dashboard" ? (
+                {page !== "dashboard" && page !== "spending" && page !== "budget" && page !== "goals" ? (
                   <div className="fety-page-header" style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", marginBottom: 20 }}>
                     <div className="fety-page-header-text">
                       <h1 style={{ fontSize: 26, fontWeight: 600, color: "var(--ink)", letterSpacing: "-0.02em", lineHeight: 1.2 }}>

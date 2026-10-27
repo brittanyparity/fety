@@ -8,9 +8,11 @@ export interface FetyTransactionType {
   name: string;
   icon: string;
   flow: TransactionFlow;
-  /** Core types cannot be removed (bill scheduling uses "bill"). */
+  /** Core types cannot be removed. */
   locked?: boolean;
 }
+
+export type ScheduledItemKind = "bill" | "income" | "recur";
 
 export interface Transaction {
   id: string;
@@ -26,13 +28,34 @@ export interface Transaction {
   toAccountId?: string;
   /** Counts this transaction toward the goal's saved total. */
   goalId?: string;
+  /** Budget scheduled item this transaction is tied to (when recurring). */
+  scheduledItemKind?: ScheduledItemKind;
+  scheduledItemId?: string;
 }
+
+export type AddTransactionInput = {
+  desc: string;
+  amount: number;
+  type: TransactionType;
+  category: string;
+  dateISO?: string;
+  icon?: string;
+  fromAccountId?: string;
+  toAccountId?: string;
+  goalId?: string;
+  scheduledItemKind?: ScheduledItemKind;
+  scheduledItemId?: string;
+  /** When true, update the linked scheduled item amount / due day to match this transaction. */
+  updateScheduledItem?: boolean;
+};
 
 export interface BudgetCategory {
   id: string;
   name: string;
   icon: string;
   monthlyBudget: number;
+  /** Transactions in this category default to this goal when none is chosen. */
+  goalId?: string;
 }
 
 export type BillFrequency = "monthly" | "weekly" | "biweekly" | "quarterly";
@@ -53,6 +76,8 @@ export interface RecurringScheduleBase {
 
 export interface Bill extends RecurringScheduleBase {
   autopay?: boolean;
+  /** Account debited when this bill posts as a transaction. */
+  fromAccountId?: string;
 }
 
 /** Recurring money in (paycheck, freelance, etc.) — projects as income transactions. */
@@ -64,6 +89,8 @@ export interface IncomeStream extends Omit<RecurringScheduleBase, "frequency"> {
   endDateISO?: string;
   /** When frequency is semimonthly: two pay days per month (1–31). */
   semiMonthlyDays?: [number, number];
+  /** Account credited when this income posts as a transaction. */
+  toAccountId?: string;
 }
 
 /** Recurring expense/transfer/custom type — not bills or core income. */
@@ -177,6 +204,8 @@ export interface FetyStore {
   dashboardCustomizedByUser?: boolean;
   /** Sample-data tour — user skipped onboarding via Explore on splash. */
   exploreMode?: boolean;
+  /** One-time: Deposit / Expense / Transfer types and legacy id migration. */
+  transactionTypesStandardV1?: boolean;
   /** Per-widget source/preference metadata (core | recommended | user-added). */
   dashboardWidgetStates?: import("./widgets").DashboardWidgetState[];
 }

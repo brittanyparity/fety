@@ -70,7 +70,6 @@ export default function InsightsFeedSections({
                   <p className="fety-insights-feed-title">{row.name}</p>
                   <p className="fety-insights-feed-meta">
                     {formatDueDay(row.dateISO)}
-                    {row.category ? ` · ${row.category}` : ""}
                     {row.source === "recurring" ? " · Recurring" : ""}
                   </p>
                 </div>

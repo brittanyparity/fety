@@ -75,7 +75,7 @@ export function resolveCategoryName(store: FetyStore, hint: string): string | nu
     groceries: ["grocery", "groceries", "food shopping"],
     "dining out": ["restaurant", "restaurants", "dining", "takeout", "take out"],
     shopping: ["target", "amazon", "retail"],
-    bills: ["bill", "utilities"],
+    bills: ["bill"],
     income: ["paycheck", "salary"],
   };
   for (const c of store.categories) {

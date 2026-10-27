@@ -65,7 +65,7 @@ export default function BillScheduleFields({
       </div>
       <div style={{ flex: compact ? undefined : "1 1 120px", minWidth: 120 }}>
         <label className="fety-label" style={{ display: "block", marginBottom: 4 }}>
-          {isWeekBased ? "Due on (weekday)" : "Due on (day of month)"}
+          {isWeekBased ? "Due on (weekday)" : "Due on the"}
         </label>
         {isWeekBased ? (
           <select value={dueDay} onChange={(e) => onDueDayChange(parseInt(e.target.value, 10))} style={baseInput}>
@@ -81,7 +81,7 @@ export default function BillScheduleFields({
         <p style={{ fontSize: 10, color: "var(--ink-3)", marginTop: 4, lineHeight: 1.35 }}>
           {isWeekBased
             ? "Pick which day of the week this bill repeats."
-            : "Pick which calendar date each cycle is due (e.g. 1 = 1st of the month)."}
+            : "Enter a number for the day of the month (e.g. 1 or 15)."}
         </p>
       </div>
     </div>

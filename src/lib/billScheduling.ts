@@ -55,6 +55,16 @@ function isoDate(d: Date): string {
   return `${y}-${m}-${day}`;
 }
 
+/** Local calendar day start (midnight). */
+function dayStartMs(d: Date): number {
+  return new Date(d.getFullYear(), d.getMonth(), d.getDate()).getTime();
+}
+
+/** Inclusive end of local calendar day — occurrence dates use noon, so cap comparisons must include the full day. */
+function dayEndMs(d: Date): number {
+  return new Date(d.getFullYear(), d.getMonth(), d.getDate(), 23, 59, 59, 999).getTime();
+}
+
 function clampMonthDay(year: number, month: number, day: number): Date {
   const last = new Date(year, month + 1, 0).getDate();
   return new Date(year, month, Math.min(Math.max(1, day), last), 12, 0, 0, 0);
@@ -62,8 +72,8 @@ function clampMonthDay(year: number, month: number, day: number): Date {
 
 export function occurrencesInRange(item: Pick<RecurringScheduleBase, "dueDay" | "frequency">, from: Date, to: Date): string[] {
   const out: string[] = [];
-  const fromMs = new Date(from.getFullYear(), from.getMonth(), from.getDate()).getTime();
-  const toMs = new Date(to.getFullYear(), to.getMonth(), to.getDate()).getTime();
+  const fromMs = dayStartMs(from);
+  const toMs = dayEndMs(to);
 
   const pushIfInRange = (d: Date) => {
     const t = d.getTime();
@@ -107,8 +117,8 @@ function incomeDateAllowed(stream: Pick<IncomeStream, "startDateISO" | "endDateI
 
 /** Income-only schedule: semi-monthly days and optional active date range. */
 export function incomeOccurrencesInRange(stream: IncomeStream, from: Date, to: Date): string[] {
-  const fromMs = new Date(from.getFullYear(), from.getMonth(), from.getDate()).getTime();
-  const toMs = new Date(to.getFullYear(), to.getMonth(), to.getDate()).getTime();
+  const fromMs = dayStartMs(from);
+  const toMs = dayEndMs(to);
   const freq = stream.frequency ?? "monthly";
 
   if (freq === "semimonthly") {
@@ -199,6 +209,13 @@ function matchesManualLine(t: Transaction, item: Pick<RecurringScheduleBase, "na
 
 export function billMatchesManualLine(t: Transaction, bill: Bill): boolean {
   return matchesManualLine(t, bill);
+}
+
+export function transactionMatchesScheduleItem(
+  t: Transaction,
+  item: Pick<RecurringScheduleBase, "name" | "amount">,
+): boolean {
+  return matchesManualLine(t, item);
 }
 
 function scheduleSignature(item: RecurringScheduleBase, extra = ""): string {
@@ -406,10 +423,13 @@ export function rebuildTransactionsWithBillSchedule(store: RebuildStore, ref = n
         id,
         dateISO,
         desc: item.name,
-        category: item.category,
+        category: item.name.trim() || item.category,
         amount: -Math.abs(Number(item.amount)),
-        type: "bill",
+        type: "expense",
         icon: item.icon || "📋",
+        scheduledItemKind: "bill",
+        scheduledItemId: item.id,
+        fromAccountId: (item as Bill).fromAccountId,
       }),
     },
     consumedManualIds,
@@ -431,10 +451,13 @@ export function rebuildTransactionsWithBillSchedule(store: RebuildStore, ref = n
         id,
         dateISO,
         desc: item.name,
-        category: item.category,
+        category: item.name.trim() || item.category,
         amount: Math.abs(Number(item.amount)),
-        type: "income",
+        type: "deposit",
         icon: item.icon || "💵",
+        scheduledItemKind: "income",
+        scheduledItemId: item.id,
+        toAccountId: (item as IncomeStream).toAccountId,
       }),
       datesForItem: (item, rangeFrom, rangeTo) =>
         incomeOccurrencesInRange(item as IncomeStream, rangeFrom, rangeTo),
@@ -462,13 +485,15 @@ export function rebuildTransactionsWithBillSchedule(store: RebuildStore, ref = n
           id,
           dateISO,
           desc: item.name,
-          category: item.category,
+          category: item.name.trim() || item.category,
           amount: signAmountForFlow(flow, Number(item.amount)),
           type: typeId,
           icon: item.icon || "🔄",
           fromAccountId: recur.fromAccountId,
           toAccountId: recur.toAccountId,
           goalId: recur.goalId,
+          scheduledItemKind: "recur",
+          scheduledItemId: item.id,
         };
       },
     },

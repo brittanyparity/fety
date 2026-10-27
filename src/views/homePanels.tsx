@@ -55,10 +55,7 @@ export function UpcomingExpensesPanel({
           </span>
           <div className="fety-insights-feed-main">
             <p className="fety-insights-feed-title">{row.name}</p>
-            <p className="fety-insights-feed-meta">
-              {formatDueDay(row.dateISO, ref)}
-              {row.category ? ` · ${row.category}` : ""}
-            </p>
+            <p className="fety-insights-feed-meta">{formatDueDay(row.dateISO, ref)}</p>
           </div>
           <span className="fety-insights-feed-amount">{formatUsd(row.amount)}</span>
         </li>
