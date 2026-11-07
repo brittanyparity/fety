@@ -9,7 +9,7 @@ const usd = (n: number) =>
 export function getSpendingPower(summary: FinanceSummary): { lines: string[] } {
   return {
     lines: [
-      `Spending power this week: ${usd(summary.weeklySpendingPower)}`,
+      `Affordability this week: ${usd(summary.weeklySpendingPower)}`,
       `${usd(summary.weeklySpent)} spent of ${usd(summary.weeklyBudget)} weekly budget (${summary.weeklyUsedPct}%).`,
       `Current balance: ${usd(summary.balance)}.`,
     ],
@@ -24,12 +24,12 @@ export function calculateAffordability(
   const affordable = powerAfter >= 0;
   const lines = affordable
     ? [
-        `Yes. After ${usd(amount)}, you'd still have about ${usd(Math.max(0, powerAfter))} of spending power this week.`,
-        `Current spending power: ${usd(summary.weeklySpendingPower)}.`,
+        `Yes. After ${usd(amount)}, you'd still have about ${usd(Math.max(0, powerAfter))} of affordability this week.`,
+        `Current affordability: ${usd(summary.weeklySpendingPower)}.`,
       ]
     : [
-        `That would put you about ${usd(Math.abs(powerAfter))} over your safe spending power for the week.`,
-        `Current spending power: ${usd(summary.weeklySpendingPower)}.`,
+        `That would put you about ${usd(Math.abs(powerAfter))} over your safe affordability for the week.`,
+        `Current affordability: ${usd(summary.weeklySpendingPower)}.`,
       ];
   return { lines, affordable, powerAfter };
 }
@@ -166,7 +166,7 @@ export function getCashFlowSnapshot(store: FetyStore, summary: FinanceSummary): 
     lines: [
       `Balance today: ${usd(summary.balance)}.`,
       `In today: ${usd(summary.moneyInToday)} · Out today: ${usd(summary.moneyOutToday)}.`,
-      `Spending power this week: ${usd(summary.weeklySpendingPower)}.`,
+      `Affordability this week: ${usd(summary.weeklySpendingPower)}.`,
       `Upcoming bills: ${store.bills.length} on file — ask "What bills are coming up?" for details.`,
     ],
   };

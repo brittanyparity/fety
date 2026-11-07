@@ -32,7 +32,7 @@ export function DashboardHero({ summary }: { summary: FinanceSummary }) {
       >
         <div>
           <p className="fety-label" style={{ color: "var(--ink)", marginBottom: 10 }}>
-            Spending power · this week
+            Affordability · this week
           </p>
           <p className="fety-figure" style={{ fontSize: 56, letterSpacing: "-0.03em" }}>
             {usd(summary.weeklySpendingPower)}

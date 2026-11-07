@@ -1,4 +1,4 @@
-import type { InsightTipSlot } from "../lib/insightTips";
+import { tipCategoryLabel, type InsightTipSlot } from "../lib/insightTips";
 import type { FetyActionTarget } from "../types/analysis";
 
 export default function ThingsToTryList({
@@ -23,6 +23,9 @@ export default function ThingsToTryList({
           <li key={tip.id} className={`fety-nav-suggestions-item${done ? " fety-nav-suggestions-item--done" : ""}`}>
             <div className="fety-nav-suggestions-item-body">
               {done ? <p className="fety-insights-try-badge">Done</p> : null}
+              <span className={`fety-inbox-category-tag fety-inbox-category-tag--${tip.category}`}>
+                {tipCategoryLabel(tip.category)}
+              </span>
               <button
                 type="button"
                 className="fety-nav-suggestions-item-open"
@@ -58,6 +61,9 @@ export default function ThingsToTryList({
       {slots.map(({ tip, done }) => (
         <article key={tip.id} className={`fety-insights-try-card${done ? " fety-insights-try-card--done" : ""}`}>
           {done ? <p className="fety-insights-try-badge">Done</p> : null}
+          <span className={`fety-inbox-category-tag fety-inbox-category-tag--${tip.category}`}>
+            {tipCategoryLabel(tip.category)}
+          </span>
           <h3>{tip.title}</h3>
           <p>{tip.explanation}</p>
           <div className="fety-insights-try-actions">

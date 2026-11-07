@@ -446,6 +446,7 @@ function migrateStore(store: FetyStore): FetyStore {
   }
   if (!next.incomeStreams) next = { ...next, incomeStreams: [] };
   if (!next.recurringTransactions) next = { ...next, recurringTransactions: [] };
+  if (!next.accountReconciliations) next = { ...next, accountReconciliations: [] };
   next = {
     ...next,
     calendarNotes: normalizeCalendarNotes(
@@ -488,7 +489,16 @@ function migrateStore(store: FetyStore): FetyStore {
   next = {
     ...next,
     accounts: (next.accounts ?? []).map((a) => normalizeAccountRecord(a, next)),
-    transactions: next.transactions.filter((t) => !isScheduledTransaction(t.id)),
+    transactions: (next.transactions ?? [])
+      .filter((t) => !isScheduledTransaction(t.id))
+      .map((t) => ({
+        ...t,
+        postingStatus: t.postingStatus ?? "completed",
+        completedAtISO:
+          t.postingStatus === "planned"
+            ? t.completedAtISO
+            : t.completedAtISO ?? t.dateISO,
+      })),
   };
   next = applyBillScheduleToStore(next);
   next = stripRemovedBudgetCategories(next);
@@ -538,13 +548,23 @@ export function loadStore(): FetyStore {
   }
 }
 
-export function saveStore(store: FetyStore): void {
-  if (typeof window === "undefined") return;
-  const toSave: FetyStore = {
+/** Strip scheduled ledger duplicates before persistence (local or cloud). */
+export function storePayloadForPersist(store: FetyStore): FetyStore {
+  return {
     ...store,
     transactions: store.transactions.filter((t) => !isScheduledTransaction(t.id)),
   };
-  localStorage.setItem(STORAGE_KEY, JSON.stringify(toSave));
+}
+
+export function importStoreSnapshot(snapshot: FetyStore): FetyStore {
+  const migrated = migrateStore(snapshot);
+  saveStore(migrated);
+  return migrated;
+}
+
+export function saveStore(store: FetyStore): void {
+  if (typeof window === "undefined") return;
+  localStorage.setItem(STORAGE_KEY, JSON.stringify(storePayloadForPersist(store)));
 }
 
 export function resetStore(): FetyStore {

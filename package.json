@@ -7,14 +7,18 @@
   "engines": {
     "node": "22.x"
   },
+  "pnpm": {
+    "onlyBuiltDependencies": ["esbuild"]
+  },
   "scripts": {
     "dev": "vite --host 0.0.0.0",
     "build": "vite build",
     "preview": "vite preview",
     "format": "oxfmt",
-    "test": "tsx --test src/lib/financialAnalysis.test.ts src/lib/needsAssessment.test.ts src/lib/widgetLayout.test.ts src/lib/scheduledKindProgress.test.ts"
+    "test": "tsx --test src/lib/financialAnalysis.test.ts src/lib/needsAssessment.test.ts src/lib/widgetLayout.test.ts src/lib/scheduledKindProgress.test.ts src/lib/transactionPosting.test.ts src/lib/scheduleMonthTotals.test.ts src/lib/affordability.test.ts src/lib/reconcile.test.ts"
   },
   "dependencies": {
+    "@supabase/supabase-js": "^2.119.0",
     "react": "^19.0.0",
     "react-dom": "^19.0.0",
     "recharts": "^3.10.1"

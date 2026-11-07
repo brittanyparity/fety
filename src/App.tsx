@@ -2,8 +2,16 @@ import { useState, useRef, useEffect, useCallback, useMemo, type ReactNode } fro
 import { FetyLogo } from "./FetyLogo";
 import { useFetyData } from "./hooks/useFetyData";
 import { calendarNotePreview, hasCalendarNote, noteForCalendarDay } from "./lib/calendarNotes";
+import { actualCashBalance } from "./lib/affordability";
 import { buildCalendarMap, computeSummary, dateToISOLocal, endingBalanceOnDate, endingBalancesForRange, formatNavDate, monthsSpending, categorySpendSharesForPeriod, todayISO, type BalanceChartPoint, type BalanceChartRange, type CategorySpendPeriod, type SpendTrendMonths } from "./lib/fetyCalculations";
-import { formatTransactionDetailLine, goalSavedTotal } from "./lib/ledger";
+import {
+  accountBalanceWithTransactions,
+  formatAccountBalanceDisplay,
+  formatTransactionDetailLine,
+  goalSavedTotal,
+  isDebtAccount,
+  netWorthTotalsOnDate,
+} from "./lib/ledger";
 import { flowForTransactionType, getTransactionTypes, isTransferTransactionType } from "./lib/transactionTypes";
 import { calendarEndingBalanceBg, calendarEndingBalanceBgStrong, calBalanceColor, calSignedColor } from "./lib/calendarUi";
 import { CalendarPeriodMenu } from "./components/CalendarPeriodMenu";
@@ -28,6 +36,7 @@ import {
 } from "./views/ManageViews";
 import { OnboardingView } from "./views/OnboardingView";
 import SplashView from "./views/SplashView";
+import UndoToast from "./components/UndoToast";
 import { analyzeStore, buildPersonalizedTour, pageForAction } from "./lib/financialAnalysis";
 import { assessFinancialNeeds, isWidgetRecommended, recommendationForWidget } from "./lib/needsAssessment";
 import {
@@ -39,6 +48,11 @@ import HomeView from "./views/HomeView";
 import { isPlannerHash, openPlannerHash, syncPlannerHash } from "./lib/plannerAccess";
 import PlannerWorkspaceView from "./views/planner/PlannerWorkspaceView";
 import InboxView from "./views/InboxView";
+import MobileApp from "./mobile/MobileApp";
+/* SUPABASE — re-enable with CloudAuthProvider in main.tsx
+import { useCloudAuth } from "./context/CloudAuthProvider";
+import { useCloudStoreSync } from "./hooks/useCloudStoreSync";
+*/
 import type { FetyActionTarget, FinancialAnalysis } from "./types/analysis";
 import type { FinancialAssessment } from "./types/widgets";
 import {
@@ -562,6 +576,23 @@ function BalanceChartWidget() {
       : store.accounts.find((a) => a.id === accountId)?.name ?? "Account";
   const balanceChartHeight = 168;
   const balanceTickFontSize = range === "7d" ? 9 : weekData.length <= 14 ? 9 : 8;
+  const [accountsBreakdownOpen, setAccountsBreakdownOpen] = useState(false);
+  const breakdownThroughISO = focusDateISO;
+  const accountBreakdown = useMemo(
+    () =>
+      store.accounts.map((a) => ({
+        account: a,
+        balance: accountBalanceWithTransactions(store, a.id, breakdownThroughISO),
+      })),
+    [store, breakdownThroughISO],
+  );
+  const breakdownTotal = useMemo(
+    () => (selectedAccount ? endBal : netWorthTotalsOnDate(store, breakdownThroughISO).net),
+    [selectedAccount, endBal, store, breakdownThroughISO],
+  );
+  const today = todayISO();
+  const showActualVsPlanned = !selectedAccount && focusDateISO > today;
+  const actualBalanceToday = useMemo(() => actualCashBalance(store), [store]);
 
   return (
     <div>
@@ -569,9 +600,21 @@ function BalanceChartWidget() {
         <div>
           <p style={{ fontSize: 11, color: "var(--ink-3)", margin: 0 }}>
             {accountLabel} · {subtitle}
+            {showActualVsPlanned ? (
+              <span className="fety-balance-actual-planned-inline">
+                {" "}
+                · Actual today {usd(actualBalanceToday)} · Planned {formatNavDate(focusDateISO)} {usd(endBal)}
+              </span>
+            ) : null}
           </p>
         </div>
-        <p style={{ fontSize: 22, fontWeight: 400, color: endColor, letterSpacing: "-0.8px", fontFamily: "var(--font-sans)", margin: 0 }}>{usd(endBal)}</p>
+        <p style={{ fontSize: 22, fontWeight: 400, color: endColor, letterSpacing: "-0.8px", fontFamily: "var(--font-sans)", margin: 0 }}>
+          {showActualVsPlanned ? (
+            <span title="Planned ending balance on the selected date">{usd(endBal)}</span>
+          ) : (
+            usd(endBal)
+          )}
+        </p>
       </div>
       <div className="fety-widget-filters">
         <WidgetPeriodFilter options={BALANCE_RANGE_OPTIONS} value={range} onChange={setRange} ariaLabel="Balance period" />
@@ -643,6 +686,37 @@ function BalanceChartWidget() {
             </AreaChart>
         </ResponsiveContainer>
       </div>
+      {!selectedAccount && store.accounts.length > 0 ? (
+        <div className="fety-balance-account-breakdown">
+          <button
+            type="button"
+            className="fety-balance-account-breakdown-toggle"
+            aria-expanded={accountsBreakdownOpen}
+            onClick={() => setAccountsBreakdownOpen((o) => !o)}
+          >
+            <span>Ending balance by account</span>
+            <span aria-hidden>{accountsBreakdownOpen ? "▾" : "▸"}</span>
+          </button>
+          {accountsBreakdownOpen ? (
+            <ul className="fety-balance-account-breakdown-list">
+              {accountBreakdown.map(({ account, balance }) => (
+                <li key={account.id} className="fety-balance-account-breakdown-row">
+                  <span>
+                    {account.icon} {account.name}
+                  </span>
+                  <span className={isDebtAccount(account) ? "fety-balance-account-breakdown--debt" : undefined}>
+                    {formatAccountBalanceDisplay(account, balance)}
+                  </span>
+                </li>
+              ))}
+              <li className="fety-balance-account-breakdown-row fety-balance-account-breakdown-row--total">
+                <span>Total</span>
+                <span>{usdF(breakdownTotal)}</span>
+              </li>
+            </ul>
+          ) : null}
+        </div>
+      ) : null}
     </div>
   );
 }
@@ -848,13 +922,13 @@ const ALL_WIDGETS: WidgetDef[] = [
 
   // ── Half-width detailed widgets ────────────────────────────────────────────────
   {
-    id: "weekly-power", label: "Weekly spending power", color: "var(--amber)", size: "half",
-    preview: () => statPreview("var(--amber-dk)", "Spending power", "$140", "22% of $640 budget"),
+    id: "weekly-power", label: "Weekly affordability", color: "var(--amber)", size: "half",
+    preview: () => statPreview("var(--amber-dk)", "Affordability", "$140", "22% of $640 budget"),
     render: () => {
       const { summary: s } = widgetLive();
       return (
       <div style={{ display: "flex", flexDirection: "column", height: "100%" }}>
-        <p className="fety-label" style={{ marginBottom: 8 }}>Spending power · this week</p>
+        <p className="fety-label" style={{ marginBottom: 8 }}>Affordability · this week</p>
         <p className="fety-figure" style={{ fontSize: 48 }}>{usd(s.weeklySpendingPower)}</p>
         <p style={{ fontSize: 13, color: "var(--ink-2)", marginTop: 8 }}>Available after bills you have on file</p>
         <div style={{ marginTop: 16, height: 6, background: "rgba(17,17,17,0.12)", borderRadius: "var(--radius-track)" }}>
@@ -1427,6 +1501,8 @@ function CalendarView({
   onAddTransaction,
   onUpdateTransaction,
   onDeleteTransaction,
+  onCompleteTransaction,
+  onMarkTransactionUpcoming,
   onAddCalendarNote,
   onDeleteCalendarNote,
   dayOpenRequest,
@@ -1437,6 +1513,8 @@ function CalendarView({
   onAddTransaction: ReturnType<typeof useFetyData>["addTransaction"];
   onUpdateTransaction: ReturnType<typeof useFetyData>["updateTransaction"];
   onDeleteTransaction: ReturnType<typeof useFetyData>["deleteTransaction"];
+  onCompleteTransaction: ReturnType<typeof useFetyData>["completeTransaction"];
+  onMarkTransactionUpcoming: ReturnType<typeof useFetyData>["markTransactionUpcoming"];
   onAddCalendarNote: (dateISO: string, text: string) => void;
   onDeleteCalendarNote: (dateISO: string, noteId: string) => void;
   dayOpenRequest?: CalendarDayOpenRequest | null;
@@ -1500,12 +1578,14 @@ function CalendarView({
 
   const navBack = () => {
     if (calView === "daily") addDay(-1);
-    else if (calView === "monthly" || calView === "biweekly") addMonth(-1);
+    else if (calView === "monthly") addMonth(-1);
+    else if (calView === "biweekly") addWeek(-2);
     else addWeek(-1);
   };
   const navForward = () => {
     if (calView === "daily") addDay(1);
-    else if (calView === "monthly" || calView === "biweekly") addMonth(1);
+    else if (calView === "monthly") addMonth(1);
+    else if (calView === "biweekly") addWeek(2);
     else addWeek(1);
   };
 
@@ -1527,6 +1607,8 @@ function CalendarView({
       onAddTransaction={onAddTransaction}
       onUpdateTransaction={onUpdateTransaction}
       onDeleteTransaction={onDeleteTransaction}
+      onCompleteTransaction={onCompleteTransaction}
+      onMarkTransactionUpcoming={onMarkTransactionUpcoming}
     />
   );
 
@@ -1906,6 +1988,8 @@ function CalendarSidePanel({
   onAddTransaction,
   onUpdateTransaction,
   onDeleteTransaction,
+  onCompleteTransaction,
+  onMarkTransactionUpcoming,
 }: {
   variant?: "sidebar" | "inline";
   calView: CalView;
@@ -1946,6 +2030,8 @@ function CalendarSidePanel({
     }>,
   ) => void;
   onDeleteTransaction: (id: string) => void;
+  onCompleteTransaction?: ReturnType<typeof useFetyData>["completeTransaction"];
+  onMarkTransactionUpcoming?: ReturnType<typeof useFetyData>["markTransactionUpcoming"];
 }) {
   const accounts = ledgerStore.accounts;
   const goals = ledgerStore.goals;
@@ -2248,6 +2334,8 @@ function CalendarSidePanel({
             }}
             onSave={onUpdateTransaction}
             onDelete={onDeleteTransaction}
+            onMarkCompleted={onCompleteTransaction}
+            onMarkUpcoming={onMarkTransactionUpcoming}
           />
         </>
       )}
@@ -2263,6 +2351,8 @@ function DashboardView({
   addTransactionActions,
   onUpdateTransaction,
   onDeleteTransaction,
+  onCompleteTransaction,
+  onMarkTransactionUpcoming,
   onAddCalendarNote,
   onDeleteCalendarNote,
 }: {
@@ -2272,18 +2362,25 @@ function DashboardView({
   addTransactionActions: import("./components/AddTransactionModal").AddTransactionModalActions;
   onUpdateTransaction: ReturnType<typeof useFetyData>["updateTransaction"];
   onDeleteTransaction: ReturnType<typeof useFetyData>["deleteTransaction"];
+  onCompleteTransaction: ReturnType<typeof useFetyData>["completeTransaction"];
+  onMarkTransactionUpcoming: ReturnType<typeof useFetyData>["markTransactionUpcoming"];
   onAddCalendarNote: (dateISO: string, text: string) => void;
   onDeleteCalendarNote: (dateISO: string, noteId: string) => void;
 }) {
   const [focusDateISO, setFocusDateISO] = useState(todayISO);
   const focusDate = useMemo(() => new Date(`${focusDateISO}T12:00:00`), [focusDateISO]);
   const summary = useMemo(() => computeSummary(store, focusDate), [store, focusDate]);
+  const glanceSummary = useMemo(
+    () => computeSummary(store, new Date(`${todayISO()}T12:00:00`)),
+    [store],
+  );
   const analysis = useMemo(() => analyzeStore(store, focusDate), [store, focusDate]);
   liveWidgets = { store, summary, focusDateISO };
   return (
     <HomeView
       store={store}
       summary={summary}
+      glanceSummary={glanceSummary}
       analysis={analysis}
       focusDateISO={focusDateISO}
       onFocusDateChange={setFocusDateISO}
@@ -2292,6 +2389,8 @@ function DashboardView({
       addTransactionActions={addTransactionActions}
       onUpdateTransaction={onUpdateTransaction}
       onDeleteTransaction={onDeleteTransaction}
+      onCompleteTransaction={onCompleteTransaction}
+      onMarkTransactionUpcoming={onMarkTransactionUpcoming}
       onAddCalendarNote={onAddCalendarNote}
       onDeleteCalendarNote={onDeleteCalendarNote}
       balanceChart={<BalanceChartWidget />}
@@ -2317,7 +2416,13 @@ export default function App() {
     store,
     summary,
     addTransaction,
+    completeTransaction,
+    markTransactionUpcoming,
     deleteTransaction,
+    deleteTransactionsBulk,
+    undoLastChange,
+    dismissUndo,
+    undoOffer,
     updateTransaction,
     updateBill,
     updateCategoryBudget,
@@ -2339,6 +2444,7 @@ export default function App() {
     updateAccount,
     addAccount,
     deleteAccount,
+    reconcileAccount,
     setPinnedWidgets,
     restoreRecommendedWidgets,
     toggleDashboardWidgetLock,
@@ -2354,7 +2460,20 @@ export default function App() {
     addTransactionType,
     updateTransactionType,
     deleteTransactionType,
+    // replaceStoreFromCloud, // SUPABASE
   } = useFetyData();
+
+  // SUPABASE: const cloudAuth = useCloudAuth();
+  const isMobileProduct = useIsNarrow();
+
+  /* SUPABASE:
+  const cloudSync = useCloudStoreSync(
+    cloudAuth.session,
+    store,
+    replaceStoreFromCloud,
+    cloudAuth.cloudEnabled && Boolean(cloudAuth.session) && store.onboardingCompleted,
+  );
+  */
 
   const transactionTypes = useMemo(() => getTransactionTypes(store), [store]);
   const addTransactionActions = useMemo(
@@ -2378,6 +2497,21 @@ export default function App() {
   const [transactionsAccountFilter, setTransactionsAccountFilter] = useState<string | null>(null);
   /** Shown before onboarding for first-time users. */
   const [showSplash, setShowSplash] = useState(true);
+
+  /* SUPABASE:
+  useEffect(() => {
+    if (!cloudAuth.authReady) return;
+    if (cloudAuth.session && store.onboardingCompleted) {
+      setShowSplash(false);
+    }
+  }, [cloudAuth.authReady, cloudAuth.session, store.onboardingCompleted]);
+
+  const handleCloudLoginSuccess = useCallback(async () => {
+    await cloudSync.pullRemoteStore();
+    setShowSplash(false);
+  }, [cloudSync]);
+  */
+
   const [exploreBannerDismissed, setExploreBannerDismissed] = useState(false);
   const [tourTarget, setTourTarget] = useState<string | null>(null);
   const [focusAction, setFocusAction] = useState<FetyActionTarget | null>(null);
@@ -2490,6 +2624,9 @@ export default function App() {
             onAdd={addTransaction}
             onUpdate={updateTransaction}
             onDelete={deleteTransaction}
+            onDeleteBulk={deleteTransactionsBulk}
+            onCompleteTransaction={completeTransaction}
+            onMarkTransactionUpcoming={markTransactionUpcoming}
             addTransactionActions={addTransactionActions}
             initialAccountFilter={transactionsAccountFilter}
             earliestDateISO={store.profile.balanceAsOfISO}
@@ -2512,6 +2649,7 @@ export default function App() {
           />
         );
       case "profile":
+        // SUPABASE: pass cloudSessionEmail, cloudSync*, onCloudSignOut when re-enabled
         return (
           <ProfileSettingsView
             profile={store.profile}
@@ -2534,6 +2672,7 @@ export default function App() {
             onUpdateAccount={updateAccount}
             onAddAccount={addAccount}
             onDeleteAccount={deleteAccount}
+            onReconcileAccount={reconcileAccount}
             onOpenTransactionsForAccount={(accountId) => {
               setTransactionsAccountFilter(accountId);
               setPage("spending");
@@ -2561,6 +2700,8 @@ export default function App() {
             addTransactionActions={addTransactionActions}
             onUpdateTransaction={updateTransaction}
             onDeleteTransaction={deleteTransaction}
+            onCompleteTransaction={completeTransaction}
+            onMarkTransactionUpcoming={markTransactionUpcoming}
             onAddCalendarNote={addCalendarNote}
             onDeleteCalendarNote={deleteCalendarNote}
           />
@@ -2592,6 +2733,33 @@ export default function App() {
   }
 
   liveWidgets = { store, summary, focusDateISO: todayISO() };
+
+  const mobileData = {
+    addTransaction,
+    updateTransaction,
+    deleteTransaction,
+    completeTransaction,
+    markTransactionUpcoming,
+    updateProfile,
+    resetAll,
+    startFreshSetup,
+    addCalendarNote,
+    deleteCalendarNote,
+    undoOffer,
+    undoLastChange,
+    dismissUndo,
+  };
+
+  if (isMobileProduct) {
+    return (
+      <MobileApp
+        store={store}
+        summary={summary}
+        data={mobileData}
+        addTransactionActions={addTransactionActions}
+      />
+    );
+  }
 
   return (
     <div className="fety-shell">
@@ -2663,6 +2831,9 @@ export default function App() {
           )}
         </div>
       </div>
+      {undoOffer ? (
+        <UndoToast message={undoOffer.label} onUndo={undoLastChange} onDismiss={dismissUndo} />
+      ) : null}
     </div>
   );
 }

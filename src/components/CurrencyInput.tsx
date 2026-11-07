@@ -1,13 +1,14 @@
 import type { CSSProperties } from "react";
 
-export function sanitizeDecimalInput(raw: string): string {
+export function sanitizeDecimalInput(raw: string, allowNegative = false): string {
   if (raw === "") return "";
+  const leadMinus = allowNegative && raw.trimStart().startsWith("-");
   let v = raw.replace(/[^\d.]/g, "");
   const dot = v.indexOf(".");
   if (dot !== -1) {
     v = v.slice(0, dot + 1) + v.slice(dot + 1).replace(/\./g, "");
   }
-  return v;
+  return leadMinus && v !== "" ? `-${v}` : v;
 }
 
 type CurrencyInputProps = {
@@ -18,6 +19,7 @@ type CurrencyInputProps = {
   compact?: boolean;
   id?: string;
   "aria-label"?: string;
+  allowNegative?: boolean;
 };
 
 export default function CurrencyInput({
@@ -28,6 +30,7 @@ export default function CurrencyInput({
   compact,
   id,
   "aria-label": ariaLabel,
+  allowNegative = false,
 }: CurrencyInputProps) {
   const wrapStyle: CSSProperties = {
     display: "flex",
@@ -71,7 +74,7 @@ export default function CurrencyInput({
         aria-label={ariaLabel ?? "Amount in dollars"}
         value={value}
         placeholder={placeholder}
-        onChange={(e) => onChange(sanitizeDecimalInput(e.target.value))}
+        onChange={(e) => onChange(sanitizeDecimalInput(e.target.value, allowNegative))}
         style={fieldStyle}
       />
     </div>

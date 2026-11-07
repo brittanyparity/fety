@@ -4,6 +4,9 @@ import CalendarNoteIcon from "../../components/CalendarNoteIcon";
 import EditTransactionModal from "../../components/EditTransactionModal";
 import { notesForCalendarDay } from "../../lib/calendarNotes";
 import { calendarEndingBalanceBg, calBalanceColor, calSignedColor } from "../../lib/calendarUi";
+import { actualCashBalance } from "../../lib/affordability";
+import { todayISO } from "../../lib/fetyCalculations";
+import { isManualStoredTransaction, normalizePostingStatus, postingStatusLabel } from "../../lib/transactionPosting";
 import type { CalDay, CalDayItem, FetyStore, Transaction } from "../../types/fety";
 import HomeCalendarTileScroller from "./HomeCalendarTileScroller";
 import HomeOpenDayButton from "./HomeOpenDayButton";
@@ -90,50 +93,96 @@ function DayTransactionsList({
   items,
   emptyLabel = "No transactions on this day.",
   onEditItem,
+  txById,
+  onCompleteTransaction,
+  onMarkTransactionUpcoming,
 }: {
   items: CalDayItem[];
   emptyLabel?: string;
   onEditItem: (item: CalDayItem) => void;
+  txById: Map<string, Transaction>;
+  onCompleteTransaction?: (id: string, completedAtISO?: string) => void;
+  onMarkTransactionUpcoming?: (id: string) => void;
 }) {
   if (items.length === 0) {
     return <p className="fety-home-cal-period-muted">{emptyLabel}</p>;
   }
   return (
     <ul className="fety-home-cal-period-tx-list">
-      {items.map((item) => (
-        <li key={item.id}>
-          <div
-            className="fety-home-cal-period-tx-row fety-home-cal-period-tx-row--interactive"
-            role="button"
-            tabIndex={0}
-            onClick={() => onEditItem(item)}
-            onKeyDown={(e) => {
-              if (e.key === "Enter" || e.key === " ") {
-                e.preventDefault();
-                onEditItem(item);
-              }
-            }}
-          >
-            <span className="fety-home-cal-period-tx-icon" aria-hidden>
-              {item.icon}
-            </span>
-            <span className="fety-home-cal-period-tx-name">{txLabel(item)}</span>
-            <span className="fety-home-cal-period-tx-amt" style={{ color: calSignedColor(item.amount) }}>
-              {signedAmount(item.amount)}
-            </span>
-            <button
-              type="button"
-              className="fety-home-cal-period-tx-edit"
-              onClick={(e) => {
-                e.stopPropagation();
-                onEditItem(item);
+      {items.map((item) => {
+        const stored = txById.get(item.id);
+        const manual = stored ? isManualStoredTransaction(stored) : false;
+        const postingStatus = manual ? normalizePostingStatus(stored!.postingStatus) : "completed";
+        return (
+          <li key={item.id}>
+            <div
+              className="fety-home-cal-period-tx-row fety-home-cal-period-tx-row--interactive"
+              role="button"
+              tabIndex={0}
+              onClick={() => onEditItem(item)}
+              onKeyDown={(e) => {
+                if (e.key === "Enter" || e.key === " ") {
+                  e.preventDefault();
+                  onEditItem(item);
+                }
               }}
             >
-              Edit
-            </button>
-          </div>
-        </li>
-      ))}
+              <span className="fety-home-cal-period-tx-icon" aria-hidden>
+                {item.icon}
+              </span>
+              <span className="fety-home-cal-period-tx-name">{txLabel(item)}</span>
+              {manual ? (
+                <span
+                  className={
+                    postingStatus === "planned"
+                      ? "fety-txn-status-pill fety-txn-status-pill--upcoming"
+                      : "fety-txn-status-pill fety-txn-status-pill--completed"
+                  }
+                >
+                  {postingStatusLabel(stored!.postingStatus)}
+                </span>
+              ) : null}
+              <span className="fety-home-cal-period-tx-amt" style={{ color: calSignedColor(item.amount) }}>
+                {signedAmount(item.amount)}
+              </span>
+              {manual && postingStatus === "planned" && onCompleteTransaction ? (
+                <button
+                  type="button"
+                  className="fety-txn-complete-btn"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    onCompleteTransaction(stored!.id, todayISO());
+                  }}
+                >
+                  Mark as Completed
+                </button>
+              ) : null}
+              {manual && postingStatus === "completed" && onMarkTransactionUpcoming ? (
+                <button
+                  type="button"
+                  className="fety-txn-undo-complete-btn"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    onMarkTransactionUpcoming(stored!.id);
+                  }}
+                >
+                  Mark as Upcoming
+                </button>
+              ) : null}
+              <button
+                type="button"
+                className="fety-home-cal-period-tx-edit"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  onEditItem(item);
+                }}
+              >
+                Edit
+              </button>
+            </div>
+          </li>
+        );
+      })}
     </ul>
   );
 }
@@ -146,6 +195,8 @@ export function HomeCalendarDailyDetail({
   store,
   onUpdateTransaction,
   onDeleteTransaction,
+  onCompleteTransaction,
+  onMarkTransactionUpcoming,
 }: {
   date: Date;
   dateISO: string;
@@ -162,9 +213,14 @@ export function HomeCalendarDailyDetail({
     >,
   ) => void;
   onDeleteTransaction: (id: string) => void;
+  onCompleteTransaction?: (id: string, completedAtISO?: string) => void;
+  onMarkTransactionUpcoming?: (id: string) => void;
 }) {
   const startBal = data?.startBal ?? 0;
   const endBal = data?.endBal ?? 0;
+  const today = todayISO();
+  const showActualVsPlanned = dateISO > today;
+  const actualToday = useMemo(() => actualCashBalance(store), [store]);
   const items = data?.items ?? [];
   const txById = useMemo(() => new Map(store.transactions.map((t) => [t.id, t])), [store.transactions]);
   const [editOpen, setEditOpen] = useState(false);
@@ -197,18 +253,39 @@ export function HomeCalendarDailyDetail({
         </div>
       </header>
 
+      {showActualVsPlanned ? (
+        <p className="fety-balance-actual-planned fety-home-cal-period-muted">
+          <strong>Actual today:</strong> {usdFull(actualToday)} · <strong>Planned this day:</strong>{" "}
+          {usdFull(endBal)} ending balance (includes scheduled money not yet posted).
+        </p>
+      ) : null}
+
       <HomeCalendarTileScroller className="fety-home-cal-tile-scroll-wrap--daily">
         <section className="fety-home-cal-period-section">
-          <DailyBalanceRow label="Starting Balance" amount={startBal} hasData={Boolean(data)} />
+          <DailyBalanceRow
+            label={showActualVsPlanned ? "Starting balance (planned)" : "Starting Balance"}
+            amount={startBal}
+            hasData={Boolean(data)}
+          />
         </section>
 
         <section className="fety-home-cal-period-section">
           <h4 className="fety-home-cal-period-section-label">Transactions</h4>
-          <DayTransactionsList items={items} onEditItem={openEdit} />
+          <DayTransactionsList
+            items={items}
+            onEditItem={openEdit}
+            txById={txById}
+            onCompleteTransaction={onCompleteTransaction}
+            onMarkTransactionUpcoming={onMarkTransactionUpcoming}
+          />
         </section>
 
         <section className="fety-home-cal-period-section">
-          <DailyBalanceRow label="Ending Balance" amount={endBal} hasData={Boolean(data)} />
+          <DailyBalanceRow
+            label={showActualVsPlanned ? "Ending balance (planned)" : "Ending Balance"}
+            amount={endBal}
+            hasData={Boolean(data)}
+          />
         </section>
 
         <section className="fety-home-cal-period-section fety-home-cal-period-section--accounts">

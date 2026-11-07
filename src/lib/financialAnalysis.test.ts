@@ -232,7 +232,7 @@ describe("buildPersonalizedTour", () => {
     assert.equal(steps[0]?.target, "widget-weekly-power");
     assert.equal(steps[0]?.phase, "financial");
     assert.match(steps[0].explanation, /Alex/);
-    assert.match(steps[0].explanation, /spending power this week/i);
+    assert.match(steps[0].explanation, /comfortably spend this week/i);
     assert.ok(steps.some((s) => s.target === "widget-spending-breakdown" && s.phase === "financial"));
     assert.ok(steps.some((s) => s.target === "widget-savings-goal" && s.phase === "financial"));
     assert.ok(steps.some((s) => s.id === "bridge-product" && s.phase === "bridge"));

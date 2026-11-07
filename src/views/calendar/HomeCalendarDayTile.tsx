@@ -73,6 +73,10 @@ export default function HomeCalendarDayTile({
   const monthAbbrOnYearStart =
     density === "year" && dayNum === 1 ? date.toLocaleDateString("en-US", { month: "short" }) : null;
 
+  const dayBalanceSummary = data
+    ? `Start ${compactUsd(data.startBal)} · In ${compactUsd(data.income)} · Out ${compactUsd(Math.abs(data.expenses))} · End ${compactUsd(data.endBal)}`
+    : undefined;
+
   return (
     <div
       ref={(el) => registerDayRef?.(dateISO, el)}
@@ -93,7 +97,8 @@ export default function HomeCalendarDayTile({
         type="button"
         className="fety-home-calendar-day-main"
         onClick={() => onSelect(dateISO)}
-        title={data ? `Ending ${compactUsd(data.endBal)}` : undefined}
+        title={dayBalanceSummary}
+        aria-description={dayBalanceSummary}
         aria-pressed={isSelected}
       >
         <span className="fety-home-calendar-day-top">

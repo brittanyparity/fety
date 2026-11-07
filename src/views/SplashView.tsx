@@ -20,7 +20,7 @@ const FEATURES = [
   },
   {
     title: "Budgets that stick",
-    body: "Category caps, goals, and net worth in one place so spending power is never a guess.",
+    body: "Category caps, goals, and net worth in one place so affordability is never a guess.",
     visual: "budget" as const,
   },
 ] as const;
@@ -131,9 +131,19 @@ function FeatureVisual({ kind }: { kind: (typeof FEATURES)[number]["visual"] }) 
 export default function SplashView({
   onSignUp,
   onExplore,
+  onLoginSuccess,
+  cloudEnabled = false,
+  onCloudLogin,
+  onCloudSignUp,
+  cloudAuthError,
 }: {
   onSignUp: () => void;
   onExplore: () => void;
+  onLoginSuccess?: () => void;
+  cloudEnabled?: boolean;
+  onCloudLogin?: (email: string, password: string) => Promise<{ error: string | null }>;
+  onCloudSignUp?: (email: string, password: string) => Promise<{ error: string | null; needsEmailConfirmation: boolean }>;
+  cloudAuthError?: string | null;
 }) {
   const [mode, setMode] = useState<SplashMode>("home");
   const [email, setEmail] = useState("");
@@ -168,11 +178,49 @@ export default function SplashView({
     if (!pastHero) setMenuOpen(false);
   }, [pastHero]);
 
-  const handleLoginSubmit = (e: FormEvent) => {
+  const [loginBusy, setLoginBusy] = useState(false);
+
+  const handleLoginSubmit = async (e: FormEvent) => {
     e.preventDefault();
-    setLoginNote(
-      "Cloud accounts arrive with security and database work. For now, set up on this device — your data stays local.",
-    );
+    setLoginNote(null);
+    if (!cloudEnabled || !onCloudLogin) {
+      setLoginNote(
+        "Accounts and sync are paused for now. Continue with a local setup — your data stays in this browser.",
+      );
+      return;
+    }
+    setLoginBusy(true);
+    const { error } = await onCloudLogin(email, password);
+    setLoginBusy(false);
+    if (error) {
+      setLoginNote(error);
+      return;
+    }
+    onLoginSuccess?.();
+  };
+
+  const handleCloudSignUp = async () => {
+    setLoginNote(null);
+    if (!cloudEnabled || !onCloudSignUp) {
+      onSignUp();
+      return;
+    }
+    if (password.length < 8) {
+      setLoginNote("Use at least 8 characters for your password.");
+      return;
+    }
+    setLoginBusy(true);
+    const { error, needsEmailConfirmation } = await onCloudSignUp(email, password);
+    setLoginBusy(false);
+    if (error) {
+      setLoginNote(error);
+      return;
+    }
+    if (needsEmailConfirmation) {
+      setLoginNote("Check your email to confirm your account, then log in.");
+      return;
+    }
+    onSignUp();
   };
 
   const showChrome = mode === "login" || pastHero;
@@ -369,7 +417,11 @@ export default function SplashView({
 
           <footer className="fety-splash-footer">
             <div className="fety-splash-shell fety-splash-footer-inner">
-              <p>Fety keeps your books on this device until you choose cloud sync.</p>
+              <p>
+                {cloudEnabled
+                  ? "Create an account to sync across devices, or set up locally in this browser."
+                  : "Fety keeps your books on this device until cloud sync is configured."}
+              </p>
               <div className="fety-splash-footer-actions">
                 <button type="button" className="fety-splash-btn-primary" onClick={onSignUp}>
                   Create your setup
@@ -385,7 +437,9 @@ export default function SplashView({
         <section className="fety-splash-login" aria-label="Log in">
           <h1 className="fety-splash-login-title">Welcome back</h1>
           <p className="fety-splash-login-lede">
-            Sign in when cloud accounts ship. Until then, continue with a local setup on this device.
+            {cloudEnabled
+              ? "Sign in to load your budget on this device. Changes sync to your account."
+              : "Continue with a local setup on this device, or enable cloud sync in your build (Supabase env vars)."}
           </p>
           <form className="fety-splash-login-form" onSubmit={handleLoginSubmit}>
             <label className="fety-splash-field">
@@ -410,12 +464,30 @@ export default function SplashView({
                 required
               />
             </label>
-            {loginNote && <p className="fety-splash-login-note" role="status">{loginNote}</p>}
-            <button type="submit" className="fety-splash-btn-primary fety-splash-btn-lg" style={{ width: "100%" }}>
-              Log in
+            {(loginNote || cloudAuthError) && (
+              <p className="fety-splash-login-note" role="status">
+                {loginNote ?? cloudAuthError}
+              </p>
+            )}
+            <button
+              type="submit"
+              className="fety-splash-btn-primary fety-splash-btn-lg"
+              style={{ width: "100%" }}
+              disabled={loginBusy}
+            >
+              {loginBusy ? "Signing in…" : "Log in"}
+            </button>
+            <button
+              type="button"
+              className="fety-splash-btn-ghost fety-splash-btn-lg"
+              style={{ width: "100%" }}
+              disabled={loginBusy}
+              onClick={() => (cloudEnabled && onCloudSignUp ? void handleCloudSignUp() : onSignUp())}
+            >
+              {cloudEnabled ? "Create account & set up" : "Set up on this device"}
             </button>
             <button type="button" className="fety-splash-btn-ghost fety-splash-btn-lg" style={{ width: "100%" }} onClick={onSignUp}>
-              Set up on this device
+              Set up locally (no account)
             </button>
             <button type="button" className="fety-splash-btn-ghost fety-splash-btn-lg" style={{ width: "100%" }} onClick={onExplore}>
               Explore with sample data

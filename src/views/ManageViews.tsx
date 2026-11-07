@@ -30,13 +30,19 @@ import type {
   TransactionType,
 } from "../types/fety";
 import { endingBalanceOnDate, formatTransactionGroupDate, todayISO } from "../lib/fetyCalculations";
+import { incomeScheduledTotalInMonth } from "../lib/scheduleMonthTotals";
+import {
+  isManualStoredTransaction,
+  normalizePostingStatus,
+  postingStatusLabel,
+} from "../lib/transactionPosting";
 import { EditableNumber, EditableText } from "../components/EditableField";
 import EmojiIconPicker from "../components/EmojiIconPicker";
 import BillScheduleFields from "../components/BillScheduleFields";
 import IncomeScheduleFields from "../components/IncomeScheduleFields";
 import { BILL_FREQUENCY_LABELS, INCOME_FREQUENCY_LABELS } from "../lib/billScheduling";
 import { flowForTransactionType, labelForTransactionType } from "../lib/transactionTypes";
-import { accountBalanceWithTransactions, accountActivityForAccount, accountBalanceAsOfISO, accountKind, formatAccountBalanceDisplay, formatTransactionCategoryTypeLines, formatTransactionDetailLine, goalContributionsFromTransactions, goalSavedTotal, goalsLinkedToAccount, isDebtAccount, netWorthTotals, normalizeAccountOpeningBalance, transactionListPrimaryTitle } from "../lib/ledger";
+import { accountBalanceWithTransactions, accountActivityForAccount, accountBalanceAsOfISO, accountKind, formatAccountBalanceDisplay, formatTransactionCategoryTypeLines, formatTransactionDetailLine, goalContributionsFromTransactions, goalSavedTotal, goalsLinkedToAccount, isDebtAccount, netWorthTotals, normalizeAccountOpeningBalance, reconciliationsForAccount, transactionListPrimaryTitle } from "../lib/ledger";
 import CurrencyInput, { amountToEditString } from "../components/CurrencyInput";
 import { formatGoalByline, goalPaceStatus, goalTargetDateForDateInput } from "../lib/goalProgress";
 import { formatOrdinalDay } from "../lib/scheduleFormatting";
@@ -631,6 +637,19 @@ export function BudgetManageView({
   });
 
   const totalRemaining = totalBudget - totalSpent;
+  const budgetMonthRef = useMemo(() => new Date(), []);
+  const monthlyIncomePlanned = useMemo(
+    () => incomeScheduledTotalInMonth(incomeStreams, budgetMonthRef),
+    [incomeStreams, budgetMonthRef],
+  );
+  const incomeStreamBreakdown = useMemo(() => {
+    const total = monthlyIncomePlanned;
+    if (total <= 0) return [];
+    return incomeStreams.map((s) => {
+      const amount = incomeScheduledTotalInMonth([s], budgetMonthRef);
+      return { id: s.id, name: s.name, icon: s.icon, amount, pct: Math.round((amount / total) * 1000) / 10 };
+    });
+  }, [incomeStreams, budgetMonthRef, monthlyIncomePlanned]);
 
   const submitNewCategory = (e: React.FormEvent) => {
     e.preventDefault();
@@ -657,7 +676,11 @@ export function BudgetManageView({
         data-tour-id="budget-summary"
       >
         <div className="fety-budget-summary-cell">
-          <p className="fety-budget-summary-label">Monthly budget</p>
+          <p className="fety-budget-summary-label">Monthly income</p>
+          <p className="fety-budget-summary-value">{usd(monthlyIncomePlanned)}</p>
+        </div>
+        <div className="fety-budget-summary-cell">
+          <p className="fety-budget-summary-label">Monthly budgeted</p>
           <p className="fety-budget-summary-value">{usd(totalBudget)}</p>
         </div>
         <div className="fety-budget-summary-cell">
@@ -681,8 +704,29 @@ export function BudgetManageView({
         </div>
       </div>
 
+      {incomeStreamBreakdown.length > 0 ? (
+        <section className="fety-budget-income-breakdown">
+          <h2 className="fety-budget-section-heading">Income streams this month</h2>
+          <ul className="fety-budget-income-list">
+            {incomeStreamBreakdown.map((row) => (
+              <li key={row.id} className="fety-budget-income-row">
+                <span>
+                  {row.icon} {row.name}
+                </span>
+                <span>
+                  {usd(row.amount)} · {row.pct}%
+                </span>
+              </li>
+            ))}
+          </ul>
+        </section>
+      ) : null}
+
+      <h2 className="fety-budget-section-heading">Budget categories</h2>
       <div className={`fety-budget-category-grid${viewMode === "list" ? " fety-budget-category-grid--list" : ""}`}>
         {budgetCategories.map((c) => {
+          const incomePct =
+            monthlyIncomePlanned > 0 ? Math.round((c.monthlyBudget / monthlyIncomePlanned) * 1000) / 10 : 0;
           const bar = budgetCategoryBarState(c.spent, c.monthlyBudget);
           const editingCap = editingCategoryCapId === c.id;
           const linkedGoal = c.goalId ? goals.find((g) => g.id === c.goalId) : null;
@@ -777,8 +821,11 @@ export function BudgetManageView({
                 <>
                   {linkedGoal ? (
                     <p className="fety-budget-category-goal-link" style={{ fontSize: 10, color: "var(--ink-3)", margin: "0 0 6px" }}>
-                      Goal: {linkedGoal.icon} {linkedGoal.name}
+                      Savings goal: {linkedGoal.icon} {linkedGoal.name} — contributions from this category count toward that goal.
                     </p>
+                  ) : null}
+                  {monthlyIncomePlanned > 0 && c.monthlyBudget > 0 ? (
+                    <p className="fety-budget-category-income-pct">{incomePct}% of monthly income</p>
                   ) : null}
                   <div className="fety-budget-category-amounts">
                     <span className="fety-budget-category-spent">{usd(c.spent)}</span>
@@ -1403,6 +1450,9 @@ export function TransactionsManageView({
   onAdd,
   onUpdate,
   onDelete,
+  onDeleteBulk,
+  onCompleteTransaction,
+  onMarkTransactionUpcoming,
   bills,
   incomeStreams,
   recurringTransactions,
@@ -1430,6 +1480,9 @@ export function TransactionsManageView({
     >,
   ) => void;
   onDelete: (id: string) => void;
+  onDeleteBulk?: (ids: string[]) => void;
+  onCompleteTransaction?: (id: string, completedAtISO?: string) => void;
+  onMarkTransactionUpcoming?: (id: string) => void;
   initialAccountFilter?: string | null;
   earliestDateISO?: string;
   endingBalanceForDate?: (dateISO: string) => number;
@@ -1441,6 +1494,10 @@ export function TransactionsManageView({
   const [dateRangeStartISO, setDateRangeStartISO] = useState("");
   const [dateRangeEndISO, setDateRangeEndISO] = useState("");
   const [categoryFilter, setCategoryFilter] = useState("all");
+  const [statusFilter, setStatusFilter] = useState<"all" | "upcoming" | "completed">("all");
+  const [includeFutureDates, setIncludeFutureDates] = useState(false);
+  const [bulkMode, setBulkMode] = useState(false);
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(() => new Set());
   const [editId, setEditId] = useState<string | null>(null);
 
   useEffect(() => {
@@ -1507,8 +1564,19 @@ export function TransactionsManageView({
       }
       if (dateRangeStartISO && dateRangeEndISO) {
         if (t.dateISO < dateRangeStartISO || t.dateISO > dateRangeEndISO) return false;
+      } else if (!dateRangeStartISO && !dateRangeEndISO && !includeFutureDates && t.dateISO > todayISO()) {
+        return false;
       }
       if (categoryFilter !== "all" && t.category !== categoryFilter) return false;
+      if (statusFilter !== "all") {
+        if (!isManualStoredTransaction(t)) {
+          if (statusFilter === "upcoming") return false;
+        } else {
+          const status = normalizePostingStatus(t.postingStatus);
+          if (statusFilter === "upcoming" && status !== "planned") return false;
+          if (statusFilter === "completed" && status !== "completed") return false;
+        }
+      }
       return true;
     });
   }, [
@@ -1519,6 +1587,8 @@ export function TransactionsManageView({
     dateRangeStartISO,
     dateRangeEndISO,
     categoryFilter,
+    statusFilter,
+    includeFutureDates,
     transactionTypes,
   ]);
 
@@ -1530,12 +1600,45 @@ export function TransactionsManageView({
     return Object.entries(byDateISO).sort(([a], [b]) => b.localeCompare(a));
   }, [shown]);
 
+  const toggleSelected = (id: string) => {
+    setSelectedIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  };
+
+  const selectAllShown = () => {
+    setSelectedIds(new Set(shown.map((t) => t.id)));
+  };
+
+  const clearSelection = () => setSelectedIds(new Set());
+
+  const confirmBulkDelete = () => {
+    if (!onDeleteBulk || selectedIds.size === 0) return;
+    const n = selectedIds.size;
+    if (!window.confirm(`Delete ${n} transaction${n === 1 ? "" : "s"}? This cannot be undone except with Undo.`)) return;
+    onDeleteBulk([...selectedIds]);
+    setSelectedIds(new Set());
+    setBulkMode(false);
+  };
+
   const renderTransactionRow = (t: Transaction) => {
     const meta = formatTransactionCategoryTypeLines(t, addTxStore);
     const detail = formatTransactionDetailLine(t, addTxStore);
+    const manual = isManualStoredTransaction(t);
+    const postingStatus = manual ? normalizePostingStatus(t.postingStatus) : "completed";
+    const statusLine =
+      manual && postingStatus === "completed" && t.completedAtISO && t.completedAtISO !== t.dateISO
+        ? `Completed ${formatTransactionGroupDate(t.completedAtISO)}`
+        : manual
+          ? postingStatusLabel(t.postingStatus)
+          : null;
     return (
       <div
         key={t.id}
+        className={manual && postingStatus === "planned" ? "fety-txn-row fety-txn-row--upcoming" : "fety-txn-row"}
         style={{
           display: "flex",
           alignItems: editId === t.id ? "stretch" : "center",
@@ -1622,12 +1725,33 @@ export function TransactionsManageView({
           </div>
         ) : (
           <>
+            {bulkMode ? (
+              <label className="fety-txn-bulk-check" style={{ display: "flex", alignItems: "center" }}>
+                <input
+                  type="checkbox"
+                  checked={selectedIds.has(t.id)}
+                  onChange={() => toggleSelected(t.id)}
+                  aria-label={`Select ${transactionListPrimaryTitle(t, addTxStore)}`}
+                />
+              </label>
+            ) : null}
             <div style={{ width: 36, height: 36, borderRadius: 11, background: "var(--paper)", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 16 }}>{t.icon}</div>
             <div style={{ flex: 1, minWidth: 0 }}>
               <p style={{ fontSize: 13, fontWeight: 600, color: "var(--ink)" }}>{transactionListPrimaryTitle(t, addTxStore)}</p>
               <p style={{ fontSize: 10, color: "var(--ink-3)", marginTop: 2 }}>
-                {[meta.subtitle, detail].filter(Boolean).join(" · ")}
+                {[meta.subtitle, detail, statusLine].filter(Boolean).join(" · ")}
               </p>
+              {manual ? (
+                <span
+                  className={
+                    postingStatus === "planned"
+                      ? "fety-txn-status-pill fety-txn-status-pill--upcoming"
+                      : "fety-txn-status-pill fety-txn-status-pill--completed"
+                  }
+                >
+                  {postingStatusLabel(t.postingStatus)}
+                </span>
+              ) : null}
             </div>
             <span
               style={{
@@ -1645,6 +1769,24 @@ export function TransactionsManageView({
                 ? usdF(Math.abs(t.amount))
                 : `${t.amount >= 0 ? "+" : ""}${usdF(t.amount)}`}
             </span>
+            {manual && postingStatus === "planned" && onCompleteTransaction ? (
+              <button
+                type="button"
+                className="fety-txn-complete-btn"
+                onClick={() => onCompleteTransaction(t.id, todayISO())}
+              >
+                Mark as Completed
+              </button>
+            ) : null}
+            {manual && postingStatus === "completed" && onMarkTransactionUpcoming ? (
+              <button
+                type="button"
+                className="fety-txn-undo-complete-btn"
+                onClick={() => onMarkTransactionUpcoming(t.id)}
+              >
+                Mark as Upcoming
+              </button>
+            ) : null}
             <button
               type="button"
               onClick={() => {
@@ -1661,7 +1803,9 @@ export function TransactionsManageView({
             >
               Edit
             </button>
-            <button type="button" onClick={() => onDelete(t.id)} style={{ border: "none", background: "transparent", color: "var(--ink-3)", cursor: "pointer", fontSize: 11 }}>Delete</button>
+            {!bulkMode ? (
+              <button type="button" onClick={() => onDelete(t.id)} style={{ border: "none", background: "transparent", color: "var(--ink-3)", cursor: "pointer", fontSize: 11 }}>Delete</button>
+            ) : null}
           </>
         )}
       </div>
@@ -1759,6 +1903,21 @@ export function TransactionsManageView({
               ) : null}
             </select>
           </div>
+          <div className="fety-txn-toolbar-field">
+            <label className="fety-label" htmlFor="fety-txn-filter-status">
+              Status
+            </label>
+            <select
+              id="fety-txn-filter-status"
+              className="fety-txn-toolbar-select"
+              value={statusFilter}
+              onChange={(e) => setStatusFilter(e.target.value as "all" | "upcoming" | "completed")}
+            >
+              <option value="all">All statuses</option>
+              <option value="upcoming">Upcoming</option>
+              <option value="completed">Completed</option>
+            </select>
+          </div>
           {accounts.length > 0 ? (
             <div className="fety-txn-toolbar-field">
               <label className="fety-label" htmlFor="fety-txn-filter-account">
@@ -1794,10 +1953,54 @@ export function TransactionsManageView({
               ))}
             </div>
           </div>
+          <div className="fety-txn-toolbar-field fety-txn-toolbar-field--future">
+            <label className="fety-txn-include-future">
+              <input
+                type="checkbox"
+                checked={includeFutureDates}
+                onChange={(e) => setIncludeFutureDates(e.target.checked)}
+                disabled={Boolean(dateRangeStartISO || dateRangeEndISO)}
+              />
+              Include future dates
+            </label>
+            {!dateRangeStartISO && !dateRangeEndISO && !includeFutureDates ? (
+              <p className="fety-txn-date-hint">Showing all dates through today unless you set a range.</p>
+            ) : null}
+          </div>
         </div>
-        <button type="button" className="fety-txn-add-btn" onClick={() => setAddOpen(true)}>
-          Add transaction
-        </button>
+        <div className="fety-txn-toolbar-actions">
+          {onDeleteBulk ? (
+            <>
+              <button
+                type="button"
+                className={`fety-txn-bulk-toggle${bulkMode ? " fety-txn-bulk-toggle--active" : ""}`}
+                onClick={() => {
+                  setBulkMode((m) => {
+                    if (m) clearSelection();
+                    return !m;
+                  });
+                }}
+              >
+                {bulkMode ? "Done selecting" : "Select"}
+              </button>
+              {bulkMode ? (
+                <>
+                  <button type="button" className="fety-txn-bulk-secondary" onClick={selectAllShown}>
+                    Select all ({shown.length})
+                  </button>
+                  {selectedIds.size > 0 ? (
+                    <button type="button" className="fety-txn-bulk-delete" onClick={confirmBulkDelete}>
+                      Delete ({selectedIds.size})
+                    </button>
+                  ) : null}
+                </>
+              ) : null}
+            </>
+          ) : null}
+          <button type="button" className="fety-txn-add-btn" onClick={() => setAddOpen(true)}>
+            Add transaction
+          </button>
+        </div>
       </div>
 
       <AddTransactionModal
@@ -2139,12 +2342,22 @@ export function ProfileSettingsView({
   onReset,
   onRestartSetup,
   onOpenTestPlanner,
+  cloudSessionEmail,
+  cloudSyncing,
+  cloudSyncError,
+  cloudLastSyncedAt,
+  onCloudSignOut,
 }: {
   profile: { displayName: string; email: string; currency: string; startingBalance: number };
   onUpdateProfile: (u: Partial<{ displayName: string; email: string; currency: string; startingBalance: number }>) => void;
   onReset: () => void;
   onRestartSetup?: () => void;
   onOpenTestPlanner?: () => void;
+  cloudSessionEmail?: string | null;
+  cloudSyncing?: boolean;
+  cloudSyncError?: string | null;
+  cloudLastSyncedAt?: string | null;
+  onCloudSignOut?: () => void;
 }) {
   const [profileEdit, setProfileEdit] = useState(false);
   const [pName, setPName] = useState(profile.displayName);
@@ -2154,6 +2367,26 @@ export function ProfileSettingsView({
 
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 16, maxWidth: 560 }}>
+      {cloudSessionEmail ? (
+        <div className="fety-cloud-account-card">
+          <p className="fety-label-strong">Cloud account</p>
+          <p className="fety-cloud-account-email">{cloudSessionEmail}</p>
+          <p className="fety-cloud-account-sync">
+            {cloudSyncing
+              ? "Syncing…"
+              : cloudSyncError
+                ? `Sync issue: ${cloudSyncError}`
+                : cloudLastSyncedAt
+                  ? `Last saved ${new Date(cloudLastSyncedAt).toLocaleString()}`
+                  : "Signed in — changes sync automatically."}
+          </p>
+          {onCloudSignOut ? (
+            <button type="button" className="fety-cloud-sign-out" onClick={onCloudSignOut}>
+              Sign out
+            </button>
+          ) : null}
+        </div>
+      ) : null}
       <div style={{ background: "var(--surface)", borderRadius: 14, border: "1px solid var(--border)", padding: "18px 20px" }}>
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 12 }}>
           <p className="fety-label-strong">Personal info</p>
@@ -2206,6 +2439,7 @@ export function NetWorthManageView({
   onUpdateAccount,
   onAddAccount,
   onDeleteAccount,
+  onReconcileAccount,
   onOpenTransactionsForAccount,
 }: {
   accounts: Account[];
@@ -2213,6 +2447,7 @@ export function NetWorthManageView({
   onUpdateAccount: (id: string, u: Partial<Pick<Account, "name" | "type" | "balance" | "icon" | "kind" | "balanceAsOfISO">>) => void;
   onAddAccount: (input: Omit<Account, "id">) => void;
   onDeleteAccount: (id: string) => void;
+  onReconcileAccount?: (accountId: string, verifiedBalance: number, dateISO?: string) => void;
   onOpenTransactionsForAccount?: (accountId: string) => void;
 }) {
   const totals = netWorthTotals(ledgerStore);
@@ -2230,6 +2465,9 @@ export function NetWorthManageView({
   const [newAcctBalance, setNewAcctBalance] = useState("");
   const [newAcctBalanceAsOf, setNewAcctBalanceAsOf] = useState(() => todayISO());
   const [newAcctIcon, setNewAcctIcon] = useState("🏦");
+  const [reconcileAccountId, setReconcileAccountId] = useState<string | null>(null);
+  const [reconcileAmount, setReconcileAmount] = useState("");
+  const [reconcileDateISO, setReconcileDateISO] = useState(() => todayISO());
 
   const openAddForm = (kind: AccountKind) => {
     setNewAcctKind(kind);
@@ -2265,15 +2503,28 @@ export function NetWorthManageView({
 
   const saveEdit = (id: string) => {
     const kind = editKind;
+    const raw = parseFloat(editBalance);
+    const opening =
+      kind === "debt"
+        ? normalizeAccountOpeningBalance(kind, Math.abs(raw))
+        : normalizeAccountOpeningBalance(kind, Number.isFinite(raw) ? raw : 0);
     onUpdateAccount(id, {
       name: editName.trim() || "Account",
       type: editType.trim() || "Account",
       kind,
       icon: editIcon || "🏦",
-      balance: normalizeAccountOpeningBalance(kind, parseFloat(editBalance) || 0),
+      balance: opening,
       balanceAsOfISO: editBalanceAsOf || todayISO(),
     });
     cancelEdit();
+  };
+
+  const verifiedBalanceFromInput = (account: Account, input: string): number | null => {
+    const n = parseFloat(input);
+    if (!Number.isFinite(n)) return null;
+    const kind = accountKind(account);
+    if (kind === "debt") return -Math.abs(n);
+    return n;
   };
 
   const sorted = [...accounts].sort((a, b) => {
@@ -2364,7 +2615,12 @@ export function NetWorthManageView({
               <label className="fety-label" style={{ display: "block", marginBottom: 4 }}>
                 {newAcctKind === "debt" ? "Amount owed" : "Opening balance"}
               </label>
-              <CurrencyInput value={newAcctBalance} onChange={setNewAcctBalance} placeholder="0.00" />
+              <CurrencyInput
+                value={newAcctBalance}
+                onChange={setNewAcctBalance}
+                placeholder="0.00"
+                allowNegative={newAcctKind === "asset"}
+              />
             </div>
             <div>
               <label className="fety-label" style={{ display: "block", marginBottom: 4 }}>{accountBalanceAsOfLabel(newAcctKind)}</label>
@@ -2423,6 +2679,100 @@ export function NetWorthManageView({
                       <p style={{ fontSize: 11, color: "var(--ink-3)", marginTop: 6 }}>
                         {accountOpeningBaselineCopy(a, ledgerStore)}
                       </p>
+                      {onReconcileAccount ? (
+                        <div className="fety-networth-reconcile" style={{ marginTop: 12 }}>
+                          {reconcileAccountId === a.id ? (
+                            <form
+                              className="fety-networth-reconcile-form"
+                              onSubmit={(e) => {
+                                e.preventDefault();
+                                const verified = verifiedBalanceFromInput(a, reconcileAmount);
+                                if (verified == null) return;
+                                onReconcileAccount(a.id, verified, reconcileDateISO || todayISO());
+                                setReconcileAccountId(null);
+                                setReconcileAmount("");
+                              }}
+                            >
+                              <p className="fety-label" style={{ marginBottom: 6 }}>
+                                Match your institution
+                              </p>
+                              <p style={{ fontSize: 11, color: "var(--ink-3)", marginBottom: 8, lineHeight: 1.4 }}>
+                                Fety currently shows {formatAccountBalanceDisplay(a, current)}. Enter what your bank
+                                shows — we&apos;ll adjust the opening balance and keep your transactions.
+                              </p>
+                              <div style={{ display: "flex", flexWrap: "wrap", gap: 8, alignItems: "flex-end" }}>
+                                <div style={{ flex: "1 1 140px" }}>
+                                  <label className="fety-label" style={{ display: "block", marginBottom: 4 }}>
+                                    Verified balance
+                                  </label>
+                                  <CurrencyInput
+                                    value={reconcileAmount}
+                                    onChange={setReconcileAmount}
+                                    placeholder="0.00"
+                                    allowNegative={!debt}
+                                  />
+                                </div>
+                                <div style={{ flex: "0 1 150px" }}>
+                                  <label className="fety-label" style={{ display: "block", marginBottom: 4 }}>
+                                    As of
+                                  </label>
+                                  <input
+                                    type="date"
+                                    value={reconcileDateISO}
+                                    onChange={(e) => setReconcileDateISO(e.target.value)}
+                                    style={inputStyle}
+                                  />
+                                </div>
+                                <button
+                                  type="submit"
+                                  style={{ ...editBtnStyle, background: "var(--ink)", color: "#fff", border: "none", height: 36 }}
+                                >
+                                  Save match
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={() => {
+                                    setReconcileAccountId(null);
+                                    setReconcileAmount("");
+                                  }}
+                                  style={{ ...editBtnStyle, height: 36 }}
+                                >
+                                  Cancel
+                                </button>
+                              </div>
+                            </form>
+                          ) : (
+                            <button
+                              type="button"
+                              className="fety-networth-reconcile-trigger"
+                              onClick={() => {
+                                setReconcileAccountId(a.id);
+                                setReconcileDateISO(todayISO());
+                                setReconcileAmount(
+                                  debt
+                                    ? amountToEditString(Math.abs(current))
+                                    : amountToEditString(current) || (current < 0 ? String(current) : ""),
+                                );
+                              }}
+                            >
+                              Match my bank balance
+                            </button>
+                          )}
+                          {reconciliationsForAccount(ledgerStore, a.id).length > 0 ? (
+                            <details className="fety-networth-reconcile-history" style={{ marginTop: 10 }}>
+                              <summary className="fety-label">Past balance matches</summary>
+                              <ul style={{ margin: "8px 0 0", paddingLeft: 18, fontSize: 11, color: "var(--ink-3)" }}>
+                                {reconciliationsForAccount(ledgerStore, a.id).slice(0, 5).map((r) => (
+                                  <li key={r.id}>
+                                    {r.dateISO}: {formatAccountBalanceDisplay(a, r.verifiedBalance)} (was{" "}
+                                    {formatAccountBalanceDisplay(a, r.calculatedBalance)})
+                                  </li>
+                                ))}
+                              </ul>
+                            </details>
+                          ) : null}
+                        </div>
+                      ) : null}
                     </>
                   ) : null}
                   {linkedGoals.length > 0 && !editing ? (
@@ -2471,7 +2821,12 @@ export function NetWorthManageView({
                     <label className="fety-label" style={{ display: "block", marginBottom: 4 }}>
                       {editKind === "debt" ? "Amount owed" : "Opening balance"}
                     </label>
-                    <CurrencyInput value={editBalance} onChange={setEditBalance} placeholder="0.00" />
+                    <CurrencyInput
+                      value={editBalance}
+                      onChange={setEditBalance}
+                      placeholder="0.00"
+                      allowNegative={editKind === "asset"}
+                    />
                   </div>
                   <div>
                     <label className="fety-label" style={{ display: "block", marginBottom: 4 }}>{accountBalanceAsOfLabel(editKind)}</label>

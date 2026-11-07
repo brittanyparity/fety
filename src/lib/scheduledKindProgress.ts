@@ -1,7 +1,11 @@
-import type { Bill, FetyStore, IncomeStream, RecurringTransaction, ScheduledItemKind, Transaction } from "../types/fety";
+import type { FetyStore, ScheduledItemKind, Transaction } from "../types/fety";
 import { parseScheduledTransactionId } from "./billScheduling";
 import { balanceAsOfISO, dateToISOLocal } from "./fetyCalculations";
-import { monthlyFromFrequency } from "./scheduleAmounts";
+import {
+  billsScheduledTotalInMonth,
+  incomeScheduledTotalInMonth,
+  recurringScheduledTotalInMonth,
+} from "./scheduleMonthTotals";
 import { flowForTransactionType } from "./transactionTypes";
 
 export type ScheduledKindProgressRow = {
@@ -54,17 +58,6 @@ function monthActualForKind(
   return total;
 }
 
-function billsMonthly(bills: Bill[]): number {
-  return bills.reduce((s, b) => s + monthlyFromFrequency(b.amount, b.frequency ?? "monthly"), 0);
-}
-
-function incomeMonthly(streams: IncomeStream[]): number {
-  return streams.reduce((s, stream) => s + monthlyFromFrequency(stream.amount, stream.frequency), 0);
-}
-
-function recurringMonthly(items: RecurringTransaction[]): number {
-  return items.reduce((s, r) => s + monthlyFromFrequency(r.amount, r.frequency ?? "monthly"), 0);
-}
 
 export function computeScheduledKindProgress(
   store: Pick<
@@ -82,21 +75,21 @@ export function computeScheduledKindProgress(
       kind: "bill",
       label: "Bills",
       icon: "📄",
-      monthlyScheduled: billsMonthly(bills),
+      monthlyScheduled: billsScheduledTotalInMonth(bills, ref),
       monthActual: monthActualForKind(store, "bill", ref),
     },
     {
       kind: "income",
       label: "Income",
       icon: "💵",
-      monthlyScheduled: incomeMonthly(incomeStreams),
+      monthlyScheduled: incomeScheduledTotalInMonth(incomeStreams, ref),
       monthActual: monthActualForKind(store, "income", ref),
     },
     {
       kind: "recur",
       label: "Recurring",
       icon: "🔄",
-      monthlyScheduled: recurringMonthly(recurringTransactions),
+      monthlyScheduled: recurringScheduledTotalInMonth(recurringTransactions, ref),
       monthActual: monthActualForKind(store, "recur", ref),
     },
   ];

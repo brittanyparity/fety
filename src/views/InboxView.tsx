@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import { resolveInsightTipSlots } from "../lib/insightTips";
+import { resolveInsightTipSlots, tipCategoryLabel } from "../lib/insightTips";
 import type { FinancialAnalysis, FetyActionTarget } from "../types/analysis";
 import type { FetyStore } from "../types/fety";
 
@@ -72,6 +72,9 @@ export default function InboxView({
                 className={`fety-inbox-list-item${active ? " fety-inbox-list-item-active" : ""}${done ? " fety-inbox-list-item--done" : ""}`}
                 onClick={() => setSelectedId(tip.id)}
               >
+                <span className={`fety-inbox-category-tag fety-inbox-category-tag--${tip.category}`}>
+                  {tipCategoryLabel(tip.category)}
+                </span>
                 <span className="fety-inbox-list-item-title">{tip.title}</span>
                 <span className="fety-inbox-list-item-preview">{tip.explanation}</span>
                 {done ? <span className="fety-inbox-list-item-badge">Done</span> : null}
@@ -86,6 +89,9 @@ export default function InboxView({
           className={`fety-inbox-detail${selected.done ? " fety-inbox-detail--done" : ""}`}
         >
           {selected.done ? <p className="fety-insights-try-badge">Done</p> : null}
+          <span className={`fety-inbox-category-tag fety-inbox-category-tag--${selected.tip.category}`}>
+            {tipCategoryLabel(selected.tip.category)}
+          </span>
           <h2>{selected.tip.title}</h2>
           <p className="fety-inbox-detail-body">{selected.tip.explanation}</p>
           <div className="fety-insights-try-actions">

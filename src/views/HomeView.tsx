@@ -148,6 +148,8 @@ function HomeCalendarCard({
   addTransactionActions,
   onUpdateTransaction,
   onDeleteTransaction,
+  onCompleteTransaction,
+  onMarkTransactionUpcoming,
 }: {
   store: FetyStore;
   selectedDateISO: string;
@@ -164,6 +166,8 @@ function HomeCalendarCard({
     >,
   ) => void;
   onDeleteTransaction: (id: string) => void;
+  onCompleteTransaction?: (id: string, completedAtISO?: string) => void;
+  onMarkTransactionUpcoming?: (id: string) => void;
 }) {
   const [addOpen, setAddOpen] = useState(false);
   const [calView, setCalView] = useState<CalView>("monthly");
@@ -299,6 +303,8 @@ function HomeCalendarCard({
               today={today}
               onUpdateTransaction={onUpdateTransaction}
               onDeleteTransaction={onDeleteTransaction}
+              onCompleteTransaction={onCompleteTransaction}
+              onMarkTransactionUpcoming={onMarkTransactionUpcoming}
             />
           ) : null}
         </div>
@@ -370,7 +376,7 @@ function HomeBudgetProgressRow({
             {usd(spent)} spent · {usd(budget)} cap
           </>
         ) : (
-          <>No monthly cap · flexible spending power is in Insights (uses calendar balances)</>
+          <>No monthly cap · see Affordability in Insights for spending room</>
         )}
       </p>
     </div>
@@ -411,7 +417,7 @@ function HomeScheduledProgressRow({ row }: { row: ScheduledKindProgressRow }) {
           </>
         ) : (
           <>
-            {usd(row.monthActual)} {actualLabel} · no {plannedLabel} amount · see Spending power in Insights
+            {usd(row.monthActual)} {actualLabel} · no {plannedLabel} amount · see Affordability in Insights
           </>
         )}
       </p>
@@ -422,13 +428,13 @@ function HomeScheduledProgressRow({ row }: { row: ScheduledKindProgressRow }) {
 function HomeAtAGlance({
   store,
   summary,
-  focusDateISO,
+  monthLabel,
 }: {
   store: FetyStore;
   summary: FinanceSummary;
-  focusDateISO: string;
+  monthLabel: string;
 }) {
-  const focusDate = useMemo(() => new Date(`${focusDateISO}T12:00:00`), [focusDateISO]);
+  const focusDate = useMemo(() => new Date(), [monthLabel]);
   const scheduledProgress = useMemo(() => computeScheduledKindProgress(store, focusDate), [store, focusDate]);
   const budgetCategories = useMemo(
     () => summary.categoriesWithSpent.filter((c) => c.name.trim().toLowerCase() !== "housing"),
@@ -439,7 +445,7 @@ function HomeAtAGlance({
     <div className="fety-home-glance">
       <div className="fety-home-stat fety-home-stat--budget">
         <div className="fety-home-stat-head">
-          <p className="fety-home-stat-label">Budget balance</p>
+          <p className="fety-home-stat-label">This month ({monthLabel})</p>
         </div>
         <div className="fety-home-budget-scroll">
           {scheduledProgress.map((row) => (
@@ -457,6 +463,7 @@ function HomeAtAGlance({
 export default function HomeView({
   store,
   summary,
+  glanceSummary,
   analysis,
   focusDateISO,
   onFocusDateChange,
@@ -465,12 +472,15 @@ export default function HomeView({
   addTransactionActions,
   onUpdateTransaction,
   onDeleteTransaction,
+  onCompleteTransaction,
+  onMarkTransactionUpcoming,
   onAddCalendarNote,
   onDeleteCalendarNote,
   balanceChart,
 }: {
   store: FetyStore;
   summary: FinanceSummary;
+  glanceSummary: FinanceSummary;
   analysis: FinancialAnalysis;
   focusDateISO: string;
   onFocusDateChange: (dateISO: string) => void;
@@ -487,15 +497,43 @@ export default function HomeView({
     >,
   ) => void;
   onDeleteTransaction: (id: string) => void;
+  onCompleteTransaction?: (id: string, completedAtISO?: string) => void;
+  onMarkTransactionUpcoming?: (id: string) => void;
   onAddCalendarNote: (dateISO: string, text: string) => void;
   onDeleteCalendarNote: (dateISO: string, noteId: string) => void;
   balanceChart: ReactNode;
 }) {
+  const [glanceOpen, setGlanceOpen] = useState(true);
+  const monthLabel = useMemo(() => {
+    const d = new Date();
+    return d.toLocaleDateString("en-US", { month: "short", year: "numeric" });
+  }, []);
+
   return (
     <div className="fety-home">
       <div className="fety-home-row fety-home-row--hero">
-        <HomeCard label="At a glance" focusDateISO={focusDateISO} className="fety-home-cell">
-          <HomeAtAGlance store={store} summary={summary} focusDateISO={focusDateISO} />
+        <HomeCard
+          label="At a glance"
+          titleMode="plain"
+          className={`fety-home-cell fety-home-cell--glance${glanceOpen ? "" : " fety-home-cell--collapsed"}`}
+          action={
+            <button
+              type="button"
+              className="fety-home-glance-toggle"
+              aria-expanded={glanceOpen}
+              onClick={() => setGlanceOpen((o) => !o)}
+            >
+              {glanceOpen ? "Collapse" : "Expand"}
+            </button>
+          }
+        >
+          {glanceOpen ? (
+            <HomeAtAGlance store={store} summary={glanceSummary} monthLabel={monthLabel} />
+          ) : (
+            <p className="fety-home-glance-collapsed-hint">
+              Monthly budget and scheduled activity — expand to see category progress for the current month.
+            </p>
+          )}
         </HomeCard>
         <HomeCalendarCard
           store={store}
@@ -505,26 +543,17 @@ export default function HomeView({
           addTransactionActions={addTransactionActions}
           onUpdateTransaction={onUpdateTransaction}
           onDeleteTransaction={onDeleteTransaction}
+          onCompleteTransaction={onCompleteTransaction}
+          onMarkTransactionUpcoming={onMarkTransactionUpcoming}
         />
       </div>
 
       <div className="fety-home-row">
+        <HomeCard label="Balance" focusDateISO={focusDateISO} titleMode="by" className="fety-home-cell fety-home-span-2">
+          {balanceChart}
+        </HomeCard>
         <HomeCard label="Upcoming expenses" focusDateISO={focusDateISO} titleMode="near" className="fety-home-cell">
           <UpcomingExpensesPanel store={store} onAction={onAction} focusDateISO={focusDateISO} />
-        </HomeCard>
-        <HomeCard
-          label="Insights"
-          focusDateISO={focusDateISO}
-          titleMode="asOf"
-          className="fety-home-cell fety-home-span-2"
-          bodyClassName="fety-home-card-body--insights"
-        >
-          <HomeInsightCharts
-            analysis={analysis}
-            summary={summary}
-            store={store}
-            focusDateISO={focusDateISO}
-          />
         </HomeCard>
       </div>
 
@@ -538,12 +567,13 @@ export default function HomeView({
           />
         </HomeCard>
         <HomeCard
-          label="Balance"
+          label="Insights"
           focusDateISO={focusDateISO}
-          titleMode="by"
+          titleMode="asOf"
           className="fety-home-cell fety-home-span-2"
+          bodyClassName="fety-home-card-body--insights"
         >
-          {balanceChart}
+          <HomeInsightCharts analysis={analysis} summary={summary} store={store} focusDateISO={focusDateISO} />
         </HomeCard>
       </div>
     </div>

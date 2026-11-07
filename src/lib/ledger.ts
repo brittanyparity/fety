@@ -1,6 +1,20 @@
-import type { Account, AccountKind, FetyStore, Goal, ScheduledItemKind, Transaction } from "../types/fety";
+import type {
+  Account,
+  AccountKind,
+  AccountReconciliation,
+  FetyStore,
+  Goal,
+  ScheduledItemKind,
+  Transaction,
+} from "../types/fety";
+import { roundMoney } from "./scheduleAmounts";
 import { parseScheduledTransactionId, transactionMatchesScheduleItem } from "./billScheduling";
 import { ledgerThroughISO, todayISO } from "./fetyCalculations";
+import {
+  filterTransactionsForLedger,
+  transactionLedgerDateISO,
+  transactionCountsInActualLedger,
+} from "./transactionPosting";
 import { scheduledItemKindLabel } from "./scheduledItemCatalog";
 import { scheduledItemRefForCategory } from "./transactionCategories";
 import { flowForTransactionType, getTransactionTypes } from "./transactionTypes";
@@ -38,8 +52,9 @@ export function unlinkedGlobalNetThrough(
   const asOf = balanceAsOfISO(store);
   const through = capAtToday ? ledgerThroughISO(throughISO) : throughISO;
   if (through < asOf) return 0;
-  return store.transactions
-    .filter((t) => t.dateISO >= asOf && t.dateISO <= through && !transactionLinksToAccount(t))
+  const mode = capAtToday ? "actual" : "projected";
+  return filterTransactionsForLedger(store.transactions, through, mode)
+    .filter((t) => transactionLedgerDateISO(t) >= asOf && !transactionLinksToAccount(t))
     .reduce((s, t) => s + globalBalanceContribution(t, store), 0);
 }
 
@@ -84,9 +99,13 @@ function accountBalanceThrough(
   const end = capAtToday ? ledgerThroughISO(throughISO) : throughISO;
   if (end < asOf) return 0;
   let bal = account.balance;
-  const txs = store.transactions
-    .filter((t) => t.dateISO >= asOf && t.dateISO <= end)
-    .sort((a, b) => a.dateISO.localeCompare(b.dateISO) || a.id.localeCompare(b.id));
+  const mode = capAtToday ? "actual" : "projected";
+  const txs = filterTransactionsForLedger(store.transactions, end, mode)
+    .filter((t) => transactionLedgerDateISO(t) >= asOf)
+    .sort(
+      (a, b) =>
+        transactionLedgerDateISO(a).localeCompare(transactionLedgerDateISO(b)) || a.id.localeCompare(b.id),
+    );
   for (const t of txs) bal += accountBalanceDelta(t, accountId, store);
   return bal;
 }
@@ -109,7 +128,13 @@ export function goalContributionsFromTransactions(
   const asOf = balanceAsOfISO(store);
   const end = ledgerThroughISO(throughISO ?? todayISO());
   return store.transactions
-    .filter((t) => t.goalId === goalId && t.dateISO >= asOf && t.dateISO <= end)
+    .filter(
+      (t) =>
+        t.goalId === goalId &&
+        transactionCountsInActualLedger(t) &&
+        transactionLedgerDateISO(t) >= asOf &&
+        transactionLedgerDateISO(t) <= end,
+    )
     .reduce((s, t) => s + transactionAmountMagnitude(t), 0);
 }
 
@@ -302,4 +327,53 @@ export function netWorthTotalsProjectedOnDate(
 
 export function goalsLinkedToAccount(store: FetyStore, accountId: string): Goal[] {
   return store.goals.filter((g) => g.accountId === accountId);
+}
+
+export function reconciliationsForAccount(
+  store: FetyStore,
+  accountId: string,
+): AccountReconciliation[] {
+  return (store.accountReconciliations ?? [])
+    .filter((r) => r.accountId === accountId)
+    .sort((a, b) => b.dateISO.localeCompare(a.dateISO) || b.id.localeCompare(a.id));
+}
+
+/**
+ * Align ledger opening balance so `accountBalanceWithTransactions` matches `verifiedBalance` on `dateISO`.
+ * Does not delete or rewrite transactions.
+ */
+export function reconcileAccountBalance(
+  store: FetyStore,
+  accountId: string,
+  verifiedBalance: number,
+  dateISO: string,
+  reconciliationId: string,
+): { store: FetyStore; record: AccountReconciliation } {
+  const account = store.accounts.find((a) => a.id === accountId);
+  if (!account) {
+    throw new Error("Account not found");
+  }
+  const calculated = accountBalanceWithTransactions(store, accountId, dateISO);
+  const delta = verifiedBalance - calculated;
+  const priorOpening = account.balance;
+  const newOpening = roundMoney(priorOpening + delta);
+  const record: AccountReconciliation = {
+    id: reconciliationId,
+    accountId,
+    dateISO,
+    verifiedBalance: roundMoney(verifiedBalance),
+    calculatedBalance: roundMoney(calculated),
+    priorOpeningBalance: priorOpening,
+    newOpeningBalance: newOpening,
+  };
+  return {
+    store: {
+      ...store,
+      accounts: store.accounts.map((a) =>
+        a.id === accountId ? { ...a, balance: newOpening } : a,
+      ),
+      accountReconciliations: [...(store.accountReconciliations ?? []), record],
+    },
+    record,
+  };
 }

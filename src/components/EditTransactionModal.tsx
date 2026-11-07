@@ -9,6 +9,9 @@ import {
   resolveTransactionCategory,
   transactionCategoryPickerGroups,
 } from "../lib/transactionCategories";
+import { isScheduledTransaction } from "../lib/billScheduling";
+import { todayISO } from "../lib/fetyCalculations";
+import { normalizePostingStatus, postingStatusLabel } from "../lib/transactionPosting";
 import type { FetyStore, FetyTransactionType, Transaction, TransactionType } from "../types/fety";
 
 type EditTransactionModalProps = {
@@ -21,11 +24,23 @@ type EditTransactionModalProps = {
     updates: Partial<
       Pick<
         Transaction,
-        "desc" | "amount" | "type" | "category" | "dateISO" | "fromAccountId" | "toAccountId" | "goalId"
+        | "desc"
+        | "amount"
+        | "type"
+        | "category"
+        | "dateISO"
+        | "fromAccountId"
+        | "toAccountId"
+        | "goalId"
+        | "postingStatus"
+        | "completedAtISO"
+        | "notes"
       >
     >,
   ) => void;
   onDelete?: (id: string) => void;
+  onMarkCompleted?: (id: string, completedAtISO?: string) => void;
+  onMarkUpcoming?: (id: string) => void;
 };
 
 const panelInput: CSSProperties = {
@@ -51,6 +66,8 @@ export default function EditTransactionModal({
   onClose,
   onSave,
   onDelete,
+  onMarkCompleted,
+  onMarkUpcoming,
 }: EditTransactionModalProps) {
   const transactionTypes = useMemo(() => getTransactionTypes(store), [store]);
   const accounts = store.accounts;
@@ -65,6 +82,11 @@ export default function EditTransactionModal({
   const [fromAccountId, setFromAccountId] = useState("");
   const [toAccountId, setToAccountId] = useState("");
   const [goalId, setGoalId] = useState("");
+  const [notes, setNotes] = useState("");
+  const [markCompleted, setMarkCompleted] = useState(true);
+  const [completedAtISO, setCompletedAtISO] = useState("");
+
+  const isManual = transaction ? !isScheduledTransaction(transaction.id) : false;
 
   useEffect(() => {
     if (!open || !transaction) return;
@@ -76,6 +98,10 @@ export default function EditTransactionModal({
     setFromAccountId(transaction.fromAccountId ?? "");
     setToAccountId(transaction.toAccountId ?? "");
     setGoalId(transaction.goalId ?? "");
+    setNotes(transaction.notes ?? "");
+    const completed = normalizePostingStatus(transaction.postingStatus) === "completed";
+    setMarkCompleted(completed);
+    setCompletedAtISO(transaction.completedAtISO ?? transaction.dateISO);
   }, [open, transaction]);
 
   useEffect(() => {
@@ -115,6 +141,13 @@ export default function EditTransactionModal({
       fromAccountId: fromAccountId || undefined,
       toAccountId: toAccountId || undefined,
       goalId: validGoalId || undefined,
+      notes: notes.trim() || undefined,
+      ...(isManual
+        ? {
+            postingStatus: markCompleted ? ("completed" as const) : ("planned" as const),
+            completedAtISO: markCompleted ? completedAtISO || dateISO : undefined,
+          }
+        : {}),
     });
     onClose();
   };
@@ -208,6 +241,74 @@ export default function EditTransactionModal({
               inputStyle={panelInput}
             />
           </section>
+
+          {isManual ? (
+            <section className="fety-txn-modal-section">
+              <h3 className="fety-txn-modal-section-title">Status — {postingStatusLabel(markCompleted ? "completed" : "planned")}</h3>
+              <label className="fety-txn-posting-choice">
+                <input
+                  type="checkbox"
+                  checked={markCompleted}
+                  onChange={(e) => setMarkCompleted(e.target.checked)}
+                />
+                <span>This has already happened — count it in my balances</span>
+              </label>
+              {markCompleted ? (
+                <div style={{ marginTop: 10 }}>
+                  <label className="fety-label" htmlFor="fety-edit-tx-completed">
+                    Completed on
+                  </label>
+                  <input
+                    id="fety-edit-tx-completed"
+                    type="date"
+                    value={completedAtISO}
+                    min={earliestDateISO || undefined}
+                    onChange={(e) => setCompletedAtISO(e.target.value)}
+                    style={{ ...panelInput, marginTop: 6 }}
+                  />
+                </div>
+              ) : null}
+              <div className="fety-txn-edit-quick-actions">
+                {!markCompleted && onMarkCompleted ? (
+                  <button
+                    type="button"
+                    className="fety-txn-complete-btn"
+                    onClick={() => {
+                      onMarkCompleted(transaction.id, todayISO());
+                      onClose();
+                    }}
+                  >
+                    Mark as Completed
+                  </button>
+                ) : null}
+                {markCompleted && onMarkUpcoming ? (
+                  <button
+                    type="button"
+                    className="fety-txn-undo-complete-btn"
+                    onClick={() => {
+                      onMarkUpcoming(transaction.id);
+                      onClose();
+                    }}
+                  >
+                    Mark as Upcoming
+                  </button>
+                ) : null}
+              </div>
+            </section>
+          ) : null}
+
+          <div>
+            <label className="fety-label" htmlFor="fety-edit-tx-notes">
+              Notes (optional)
+            </label>
+            <textarea
+              id="fety-edit-tx-notes"
+              value={notes}
+              onChange={(e) => setNotes(e.target.value)}
+              rows={2}
+              style={{ ...panelInput, marginTop: 6, resize: "vertical" }}
+            />
+          </div>
 
           <div>
             <p className="fety-label" style={{ marginBottom: 6 }}>

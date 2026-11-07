@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState, useRef } from "react";
 import { computeSummary, todayISO } from "../lib/fetyCalculations";
 import { scheduledItemStoredCategory } from "../lib/scheduledItemCatalog";
 import {
@@ -21,6 +21,7 @@ import { archiveInsightTip, markInsightTipDone } from "../lib/insightTips";
 import {
   createEmptyStore,
   createExploreStore,
+  importStoreSnapshot,
   loadStore,
   newId,
   saveStore,
@@ -31,7 +32,7 @@ import { assessFinancialNeeds, shouldApplyPersonalizedPins, withPersonalizedPins
 import { buildDashboardWidgetStates, markWidgetUserModified } from "../lib/dashboardPreferences";
 import { roundMoney } from "../lib/scheduleAmounts";
 import { toggleWidgetPositionLock } from "../lib/widgetLayout";
-import { normalizeAccountRecord } from "../lib/ledger";
+import { normalizeAccountRecord, reconcileAccountBalance } from "../lib/ledger";
 import {
   flowForTransactionType,
   iconForTransactionType,
@@ -39,6 +40,11 @@ import {
   typeIconsFromTransactionTypes,
 } from "../lib/transactionTypes";
 import { applyScheduledItemTransactionSync } from "../lib/scheduledItemCatalog";
+import {
+  applyPostingDefaults,
+  markTransactionCompleted,
+  markTransactionPlannedAgain,
+} from "../lib/transactionPosting";
 import type {
   Account,
   AddTransactionInput,
@@ -75,8 +81,35 @@ export function useFetyData() {
 
   const summary = useMemo(() => computeSummary(store), [store]);
 
+  const [undoOffer, setUndoOffer] = useState<{ label: string } | null>(null);
+  const undoStoreRef = useRef<FetyStore | null>(null);
+
   const patch = useCallback((fn: (prev: FetyStore) => FetyStore) => {
     setStore((prev) => applyBillScheduleToStore(fn(prev)));
+  }, []);
+
+  const patchWithUndo = useCallback(
+    (label: string, fn: (prev: FetyStore) => FetyStore) => {
+      setStore((prev) => {
+        undoStoreRef.current = applyBillScheduleToStore(prev);
+        setUndoOffer({ label });
+        return applyBillScheduleToStore(fn(prev));
+      });
+    },
+    [],
+  );
+
+  const undoLastChange = useCallback(() => {
+    const snapshot = undoStoreRef.current;
+    if (!snapshot) return;
+    undoStoreRef.current = null;
+    setUndoOffer(null);
+    setStore(snapshot);
+  }, []);
+
+  const dismissUndo = useCallback(() => {
+    undoStoreRef.current = null;
+    setUndoOffer(null);
   }, []);
 
   const addTransaction = useCallback(
@@ -84,38 +117,42 @@ export function useFetyData() {
       let created: Transaction | null = null;
       patch((prev) => {
         let store = prev;
+        const normalized = applyPostingDefaults(input);
         if (
-          input.updateScheduledItem &&
-          input.scheduledItemKind &&
-          input.scheduledItemId
+          normalized.updateScheduledItem &&
+          normalized.scheduledItemKind &&
+          normalized.scheduledItemId
         ) {
           store = applyScheduledItemTransactionSync(
             store,
-            { kind: input.scheduledItemKind, id: input.scheduledItemId },
-            input.amount,
-            input.dateISO ?? new Date().toISOString().slice(0, 10),
+            { kind: normalized.scheduledItemKind, id: normalized.scheduledItemId },
+            normalized.amount,
+            normalized.dateISO ?? new Date().toISOString().slice(0, 10),
           );
         }
-        const flow = flowForTransactionType(store, input.type);
+        const flow = flowForTransactionType(store, normalized.type);
         const icon =
-          input.icon ??
-          iconForTransactionCategory(store, input.category) ??
-          iconForTransactionType(store, input.type);
+          normalized.icon ??
+          iconForTransactionCategory(store, normalized.category) ??
+          iconForTransactionType(store, normalized.type);
         const asOf = store.profile.balanceAsOfISO;
-        const rawDate = input.dateISO ?? new Date().toISOString().slice(0, 10);
+        const rawDate = normalized.dateISO ?? new Date().toISOString().slice(0, 10);
         const tx: Transaction = {
           id: newId("tx"),
           dateISO: asOf && rawDate < asOf ? asOf : rawDate,
-          desc: input.desc,
-          category: input.category,
-          amount: signAmountForFlow(flow, input.amount),
-          type: input.type,
+          desc: normalized.desc,
+          category: normalized.category,
+          amount: signAmountForFlow(flow, normalized.amount),
+          type: normalized.type,
           icon,
-          fromAccountId: input.fromAccountId || undefined,
-          toAccountId: input.toAccountId || undefined,
-          goalId: input.goalId || goalIdForBudgetCategory(store, input.category) || undefined,
-          scheduledItemKind: input.scheduledItemKind,
-          scheduledItemId: input.scheduledItemId,
+          fromAccountId: normalized.fromAccountId || undefined,
+          toAccountId: normalized.toAccountId || undefined,
+          goalId: normalized.goalId || goalIdForBudgetCategory(store, normalized.category) || undefined,
+          scheduledItemKind: normalized.scheduledItemKind,
+          scheduledItemId: normalized.scheduledItemId,
+          postingStatus: normalized.postingStatus,
+          completedAtISO: normalized.completedAtISO,
+          notes: normalized.notes,
         };
         created = tx;
         return { ...store, transactions: [tx, ...store.transactions] };
@@ -125,9 +162,31 @@ export function useFetyData() {
     [patch],
   );
 
+  const completeTransaction = useCallback(
+    (id: string, completedAtISO?: string) => {
+      patchWithUndo("Transaction marked as completed", (prev) => ({
+        ...prev,
+        transactions: prev.transactions.map((t) =>
+          t.id === id ? markTransactionCompleted(t, completedAtISO ?? todayISO()) : t,
+        ),
+      }));
+    },
+    [patchWithUndo],
+  );
+
+  const markTransactionUpcoming = useCallback(
+    (id: string) => {
+      patchWithUndo("Transaction marked as upcoming", (prev) => ({
+        ...prev,
+        transactions: prev.transactions.map((t) => (t.id === id ? markTransactionPlannedAgain(t) : t)),
+      }));
+    },
+    [patchWithUndo],
+  );
+
   const deleteTransaction = useCallback(
     (id: string) => {
-      patch((prev) => {
+      patchWithUndo("Transaction deleted", (prev) => {
         const parsed = parseScheduledTransactionId(id);
         const skipped = normalizeSkipped(prev);
         if (parsed) {
@@ -141,11 +200,56 @@ export function useFetyData() {
         };
       });
     },
-    [patch],
+    [patchWithUndo],
+  );
+
+  const deleteTransactionsBulk = useCallback(
+    (ids: string[]) => {
+      if (ids.length === 0) return;
+      const idSet = new Set(ids);
+      patchWithUndo(
+        ids.length === 1 ? "Transaction deleted" : `${ids.length} transactions deleted`,
+        (prev) => {
+          const skipped = normalizeSkipped(prev);
+          for (const id of ids) {
+            const parsed = parseScheduledTransactionId(id);
+            if (parsed) {
+              const key = skipKeyForOccurrence(parsed.kind, parsed.sourceId, parsed.dateISO);
+              if (!skipped.includes(key)) skipped.push(key);
+            }
+          }
+          return {
+            ...prev,
+            skippedScheduledOccurrences: skipped,
+            transactions: prev.transactions.filter((t) => !idSet.has(t.id)),
+          };
+        },
+      );
+    },
+    [patchWithUndo],
   );
 
   const updateTransaction = useCallback(
-    (id: string, updates: Partial<Pick<Transaction, "desc" | "amount" | "type" | "category" | "dateISO" | "icon" | "fromAccountId" | "toAccountId" | "goalId">>) => {
+    (
+      id: string,
+      updates: Partial<
+        Pick<
+          Transaction,
+          | "desc"
+          | "amount"
+          | "type"
+          | "category"
+          | "dateISO"
+          | "icon"
+          | "fromAccountId"
+          | "toAccountId"
+          | "goalId"
+          | "postingStatus"
+          | "completedAtISO"
+          | "notes"
+        >
+      >,
+    ) => {
       patch((prev) => ({
         ...prev,
         transactions: prev.transactions.map((t) => {
@@ -245,9 +349,12 @@ export function useFetyData() {
 
   const deleteCategory = useCallback(
     (id: string) => {
-      patch((prev) => ({ ...prev, categories: prev.categories.filter((c) => c.id !== id) }));
+      patchWithUndo("Budget category removed", (prev) => ({
+        ...prev,
+        categories: prev.categories.filter((c) => c.id !== id),
+      }));
     },
-    [patch],
+    [patchWithUndo],
   );
 
   const addBill = useCallback(
@@ -430,6 +537,23 @@ export function useFetyData() {
       }));
     },
     [patch],
+  );
+
+  const reconcileAccount = useCallback(
+    (accountId: string, verifiedBalance: number, dateISO?: string) => {
+      const when = dateISO ?? todayISO();
+      patchWithUndo("Account balance matched", (prev) => {
+        const { store: next } = reconcileAccountBalance(
+          prev,
+          accountId,
+          verifiedBalance,
+          when,
+          newId("recon"),
+        );
+        return next;
+      });
+    },
+    [patchWithUndo],
   );
 
   const addMessage = useCallback((msg: ChatMessage) => {
@@ -694,6 +818,11 @@ export function useFetyData() {
     patch((prev) => ({ ...prev, goals }));
   }, [patch]);
 
+  const replaceStoreFromCloud = useCallback((snapshot: FetyStore) => {
+    const migrated = importStoreSnapshot(snapshot);
+    setStore(applyBillScheduleToStore(migrated));
+  }, []);
+
   const importTransactionsBulk = useCallback(
     (inputs: Omit<Transaction, "id">[]) => {
       patch((prev) => ({
@@ -711,6 +840,8 @@ export function useFetyData() {
     store,
     summary,
     addTransaction,
+    completeTransaction,
+    markTransactionUpcoming,
     deleteTransaction,
     updateTransaction,
     updateBill,
@@ -731,6 +862,11 @@ export function useFetyData() {
     deleteGoal,
     updateProfile,
     updateAccount,
+    reconcileAccount,
+    deleteTransactionsBulk,
+    undoLastChange,
+    dismissUndo,
+    undoOffer,
     addAccount,
     deleteAccount,
     addMessage,
@@ -755,6 +891,7 @@ export function useFetyData() {
     replaceRecurringTransactions,
     replaceGoals,
     importTransactionsBulk,
+    replaceStoreFromCloud,
     updateTypeIcons,
     addTransactionType,
     updateTransactionType,

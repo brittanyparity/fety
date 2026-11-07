@@ -177,11 +177,11 @@ export const WIDGET_CATALOG: FinancialWidgetDefinition[] = [
   },
   {
     id: "weekly-power",
-    name: "Weekly spending power",
+    name: "Weekly affordability",
     category: "overview",
     shortDescription: "How much room you have to spend this week after known bills.",
     whatItShows: "Your available weekly budget after accounting for bills and spending already on file.",
-    whyItMatters: "Spending power turns abstract budgets into a practical weekly number you can act on.",
+    whyItMatters: "Affordability turns abstract budgets into a practical weekly number you can act on.",
     financialPlanningUses: [
       "Decide what you can afford this week",
       "Pace spending between paychecks",
@@ -208,7 +208,7 @@ export const WIDGET_CATALOG: FinancialWidgetDefinition[] = [
       "Avoid burning the weekly budget early",
       "Build a simple spending rhythm",
     ],
-    dataRequirements: ["weekly spending power"],
+    dataRequirements: ["weekly affordability"],
     supportedInsights: ["spending_pattern"],
     supportedActions: ["budget", "spending"],
     assessmentSignals: ["high_flexible_spending", "spending_awareness"],

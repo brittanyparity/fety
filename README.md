@@ -4,7 +4,24 @@ Personal finance budgeting app exported from [Figma Make](https://www.figma.com/
 
 ## Local development
 
-Requires Node.js 22 and [pnpm](https://pnpm.io/) 10.
+Requires Node.js 22. Dependencies are locked with [pnpm](https://pnpm.io/) 10 (`packageManager` in `package.json`).
+
+If `pnpm` is not on your PATH, enable Corepack (bundled with Node) and use `corepack pnpm`:
+
+```bash
+corepack enable
+corepack pnpm install
+corepack pnpm dev
+```
+
+Or use **npm only** on this machine (do not mix `npm install` and `pnpm install` on the same `node_modules`):
+
+```bash
+npm install
+npm run dev
+```
+
+If you already have pnpm installed:
 
 ```bash
 pnpm install

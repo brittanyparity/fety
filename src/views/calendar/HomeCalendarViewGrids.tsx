@@ -113,11 +113,11 @@ export function HomeCalendarMonthGrid({
   );
 }
 
-function mondayOfWeek(anchor: Date): Date {
-  const mon = new Date(anchor);
-  mon.setDate(anchor.getDate() - ((anchor.getDay() + 6) % 7));
-  mon.setHours(12, 0, 0, 0);
-  return mon;
+function sundayOfWeek(anchor: Date): Date {
+  const sun = new Date(anchor);
+  sun.setDate(anchor.getDate() - anchor.getDay());
+  sun.setHours(12, 0, 0, 0);
+  return sun;
 }
 
 export function HomeCalendarWeekGrid({
@@ -139,11 +139,11 @@ export function HomeCalendarWeekGrid({
   onOpenDay: (dateISO: string) => void;
   today: Date;
 }) {
-  const monday = mondayOfWeek(anchor);
+  const sunday = sundayOfWeek(anchor);
   const dates: Date[] = [];
   for (let i = 0; i < days; i++) {
-    const d = new Date(monday);
-    d.setDate(monday.getDate() + i);
+    const d = new Date(sunday);
+    d.setDate(sunday.getDate() + i);
     dates.push(d);
   }
 
@@ -187,6 +187,8 @@ export function HomeCalendarDailyGrid({
   onSelectDay: _onSelectDay,
   onUpdateTransaction,
   onDeleteTransaction,
+  onCompleteTransaction,
+  onMarkTransactionUpcoming,
 }: {
   date: Date;
   calendarMap: CalendarMap;
@@ -204,6 +206,8 @@ export function HomeCalendarDailyGrid({
     >,
   ) => void;
   onDeleteTransaction: (id: string) => void;
+  onCompleteTransaction?: (id: string, completedAtISO?: string) => void;
+  onMarkTransactionUpcoming?: (id: string) => void;
 }) {
   const key = dateToISOLocal(date);
   const data = calendarMap.get(key);
@@ -217,6 +221,8 @@ export function HomeCalendarDailyGrid({
       store={store}
       onUpdateTransaction={onUpdateTransaction}
       onDeleteTransaction={onDeleteTransaction}
+      onCompleteTransaction={onCompleteTransaction}
+      onMarkTransactionUpcoming={onMarkTransactionUpcoming}
     />
   );
 }

@@ -18,6 +18,10 @@ Prioritized backlog for product work. Ordered **easiest → hardest** so early i
 
 ## Current sprint focus
 
+**Cloud accounts & sync (v1)** — Supabase email/password, `fety_user_stores` JSON sync, splash login wired. See `docs/AUTH_AND_SYNC.md`.
+
+**Mobile product shell** — separate narrow-viewport experience (`src/mobile/`), bottom tabs (Transactions · Budget · Insights · Home · Goals), swipeable date strip + daily review on Home. Desktop unchanged above `useIsNarrow()` breakpoint.
+
 **#3 Curate and fix widgets** — remove redundant cards, period + account filters, scrollable chart ranges, hybrid mobile customise, yearly calendar mobile polish.
 
 ## Done (recent)
@@ -36,11 +40,36 @@ Prioritized backlog for product work. Ordered **easiest → hardest** so early i
 | **3** | Cloud fallback (OpenRouter, server proxy, minimal context) | Not started — blocked on OpenRouter account |
 | **4** | Routing metrics, optimization | Not started |
 
-## Later — screenshot / image transaction import
+## Picture / receipt import (shipped in app — ops & production still open)
+
+**In repo today:** `AddTransactionModal` picture flow → `src/lib/transactionImageExtract.ts` → `POST` extract URL. **Dev only:** `vite/transactionExtractPlugin.ts` serves `/api/transaction-extract` when `OPENAI_API_KEY` is set (see `vite.config.ts`). **Production builds** do not include that middleware; set `VITE_TRANSACTION_EXTRACT_URL` to a server you control.
+
+### To-do — enable and document picture extract
+
+- [ ] **Dev:** Create [OpenAI API key](https://platform.openai.com/api-keys); add `OPENAI_API_KEY=sk-...` to repo-root `.env.local` (gitignored); restart Vite / Figma Make dev server (`$PORT`, often 8443).
+- [ ] **Dev smoke test:** With server running, add transaction via picture upload; confirm `POST /api/transaction-extract` returns draft JSON (not 501).
+- [ ] **Production:** Deploy a `POST` handler that mirrors the plugin (same request/response as `vite/transactionExtractPlugin.ts`; keep `OPENAI_API_KEY` on the server only, never `VITE_*`).
+- [ ] **Production:** Set `VITE_TRANSACTION_EXTRACT_URL=https://<your-host>/api/transaction-extract` in `.env.production` or CI; run `npm run build` and redeploy (Vite inlines `VITE_*` at build time).
+- [ ] **Production:** Enable CORS on the extract API for the app’s deployed origin.
+- [ ] **Docs (optional):** Add a one-file serverless template (e.g. Vercel/Netlify) in `docs/` or `scripts/` that copies the plugin logic for copy-paste deploy.
+
+**Dev reference**
+
+| Variable | Where | Purpose |
+|----------|--------|---------|
+| `OPENAI_API_KEY` | `.env.local`, server env | Powers dev middleware only (`gpt-4o-mini` vision) |
+| `VITE_TRANSACTION_EXTRACT_URL` | `.env.local` or `.env.production` | Browser fetch target; defaults to `/api/transaction-extract` |
+
+**Request:** `{ "imageDataUrl": "data:image/...", "mimeType": "image/jpeg" }`  
+**Response:** `desc`, `amount`, `dateISO`, `type`, `category`, `notes`, `confidence`, `uncertainFields` (see plugin for errors `501` when key missing).
+
+---
+
+## Later — screenshot / image transaction import (product polish)
 
 **Intent:** User uploads a receipt or bank-app screenshot; Fety proposes one or more transactions; user reviews and confirms; data is saved via existing validated tools (`create_transaction`), same trust model as CSV import.
 
-**Why later:** Depends on choosing extraction path (local OCR vs optional cloud vision) and fits naturally after Phase 1 is stable, often alongside Phase 2/3 AI work.
+**Why later (remaining work):** Extraction path is chosen (OpenAI vision via proxy); remaining items are production hosting, privacy copy, and optional local-first fallback.
 
 **Proposed flow**
 
@@ -57,13 +86,13 @@ Prioritized backlog for product work. Ordered **easiest → hardest** so early i
 | Local model + OCR text | Phase 2 | Map OCR text to intents/fields |
 | Multimodal cloud (OpenRouter image model) | Phase 3 | Server-side proxy only; user opt-in; privacy copy required |
 
-**Acceptance (when built)**
+**Acceptance**
 
-- [ ] User can attach or pick an image and see draft transaction(s)
-- [ ] User must confirm or edit before save
-- [ ] No direct model → database writes
-- [ ] Clear behavior when extraction fails (clarify, no fabricated amounts)
-- [ ] Document what leaves the device if cloud vision is enabled
+- [x] User can attach or pick an image and see draft transaction(s) (dev + configured API)
+- [x] User must confirm or edit before save (`TransactionPictureReview`)
+- [x] No direct model → database writes (review step first)
+- [x] Clear behavior when extraction fails (manual entry; 501 when unconfigured)
+- [ ] Document what leaves the device if cloud vision is enabled (user-facing copy + plan above)
 
 **Out of scope for v1 of this feature**
 

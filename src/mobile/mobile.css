@@ -1,0 +1,487 @@
+/* Dedicated mobile product shell — not a shrunken desktop layout */
+
+.fety-mobile-shell {
+  display: flex;
+  flex-direction: column;
+  height: 100dvh;
+  max-height: 100dvh;
+  background: var(--paper);
+  overflow: hidden;
+}
+
+.fety-mobile-header {
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 10px 14px;
+  border-bottom: 1px solid var(--border);
+  background: var(--surface);
+}
+
+.fety-mobile-header-brand {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
+}
+
+.fety-mobile-header-title {
+  font-size: 15px;
+  font-weight: 600;
+  color: var(--ink);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.fety-mobile-header-settings {
+  border: none;
+  background: var(--paper);
+  border-radius: 10px;
+  width: 40px;
+  height: 40px;
+  font-size: 18px;
+  cursor: pointer;
+  color: var(--ink-2);
+}
+
+.fety-mobile-main {
+  flex: 1;
+  min-height: 0;
+  overflow-x: hidden;
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+  padding: 12px 14px calc(12px + env(safe-area-inset-bottom, 0px));
+}
+
+.fety-mobile-tab-bar {
+  flex-shrink: 0;
+  display: flex;
+  align-items: stretch;
+  justify-content: space-around;
+  gap: 2px;
+  padding: 6px 4px calc(6px + env(safe-area-inset-bottom, 0px));
+  border-top: 1px solid var(--border);
+  background: var(--surface);
+}
+
+.fety-mobile-tab-bar-btn {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+  border: none;
+  background: transparent;
+  padding: 6px 4px;
+  border-radius: 10px;
+  color: var(--ink-3);
+  font-size: 10px;
+  font-weight: 600;
+  cursor: pointer;
+  min-width: 0;
+}
+
+.fety-mobile-tab-bar-btn--active {
+  color: var(--ink);
+  background: var(--paper);
+}
+
+.fety-mobile-tab-bar-icon {
+  font-size: 16px;
+  line-height: 1;
+}
+
+.fety-mobile-tab-bar-label {
+  line-height: 1.1;
+}
+
+.fety-mobile-date-strip-wrap {
+  margin: 0 -14px 12px;
+  padding: 0 0 4px;
+}
+
+.fety-mobile-date-strip {
+  display: flex;
+  gap: 8px;
+  overflow-x: auto;
+  overflow-y: hidden;
+  scroll-snap-type: x mandatory;
+  -webkit-overflow-scrolling: touch;
+  padding: 4px 14px 8px;
+  scrollbar-width: none;
+}
+
+.fety-mobile-date-strip::-webkit-scrollbar {
+  display: none;
+}
+
+.fety-mobile-date-pill {
+  flex: 0 0 auto;
+  scroll-snap-align: center;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+  min-width: 64px;
+  padding: 8px 10px 10px;
+  border-radius: 14px;
+  border: 1px solid var(--border);
+  cursor: pointer;
+  position: relative;
+}
+
+.fety-mobile-date-pill--selected {
+  border-color: var(--ink);
+  box-shadow: 0 0 0 1px var(--ink);
+}
+
+.fety-mobile-date-pill-dow {
+  font-size: 9px;
+  font-weight: 600;
+  text-transform: uppercase;
+  color: var(--ink-3);
+}
+
+.fety-mobile-date-pill-dom {
+  font-size: 18px;
+  font-weight: 600;
+  color: var(--ink);
+  line-height: 1.1;
+}
+
+.fety-mobile-date-pill-bal {
+  font-size: 9px;
+  color: var(--ink-2);
+}
+
+.fety-mobile-date-pill-bal--empty {
+  color: var(--ink-3);
+}
+
+.fety-mobile-date-pill-tag {
+  position: absolute;
+  top: 4px;
+  right: 4px;
+  font-size: 7px;
+  font-weight: 700;
+  text-transform: uppercase;
+  color: var(--ink-3);
+}
+
+.fety-mobile-home-toolbar {
+  margin-bottom: 10px;
+}
+
+.fety-mobile-home-day {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 16px;
+  overflow: hidden;
+}
+
+.fety-mobile-home-day .fety-home-cal-period--daily {
+  padding: 12px;
+}
+
+.fety-mobile-primary-btn {
+  border: none;
+  background: var(--ink);
+  color: var(--surface);
+  font-size: 13px;
+  font-weight: 600;
+  padding: 10px 16px;
+  border-radius: 12px;
+  cursor: pointer;
+}
+
+.fety-mobile-primary-btn--block {
+  width: 100%;
+  margin-bottom: 14px;
+}
+
+.fety-mobile-section-title {
+  font-size: 17px;
+  font-weight: 600;
+  margin: 0 0 12px;
+  color: var(--ink);
+}
+
+.fety-mobile-subtitle {
+  font-size: 13px;
+  font-weight: 600;
+  margin: 16px 0 10px;
+  color: var(--ink-2);
+}
+
+.fety-mobile-section-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 10px;
+}
+
+.fety-mobile-check {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 11px;
+  color: var(--ink-2);
+}
+
+.fety-mobile-stat-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 10px;
+  margin: 0 0 8px;
+}
+
+.fety-mobile-stat-grid dt {
+  font-size: 10px;
+  color: var(--ink-3);
+  margin: 0;
+}
+
+.fety-mobile-stat-grid dd {
+  font-size: 15px;
+  font-weight: 600;
+  margin: 2px 0 0;
+  color: var(--ink);
+}
+
+.fety-mobile-budget-list,
+.fety-mobile-goal-list,
+.fety-mobile-txn-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.fety-mobile-budget-row,
+.fety-mobile-goal-card {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  padding: 12px 14px;
+  margin-bottom: 10px;
+}
+
+.fety-mobile-budget-row-head {
+  display: flex;
+  justify-content: space-between;
+  gap: 8px;
+  font-size: 13px;
+  margin-bottom: 8px;
+}
+
+.fety-mobile-budget-track {
+  height: 6px;
+  background: var(--border-soft);
+  border-radius: 99px;
+  overflow: hidden;
+}
+
+.fety-mobile-budget-fill {
+  height: 100%;
+  background: var(--clear-dk);
+  border-radius: 99px;
+}
+
+.fety-mobile-budget-fill--over {
+  background: var(--trouble-dk);
+}
+
+.fety-mobile-muted,
+.fety-mobile-empty {
+  font-size: 12px;
+  color: var(--ink-3);
+  margin: 0;
+}
+
+.fety-mobile-txn-group {
+  margin-bottom: 18px;
+}
+
+.fety-mobile-txn-group-date {
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--ink-3);
+  margin: 0 0 8px;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+}
+
+.fety-mobile-txn-upcoming {
+  margin-left: 8px;
+  font-size: 9px;
+  padding: 2px 6px;
+  border-radius: 6px;
+  background: var(--paper);
+  color: var(--ink-2);
+  text-transform: none;
+}
+
+.fety-mobile-txn-row {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 10px 12px;
+  margin-bottom: 8px;
+}
+
+.fety-mobile-txn-row-main {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+}
+
+.fety-mobile-txn-icon {
+  font-size: 18px;
+}
+
+.fety-mobile-txn-text {
+  flex: 1;
+  min-width: 0;
+}
+
+.fety-mobile-txn-title {
+  font-size: 13px;
+  font-weight: 600;
+  margin: 0;
+  color: var(--ink);
+}
+
+.fety-mobile-txn-meta {
+  font-size: 10px;
+  color: var(--ink-3);
+  margin: 2px 0 0;
+}
+
+.fety-mobile-txn-status {
+  display: inline-block;
+  font-size: 9px;
+  font-weight: 600;
+  margin-top: 4px;
+  padding: 2px 6px;
+  border-radius: 6px;
+  background: var(--paper);
+}
+
+.fety-mobile-txn-status--planned {
+  color: var(--amber-dk);
+}
+
+.fety-mobile-txn-status--completed {
+  color: var(--clear-dk);
+}
+
+.fety-mobile-txn-amt {
+  font-size: 13px;
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.fety-mobile-txn-row-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin-top: 8px;
+  padding-top: 8px;
+  border-top: 1px solid var(--border-soft);
+}
+
+.fety-mobile-link-btn {
+  border: none;
+  background: transparent;
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--ink-2);
+  cursor: pointer;
+  padding: 0;
+}
+
+.fety-mobile-link-btn--danger {
+  color: var(--trouble-dk);
+}
+
+.fety-mobile-goal-card-head {
+  display: flex;
+  gap: 10px;
+  align-items: flex-start;
+  margin-bottom: 8px;
+}
+
+.fety-mobile-goal-icon {
+  font-size: 22px;
+}
+
+.fety-mobile-goal-name {
+  font-size: 14px;
+  font-weight: 600;
+  margin: 0;
+}
+
+.fety-mobile-goal-amt {
+  font-size: 11px;
+  color: var(--ink-2);
+  margin: 2px 0 0;
+}
+
+.fety-mobile-insights-lede {
+  font-size: 12px;
+  color: var(--ink-2);
+  margin: 0 0 12px;
+  line-height: 1.45;
+}
+
+.fety-mobile-insights .fety-home-insight-charts {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 16px;
+  padding: 12px;
+}
+
+.fety-mobile-settings-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 1100;
+  background: rgb(0 0 0 / 0.35);
+  display: flex;
+  flex-direction: column;
+  justify-content: flex-end;
+}
+
+.fety-mobile-settings-panel {
+  max-height: 88dvh;
+  background: var(--paper);
+  border-radius: 20px 20px 0 0;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.fety-mobile-settings-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 14px 16px;
+  border-bottom: 1px solid var(--border);
+}
+
+.fety-mobile-settings-head h2 {
+  font-size: 17px;
+  margin: 0;
+}
+
+.fety-mobile-settings-body {
+  overflow-y: auto;
+  padding: 16px;
+  -webkit-overflow-scrolling: touch;
+}
+
+/* When mobile shell is active, hide desktop-only body chrome if any leaks */
+html[data-fety-mobile-shell="1"] .fety-shell {
+  display: none !important;
+}

@@ -48,7 +48,7 @@ export function executeToolAction(action: ToolAction, deps: ToolDeps, summary: F
       });
       const signed = p.type === "deposit" ? `+${usd(p.amount)}` : `-${usd(Math.abs(p.amount))}`;
       return {
-        text: `Done. I added ${signed} for ${p.desc}. Check Insights for updated spending power.`,
+        text: `Done. I added ${signed} for ${p.desc}. Check Insights for updated affordability.`,
         tag: p.type === "deposit" ? "Deposit recorded" : "Transaction added",
       };
     }
@@ -115,11 +115,11 @@ function replyFromReadIntent(parsed: ParsedIntent, ctx: AssistantContext): Assis
     case "get_spending_power": {
       const { lines } = getSpendingPower(summary);
       const caution = parsed.arguments.caution
-        ? ["If spending power is low, consider pausing discretionary purchases until your next income."]
+        ? ["If affordability is tight, consider pausing discretionary purchases until your next income."]
         : [];
       return {
         text: lines[0],
-        resultCard: { title: "Spending power", lines: [...lines, ...caution] },
+        resultCard: { title: "Affordability", lines: [...lines, ...caution] },
       };
     }
     case "calculate_affordability": {
@@ -184,11 +184,11 @@ function replyFromReadIntent(parsed: ParsedIntent, ctx: AssistantContext): Assis
     case "general_financial_question": {
       if (parsed.arguments.greeting) {
         return {
-          text: `Hi${store.profile.displayName ? `, ${store.profile.displayName}` : ""}. Ask about spending power, bills, or tell me what you spent.`,
+          text: `Hi${store.profile.displayName ? `, ${store.profile.displayName}` : ""}. Ask about affordability, bills, or tell me what you spent.`,
         };
       }
       return {
-        text: 'I work offline with your Fety data. Try: "What\'s my spending power?", "Can I afford $150?", or "I spent $85 at Whole Foods."',
+        text: 'I work offline with your Fety data. Try: "What\'s my affordability?", "Can I afford $150?", or "I spent $85 at Whole Foods."',
         tag: "Tips",
       };
     }

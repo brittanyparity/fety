@@ -65,7 +65,7 @@ function SpendingPowerPanel({
           options={POWER_PERIOD_OPTIONS}
           value={period}
           onChange={setPeriod}
-          ariaLabel="Spending power period"
+          ariaLabel="Affordability period"
         />
       </div>
 
@@ -86,7 +86,7 @@ function SpendingPowerPanel({
         {balanceBar.scaleFromProjections ? (
           <p className="fety-home-insight-lede">
             As of {dayLabel}, your ending balance is {formatUsd(insight.balance)}. The bar below still shows how
-            regular bills, goals, and {periodAdverb} spending power compare — using that calendar balance and what&apos;s
+            regular bills, goals, and {periodAdverb} affordability compare — using that calendar balance and what&apos;s
             scheduled next.
           </p>
         ) : null}
@@ -95,7 +95,7 @@ function SpendingPowerPanel({
             <div
               className="fety-home-spending-power-balance-track"
               role="img"
-              aria-label={`${formatUsd(balanceBar.budgetedExpenses)} budgeted expenses, ${formatUsd(balanceBar.goalsAmount)} ${periodAdverb} goal allocation, ${formatUsd(balanceBar.spendingPowerAmount)} ${periodAdverb} spending power${balanceBar.remainder > 0 ? `, ${formatUsd(balanceBar.remainder)} unallocated` : ""}`}
+              aria-label={`${formatUsd(balanceBar.budgetedExpenses)} budgeted expenses, ${formatUsd(balanceBar.goalsAmount)} ${periodAdverb} goal allocation, ${formatUsd(balanceBar.spendingPowerAmount)} ${periodAdverb} affordability${balanceBar.remainder > 0 ? `, ${formatUsd(balanceBar.remainder)} unallocated` : ""}`}
             >
               {balanceBar.budgetedPct > 0 ? (
                 <div
@@ -115,7 +115,7 @@ function SpendingPowerPanel({
                 <div
                   className="fety-home-spending-power-balance-seg fety-home-spending-power-balance-seg--power"
                   style={{ width: `${balanceBar.powerPct}%` }}
-                  title={`Spending power ${formatUsd(balanceBar.spendingPowerAmount)}`}
+                  title={`Affordability ${formatUsd(balanceBar.spendingPowerAmount)}`}
                 />
               ) : null}
               {balanceBar.remainderPct > 0 ? (
@@ -140,7 +140,7 @@ function SpendingPowerPanel({
               ) : null}
               <span>
                 <i className="fety-home-spending-power-balance-swatch fety-home-spending-power-balance-swatch--power" />
-                {periodAdverb.charAt(0).toUpperCase() + periodAdverb.slice(1)} spending power ·{" "}
+                {periodAdverb.charAt(0).toUpperCase() + periodAdverb.slice(1)} affordability ·{" "}
                 {formatUsd(balanceBar.spendingPowerAmount)}
               </span>
               {balanceBar.remainder > 0.005 ? (
@@ -157,16 +157,16 @@ function SpendingPowerPanel({
               {balanceBar.goalsAmount > 0.005
                 ? `Purple is your planned goal contribution (${formatUsd(goalsPeriodAmount)} per ${periodWord}). `
                 : ""}
-              Green is {formatUsd(insight.periodPower)} per {periodWord} of spending power before your balance would go
+              Green is {formatUsd(insight.periodPower)} per {periodWord} of affordability before your balance would go
               negative.
               {!balanceBar.scaleFromProjections && balanceBar.remainder > 0.005
-                ? " Light gray is cash not yet assigned to bills, goals, or spending power."
+                ? " Light gray is cash not yet assigned to bills, goals, or affordability."
                 : ""}
             </p>
           </>
         ) : (
           <p className="fety-home-insight-lede">
-            Add income, bills, or a starting balance in setup so we can project spending power from your calendar.
+            Add income, bills, or a starting balance in setup so we can project affordability from your calendar.
           </p>
         )}
       </div>
@@ -245,7 +245,7 @@ export default function HomeInsightCharts({
           className={`fety-home-insight-tab${tab === "power" ? " fety-home-insight-tab-active" : ""}`}
           onClick={() => setTab("power")}
         >
-          Spending power
+          Affordability
         </button>
       </div>
 

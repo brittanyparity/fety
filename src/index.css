@@ -1,5 +1,6 @@
 @import url('https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=Instrument+Sans:ital,wght@0,400;0,500;0,600;1,400&family=Mrs+Sheppards&display=swap');
 @import 'tailwindcss';
+@import './mobile/mobile.css';
 
 :root {
   /* Surfaces */
@@ -396,6 +397,80 @@ html, body, #root {
 
 .fety-inbox-list-item--done {
   opacity: 0.78;
+}
+
+.fety-inbox-category-tag {
+  display: inline-block;
+  font-size: 9px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  padding: 2px 6px;
+  border-radius: 4px;
+  background: var(--paper);
+  color: var(--ink-3);
+  border: 1px solid var(--border);
+  margin-bottom: 4px;
+  width: fit-content;
+}
+
+.fety-inbox-list-item .fety-inbox-category-tag {
+  margin-bottom: 6px;
+}
+
+.fety-nav-suggestions-item-body .fety-inbox-category-tag {
+  margin-bottom: 6px;
+}
+
+.fety-inbox-detail .fety-inbox-category-tag {
+  margin-bottom: 8px;
+}
+
+.fety-balance-actual-planned,
+.fety-balance-actual-planned-inline {
+  color: var(--ink-3);
+  font-size: inherit;
+}
+
+.fety-balance-actual-planned strong,
+.fety-balance-actual-planned-inline strong {
+  color: var(--ink-2);
+  font-weight: 600;
+}
+
+.fety-cloud-account-card {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  padding: 16px 18px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.fety-cloud-account-email {
+  font-size: 13px;
+  color: var(--ink);
+  margin: 0;
+}
+
+.fety-cloud-account-sync {
+  font-size: 11px;
+  color: var(--ink-3);
+  margin: 0;
+}
+
+.fety-cloud-sign-out {
+  align-self: flex-start;
+  margin-top: 6px;
+  border: 1px solid var(--border);
+  background: var(--paper);
+  border-radius: 10px;
+  padding: 8px 12px;
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  color: var(--ink-2);
 }
 
 .fety-inbox-list-item-title {
@@ -1067,6 +1142,245 @@ html, body, #root {
   text-transform: uppercase;
   letter-spacing: 0.04em;
   color: var(--ink-3);
+}
+
+.fety-txn-entry-choose {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding: 4px 0 8px;
+}
+
+.fety-txn-entry-lede {
+  font-size: 13px;
+  line-height: 1.45;
+  color: var(--ink-2);
+  margin: 0;
+}
+
+.fety-txn-entry-card {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 4px;
+  width: 100%;
+  padding: 14px 16px;
+  border-radius: 12px;
+  border: 1px solid var(--border);
+  background: var(--surface);
+  cursor: pointer;
+  text-align: left;
+  font-family: inherit;
+}
+
+.fety-txn-entry-card strong {
+  font-size: 14px;
+  color: var(--ink);
+}
+
+.fety-txn-entry-card span {
+  font-size: 12px;
+  color: var(--ink-3);
+}
+
+.fety-txn-entry-card:hover {
+  border-color: var(--ink-3);
+}
+
+.fety-txn-picture-panel {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding-bottom: 8px;
+}
+
+.fety-txn-picture-upload {
+  display: block;
+  cursor: pointer;
+}
+
+.fety-txn-picture-privacy {
+  font-size: 11px;
+  color: var(--ink-3);
+  margin: 0;
+}
+
+.fety-txn-picture-status {
+  font-size: 12px;
+  color: var(--ink-2);
+}
+
+.fety-txn-picture-error {
+  font-size: 12px;
+  color: var(--trouble-dk);
+}
+
+.fety-txn-picture-review {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.fety-txn-picture-review-lede {
+  font-size: 12px;
+  line-height: 1.45;
+  color: var(--ink-2);
+  margin: 0;
+}
+
+.fety-txn-picture-review-flag {
+  font-size: 12px;
+  color: var(--coral-dk);
+  margin: 0;
+  padding: 8px 10px;
+  border-radius: 8px;
+  background: var(--coral-bg);
+}
+
+.fety-txn-posting-choice {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  font-size: 12px;
+  line-height: 1.4;
+  color: var(--ink-2);
+  cursor: pointer;
+}
+
+.fety-txn-back-link {
+  align-self: flex-start;
+  margin-bottom: 4px;
+}
+
+.fety-txn-row--upcoming {
+  background: color-mix(in srgb, var(--warn-bg) 35%, transparent);
+}
+
+.fety-txn-status-pill {
+  display: inline-block;
+  margin-top: 6px;
+  font-size: 10px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  padding: 2px 7px;
+  border-radius: 99px;
+}
+
+.fety-txn-status-pill--upcoming {
+  color: var(--warn-dk);
+  background: var(--warn-bg);
+}
+
+.fety-txn-status-pill--completed {
+  color: var(--clear-dk);
+  background: var(--clear-bg);
+}
+
+.fety-txn-complete-btn,
+.fety-txn-undo-complete-btn {
+  border: none;
+  background: transparent;
+  cursor: pointer;
+  font-size: 11px;
+  font-weight: 600;
+  font-family: inherit;
+  padding: 4px 6px;
+  border-radius: 6px;
+  white-space: nowrap;
+}
+
+.fety-txn-complete-btn {
+  color: var(--clear-dk);
+}
+
+.fety-txn-complete-btn:hover {
+  background: var(--clear-bg);
+}
+
+.fety-txn-undo-complete-btn {
+  color: var(--ink-3);
+}
+
+.fety-txn-undo-complete-btn:hover {
+  background: var(--bg);
+}
+
+.fety-txn-edit-quick-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 10px;
+}
+
+.fety-balance-account-breakdown {
+  margin-top: 12px;
+  border-top: 1px solid var(--border-soft);
+  padding-top: 10px;
+}
+
+.fety-balance-account-breakdown-toggle {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  width: 100%;
+  border: none;
+  background: transparent;
+  font-family: inherit;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--ink-2);
+  cursor: pointer;
+  padding: 4px 0;
+}
+
+.fety-balance-account-breakdown-list {
+  list-style: none;
+  margin: 8px 0 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.fety-balance-account-breakdown-row {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  font-size: 12px;
+  color: var(--ink-2);
+}
+
+.fety-balance-account-breakdown-row--total {
+  font-weight: 600;
+  color: var(--ink);
+  border-top: 1px solid var(--border-soft);
+  padding-top: 8px;
+  margin-top: 4px;
+}
+
+.fety-balance-account-breakdown--debt {
+  color: var(--trouble-dk);
+}
+
+.fety-networth-reconcile-trigger {
+  border: none;
+  background: transparent;
+  font-family: inherit;
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--clear-dk);
+  cursor: pointer;
+  padding: 0;
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+
+.fety-networth-reconcile-form {
+  padding: 10px 12px;
+  border-radius: 10px;
+  background: var(--bg);
+  border: 1px solid var(--border-soft);
 }
 
 .fety-txn-add-form {
@@ -1826,6 +2140,163 @@ html, body, #root {
 .fety-home-row--hero {
   min-height: min(580px, 66vh);
   max-height: 820px;
+}
+
+.fety-home-row--insights {
+  min-height: 0;
+}
+
+.fety-home-glance-toggle {
+  border: 1px solid var(--border);
+  background: var(--paper);
+  color: var(--ink-2);
+  font-size: 11px;
+  font-weight: 500;
+  padding: 4px 10px;
+  border-radius: 999px;
+  cursor: pointer;
+}
+
+.fety-home-glance-toggle:hover {
+  color: var(--ink);
+  border-color: var(--ink-3);
+}
+
+.fety-home-glance-collapsed-hint {
+  font-size: 12px;
+  color: var(--ink-3);
+  margin: 0;
+  padding: 8px 0;
+  line-height: 1.45;
+}
+
+.fety-undo-toast {
+  position: fixed;
+  bottom: 20px;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 1200;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 14px;
+  background: var(--ink);
+  color: var(--surface);
+  border-radius: 12px;
+  font-size: 13px;
+  box-shadow: 0 8px 32px rgb(0 0 0 / 0.18);
+  max-width: min(420px, calc(100vw - 32px));
+}
+
+.fety-undo-toast-btn {
+  border: none;
+  background: var(--surface);
+  color: var(--ink);
+  font-size: 12px;
+  font-weight: 600;
+  padding: 5px 10px;
+  border-radius: 8px;
+  cursor: pointer;
+}
+
+.fety-undo-toast-dismiss {
+  border: none;
+  background: transparent;
+  color: var(--ink-3);
+  font-size: 18px;
+  line-height: 1;
+  cursor: pointer;
+  padding: 0 4px;
+  margin-left: auto;
+}
+
+.fety-budget-section-heading {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--ink);
+  margin: 8px 0 10px;
+}
+
+.fety-budget-income-breakdown {
+  margin-top: 4px;
+}
+
+.fety-budget-income-list {
+  list-style: none;
+  margin: 0;
+  padding: 12px 14px;
+  background: var(--paper);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.fety-budget-income-row {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  font-size: 12px;
+  color: var(--ink-2);
+}
+
+.fety-budget-category-income-pct {
+  font-size: 10px;
+  color: var(--ink-3);
+  margin: 0 0 6px;
+}
+
+.fety-txn-toolbar-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+}
+
+.fety-txn-include-future {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 12px;
+  color: var(--ink-2);
+  cursor: pointer;
+}
+
+.fety-txn-date-hint {
+  font-size: 10px;
+  color: var(--ink-3);
+  margin: 4px 0 0;
+  line-height: 1.35;
+}
+
+.fety-txn-bulk-toggle,
+.fety-txn-bulk-secondary,
+.fety-txn-bulk-delete {
+  border: 1px solid var(--border);
+  background: var(--paper);
+  color: var(--ink-2);
+  font-size: 12px;
+  font-weight: 500;
+  padding: 8px 12px;
+  border-radius: 10px;
+  cursor: pointer;
+}
+
+.fety-txn-bulk-toggle--active {
+  border-color: var(--ink);
+  color: var(--ink);
+}
+
+.fety-txn-bulk-delete {
+  border-color: var(--trouble);
+  color: var(--trouble-dk);
+}
+
+.fety-txn-bulk-check input {
+  width: 16px;
+  height: 16px;
+  accent-color: var(--ink);
 }
 
 .fety-home-cell {
@@ -4985,6 +5456,8 @@ select.fety-txn-toolbar-select {
   padding: 0;
   display: flex;
   flex-direction: column;
+  overflow: hidden;
+  min-width: 0;
 }
 
 .fety-insights-feed-row {
@@ -4993,6 +5466,7 @@ select.fety-txn-toolbar-select {
   gap: 12px;
   padding: 12px 0;
   border-bottom: 1px solid var(--border);
+  flex-wrap: wrap;
 }
 
 .fety-insights-feed-row:first-child {
@@ -5042,10 +5516,13 @@ select.fety-txn-toolbar-select {
 
 .fety-insights-feed-amount {
   flex-shrink: 0;
+  margin-left: auto;
   font-size: 13px;
   font-weight: 600;
   color: var(--ink);
   font-variant-numeric: tabular-nums;
+  text-align: right;
+  max-width: 100%;
 }
 
 .fety-insights-feed-empty {

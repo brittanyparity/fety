@@ -16,6 +16,12 @@ import {
   accountBalanceProjectedThrough,
 } from "./ledger";
 import { filterBudgetCategories } from "./transactionCategories";
+import {
+  filterTransactionsForLedger,
+  transactionLedgerDateISO,
+  transactionCountsInActualLedger,
+  normalizePostingStatus,
+} from "./transactionPosting";
 
 /** Calendar / UI date key in the user's local timezone (YYYY-MM-DD). */
 export function dateToISOLocal(d: Date): string {
@@ -150,10 +156,11 @@ function categorySpentInMonth(store: FetyStore, categoryName: string, ref: Date)
   return store.transactions
     .filter(
       (t) =>
-        t.dateISO >= asOf &&
+        transactionCountsInActualLedger(t) &&
+        transactionLedgerDateISO(t) >= asOf &&
         t.category === categoryName &&
         isOutflow(t, store) &&
-        inRange(t.dateISO, start, through),
+        inRange(transactionLedgerDateISO(t), start, through),
     )
     .reduce((s, t) => s + Math.abs(t.amount), 0);
 }
@@ -179,9 +186,12 @@ export function endingBalanceOnDate(store: FetyStore, dateISO: string): number {
   }
   const asOf = balanceAsOfISO(store);
   let balance = store.profile.startingBalance;
-  const txs = store.transactions
-    .filter((t) => t.dateISO >= asOf && t.dateISO <= dateISO)
-    .sort((a, b) => a.dateISO.localeCompare(b.dateISO) || a.id.localeCompare(b.id));
+  const txs = filterTransactionsForLedger(store.transactions, dateISO, "projected")
+    .filter((t) => transactionLedgerDateISO(t) >= asOf)
+    .sort(
+      (a, b) =>
+        transactionLedgerDateISO(a).localeCompare(transactionLedgerDateISO(b)) || a.id.localeCompare(b.id),
+    );
   for (const t of txs) balance += globalBalanceContribution(t, store);
   return balance;
 }
@@ -194,26 +204,28 @@ export function computeSummary(store: FetyStore, ref = new Date()): FinanceSumma
   const mEnd = monthEnd(ref);
   const asOf = balanceAsOfISO(store);
   const balance = endingBalanceOnDate(store, focusISO);
-  const balanceTx = store.transactions.filter((t) => t.dateISO >= asOf && t.dateISO <= focusISO);
+  const balanceTx = filterTransactionsForLedger(store.transactions, focusISO, "actual").filter(
+    (t) => transactionLedgerDateISO(t) >= asOf,
+  );
 
   const moneyInToday = balanceTx
-    .filter((t) => t.dateISO === focusISO && isInflow(t, store))
+    .filter((t) => transactionLedgerDateISO(t) === focusISO && isInflow(t, store))
     .reduce((s, t) => s + t.amount, 0);
 
   const moneyOutToday = balanceTx
-    .filter((t) => t.dateISO === focusISO && isOutflow(t, store))
+    .filter((t) => transactionLedgerDateISO(t) === focusISO && isOutflow(t, store))
     .reduce((s, t) => s + Math.abs(t.amount), 0);
 
   const weeklySpent = balanceTx
-    .filter((t) => isOutflow(t, store) && inRange(t.dateISO, wStart, wEnd))
+    .filter((t) => isOutflow(t, store) && inRange(transactionLedgerDateISO(t), wStart, wEnd))
     .reduce((s, t) => s + Math.abs(t.amount), 0);
 
   const monthlyIncome = balanceTx
-    .filter((t) => isInflow(t, store) && inRange(t.dateISO, mStart, mEnd))
+    .filter((t) => isInflow(t, store) && inRange(transactionLedgerDateISO(t), mStart, mEnd))
     .reduce((s, t) => s + t.amount, 0);
 
   const monthlyExpenses = balanceTx
-    .filter((t) => isOutflow(t, store) && inRange(t.dateISO, mStart, mEnd))
+    .filter((t) => isOutflow(t, store) && inRange(transactionLedgerDateISO(t), mStart, mEnd))
     .reduce((s, t) => s + Math.abs(t.amount), 0);
 
   const monthlyBudgetTotal = filterBudgetCategories(store.categories).reduce((s, c) => s + c.monthlyBudget, 0);
@@ -271,11 +283,14 @@ export function buildCalendarMap(store: FetyStore, year: number): CalendarMap {
 
   const byDate = new Map<string, Transaction[]>();
   for (const t of store.transactions) {
-    if (!t.dateISO.startsWith(yearPrefix)) continue;
-    if (t.dateISO < asOf) continue;
-    const list = byDate.get(t.dateISO) ?? [];
+    const onDay =
+      normalizePostingStatus(t.postingStatus) === "planned" ? t.dateISO : transactionLedgerDateISO(t);
+    if (!onDay.startsWith(yearPrefix)) continue;
+    if (onDay < asOf) continue;
+    if (!transactionCountsInActualLedger(t) && onDay < todayISO()) continue;
+    const list = byDate.get(onDay) ?? [];
     list.push(t);
-    byDate.set(t.dateISO, list);
+    byDate.set(onDay, list);
   }
 
   for (let month = 0; month < 12; month++) {
@@ -455,7 +470,12 @@ export function monthsSpending(
     const start = monthStart(d);
     const end = monthEnd(d);
     const v = store.transactions
-      .filter((t) => isOutflow(t, store) && inRange(t.dateISO, start, end))
+      .filter(
+        (t) =>
+          transactionCountsInActualLedger(t) &&
+          isOutflow(t, store) &&
+          inRange(transactionLedgerDateISO(t), start, end),
+      )
       .reduce((s, t) => s + Math.abs(t.amount), 0);
     out.push({ m: d.toLocaleDateString("en-US", { month: "short" }), v });
   }
@@ -491,10 +511,11 @@ function categorySpentInRange(
   return store.transactions
     .filter(
       (t) =>
-        t.dateISO >= asOf &&
+        transactionCountsInActualLedger(t) &&
+        transactionLedgerDateISO(t) >= asOf &&
         t.category === categoryName &&
         isOutflow(t, store) &&
-        inRange(t.dateISO, start, end),
+        inRange(transactionLedgerDateISO(t), start, end),
     )
     .reduce((s, t) => s + Math.abs(t.amount), 0);
 }

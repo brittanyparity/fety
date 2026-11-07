@@ -21,6 +21,9 @@ import {
   scheduledItemRefForCategory,
   transactionCategoryPickerGroups,
 } from "../lib/transactionCategories";
+import TransactionPictureReview from "./TransactionPictureReview";
+import { extractTransactionFromImage, type ExtractedTransactionDraft } from "../lib/transactionImageExtract";
+import { applyPostingDefaults } from "../lib/transactionPosting";
 import type {
   AddTransactionInput,
   BillFrequency,
@@ -29,6 +32,8 @@ import type {
   IncomeFrequency,
   TransactionType,
 } from "../types/fety";
+
+type AddEntryMode = "choose" | "manual" | "picture" | "review";
 
 export type AddTransactionPayload = AddTransactionInput;
 
@@ -91,6 +96,11 @@ export default function AddTransactionModal({
   const [goalId, setGoalId] = useState("");
   const [transactionDateISO, setTransactionDateISO] = useState(dateISO);
   const [scheduleMismatch, setScheduleMismatch] = useState<AddTransactionPayload | null>(null);
+  const [entryMode, setEntryMode] = useState<AddEntryMode>("choose");
+  const [pictureBusy, setPictureBusy] = useState(false);
+  const [pictureError, setPictureError] = useState<string | null>(null);
+  const [extractDraft, setExtractDraft] = useState<ExtractedTransactionDraft | null>(null);
+  const [markCompletedOnSave, setMarkCompletedOnSave] = useState(true);
 
   const [showAddCategory, setShowAddCategory] = useState(false);
   const [newCategoryName, setNewCategoryName] = useState("");
@@ -123,7 +133,12 @@ export default function AddTransactionModal({
     setShowAddCategory(false);
     setNewCategoryRecurring(false);
     setNewCategoryScheduleKind("bill");
-  }, [open, dateISO, defaultTypeId, store]);
+    setEntryMode("choose");
+    setPictureBusy(false);
+    setPictureError(null);
+    setExtractDraft(null);
+    setMarkCompletedOnSave(true);
+  }, [open, dateISO, defaultTypeId]);
 
   useEffect(() => {
     if (!open) return;
@@ -191,11 +206,27 @@ export default function AddTransactionModal({
       goalId: validGoalId || undefined,
       scheduledItemKind: ref?.kind,
       scheduledItemId: ref?.id,
+      postingStatus: markCompletedOnSave ? "completed" : "planned",
+      completedAtISO: markCompletedOnSave ? transactionDateISO : undefined,
     };
   };
 
+  const handlePictureFile = async (file: File | null) => {
+    if (!file) return;
+    setPictureBusy(true);
+    setPictureError(null);
+    const result = await extractTransactionFromImage(file);
+    setPictureBusy(false);
+    if (!result.ok) {
+      setPictureError(result.error);
+      return;
+    }
+    setExtractDraft(result.draft);
+    setEntryMode("review");
+  };
+
   const finishSubmit = (payload: AddTransactionPayload, updateScheduledItem: boolean) => {
-    onSubmit({ ...payload, updateScheduledItem });
+    onSubmit(applyPostingDefaults({ ...payload, updateScheduledItem }));
     onClose();
   };
 
@@ -297,7 +328,75 @@ export default function AddTransactionModal({
             ×
           </button>
         </header>
+        {entryMode === "choose" ? (
+          <div className="fety-txn-entry-choose">
+            <p className="fety-txn-entry-lede">How would you like to add this transaction?</p>
+            <button type="button" className="fety-txn-entry-card" onClick={() => setEntryMode("manual")}>
+              <strong>Enter Manually</strong>
+              <span>Type the details yourself.</span>
+            </button>
+            <button type="button" className="fety-txn-entry-card" onClick={() => setEntryMode("picture")}>
+              <strong>Take a Picture or Upload a Picture</strong>
+              <span>Use a receipt or bank screenshot — you&apos;ll review everything before saving.</span>
+            </button>
+          </div>
+        ) : null}
+
+        {entryMode === "picture" ? (
+          <div className="fety-txn-picture-panel">
+            <p className="fety-txn-entry-lede">
+              Choose a clear photo of a receipt or confirmation. We&apos;ll suggest amounts and dates for you to
+              confirm — nothing is saved until you approve it.
+            </p>
+            <p className="fety-txn-picture-privacy">
+              Your picture is sent securely for reading and is not saved in Fety afterward.
+            </p>
+            <label className="fety-txn-picture-upload">
+              <span className="fety-btn-primary">Upload a Picture</span>
+              <input
+                type="file"
+                accept="image/jpeg,image/png,image/webp,image/heic,image/heif"
+                capture="environment"
+                hidden
+                onChange={(e) => void handlePictureFile(e.target.files?.[0] ?? null)}
+              />
+            </label>
+            <label className="fety-txn-picture-upload fety-txn-picture-upload--secondary">
+              <span className="fety-btn-secondary">Take a Picture</span>
+              <input
+                type="file"
+                accept="image/*"
+                capture="environment"
+                hidden
+                onChange={(e) => void handlePictureFile(e.target.files?.[0] ?? null)}
+              />
+            </label>
+            {pictureBusy ? <p className="fety-txn-picture-status">Reading your picture…</p> : null}
+            {pictureError ? <p className="fety-txn-picture-error">{pictureError}</p> : null}
+            <button type="button" className="fety-btn-ghost" onClick={() => setEntryMode("choose")}>
+              Back
+            </button>
+          </div>
+        ) : null}
+
+        {entryMode === "review" && extractDraft ? (
+          <TransactionPictureReview
+            store={store}
+            draft={extractDraft}
+            dateISO={transactionDateISO}
+            onCancel={() => {
+              setExtractDraft(null);
+              setEntryMode("picture");
+            }}
+            onConfirm={(input) => finishSubmit(input, false)}
+          />
+        ) : null}
+
+        {entryMode === "manual" ? (
         <form className="fety-modal-form" onSubmit={handleSubmit}>
+          <button type="button" className="fety-btn-ghost fety-txn-back-link" onClick={() => setEntryMode("choose")}>
+            ← Choose another way
+          </button>
           <div>
             <label className="fety-label" htmlFor="fety-add-tx-date">
               Date
@@ -503,6 +602,15 @@ export default function AddTransactionModal({
             </select>
           </div>
 
+          <label className="fety-txn-posting-choice">
+            <input
+              type="checkbox"
+              checked={markCompletedOnSave}
+              onChange={(e) => setMarkCompletedOnSave(e.target.checked)}
+            />
+            <span>This has already happened — count it in my balances now</span>
+          </label>
+
           {scheduleMismatch ? (
             <div className="fety-txn-schedule-prompt" role="status">
               <p className="fety-txn-schedule-prompt-title">Update scheduled item?</p>
@@ -547,6 +655,7 @@ export default function AddTransactionModal({
             </button>
           </div>
         </form>
+        ) : null}
       </div>
     </div>,
     document.body,

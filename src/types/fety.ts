@@ -31,6 +31,12 @@ export interface Transaction {
   /** Budget scheduled item this transaction is tied to (when recurring). */
   scheduledItemKind?: ScheduledItemKind;
   scheduledItemId?: string;
+  /** Manual transactions: planned = recorded but not paid/received; completed = posted to the ledger. */
+  postingStatus?: "planned" | "completed";
+  /** When the user marked a planned transaction completed (ledger date when set). */
+  completedAtISO?: string;
+  /** Optional user notes (manual entry or after picture review). */
+  notes?: string;
 }
 
 export type AddTransactionInput = {
@@ -47,6 +53,9 @@ export type AddTransactionInput = {
   scheduledItemId?: string;
   /** When true, update the linked scheduled item amount / due day to match this transaction. */
   updateScheduledItem?: boolean;
+  postingStatus?: "planned" | "completed";
+  completedAtISO?: string;
+  notes?: string;
 };
 
 export interface BudgetCategory {
@@ -126,6 +135,18 @@ export interface Account {
   balanceAsOfISO?: string;
 }
 
+/** User-verified balance adjustment — preserves transactions; shifts opening balance only. */
+export interface AccountReconciliation {
+  id: string;
+  accountId: string;
+  dateISO: string;
+  verifiedBalance: number;
+  calculatedBalance: number;
+  priorOpeningBalance: number;
+  newOpeningBalance: number;
+  note?: string;
+}
+
 export interface ChatMessage {
   id: number;
   role: "system" | "user";
@@ -169,6 +190,7 @@ export interface FetyStore {
   recurringTransactions?: RecurringTransaction[];
   goals: Goal[];
   accounts: Account[];
+  accountReconciliations?: AccountReconciliation[];
   messages: ChatMessage[];
   pinnedWidgets: string[];
   /** Default emoji when adding a transaction of each type (synced from transactionTypes). */

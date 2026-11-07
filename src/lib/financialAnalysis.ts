@@ -415,8 +415,8 @@ export function buildPersonalizedTour(
   if ((!analysis.missing.income || !analysis.missing.obligations) && hasWidget("weekly-power")) {
     steps.push({
       id: "spending-power",
-      title: "Your spending power",
-      explanation: `${greeting} what I found. Based on what you told me, you currently have about ${formatUsd(summary.weeklySpendingPower)} of spending power this week after the bills on file — of a ${formatUsd(summary.weeklyBudget)} weekly budget. This widget answers: how much room do you have right now?`,
+      title: "Your affordability",
+      explanation: `${greeting} what I found. Based on what you told me, you currently have about ${formatUsd(summary.weeklySpendingPower)} you can comfortably spend this week after the bills on file — of a ${formatUsd(summary.weeklyBudget)} weekly budget. This widget answers: how much room do you have right now?`,
       page: "dashboard",
       target: "widget-weekly-power",
       phase: "financial",
@@ -427,7 +427,7 @@ export function buildPersonalizedTour(
       id: "snapshot",
       title: "Here's what I found",
       explanation:
-        "Let's start with your dashboard. As you add income and expenses, spending power and the rest of these widgets will fill in with your numbers.",
+        "Let's start with your dashboard. As you add income and expenses, affordability and the rest of these widgets will fill in with your numbers.",
       page: "dashboard",
       target: "snapshot",
       phase: "financial",

@@ -1,7 +1,7 @@
 import { calendarNoteText } from "./calendarNotes";
 import { buildCalendarMap, formatConversationalDate } from "./fetyCalculations";
 import { formatUsd } from "./scheduleAmounts";
-import type { FinancialAnalysis, FinancialTip } from "../types/analysis";
+import type { FinancialAnalysis, FinancialTip, TipCategory } from "../types/analysis";
 import type { FetyStore } from "../types/fety";
 
 export type InsightTipProgress = {
@@ -13,6 +13,19 @@ export type InsightTipSlot = {
   tip: FinancialTip;
   done: boolean;
 };
+
+const TIP_CATEGORY_LABELS: Record<TipCategory, string> = {
+  spending: "Spending",
+  budgeting: "Budget",
+  cash_flow: "Cash flow",
+  income: "Income",
+  goals: "Goals",
+  organization: "Organization",
+};
+
+export function tipCategoryLabel(category: TipCategory): string {
+  return TIP_CATEGORY_LABELS[category] ?? category;
+}
 
 const STATIC_TIPS: FinancialTip[] = [
   {
@@ -26,7 +39,7 @@ const STATIC_TIPS: FinancialTip[] = [
   {
     id: "static-budget",
     title: "Tune a category budget",
-    explanation: "Adjust caps so spending power matches how you actually live.",
+    explanation: "Adjust caps so affordability matches how you actually live.",
     category: "budgeting",
     actionLabel: "Open budget",
     action: { type: "budget" },
@@ -48,7 +61,7 @@ const STATIC_TIPS: FinancialTip[] = [
     action: { type: "goals" },
   },
   {
-    id: "static-transactions",
+    id: "static-log-transaction",
     title: "Log a transaction",
     explanation: "Add spending or income on the Transactions page so Insights and budgets stay current.",
     category: "spending",
