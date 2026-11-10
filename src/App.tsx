@@ -2616,7 +2616,7 @@ function DashboardView({
 // ─── Page Header ───────────────────────────────────────────────────────────────
 const PAGE_META: Record<Page, { title: string; sub: string }> = {
   dashboard: { title: "Home", sub: "Calendar, cash flow, and what to focus on next." },
-  spending:  { title: "Spending", sub: "Every dollar in and out of your accounts." },
+  spending:  { title: "Transactions", sub: "Every dollar in and out of your accounts." },
   budget:    { title: "Budget", sub: "Tracks are ink; coral marks the category that's over." },
   goals:     { title: "Goals", sub: "Money you're holding for later." },
   profile:   { title: "Profile Settings", sub: "Personal info and data preferences." },

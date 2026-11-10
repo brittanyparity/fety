@@ -411,7 +411,7 @@
 }
 
 .fety-mobile-tab-bar-btn--active {
-  color: #fff;
+  color: var(--surface);
 }
 
 .fety-mobile-fab-add {
@@ -998,12 +998,36 @@ html[data-fety-mobile-shell="1"] .fety-home-cal-period--daily .fety-home-cal-til
   margin: 2px 0 0;
 }
 
+html[data-fety-mobile-shell="1"] .fety-home-cal-period-section--notes {
+  display: flex;
+  flex-direction: column;
+}
+
 html[data-fety-mobile-shell="1"] .fety-home-cal-period-section--notes .fety-day-notes--compact {
   gap: 10px;
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
 }
 
 html[data-fety-mobile-shell="1"] .fety-home-cal-period-section--notes .fety-day-notes-compose textarea {
   font-size: 16px;
+}
+
+html[data-fety-mobile-shell="1"] .fety-home-cal-period-section--notes .fety-cal-note-meta {
+  display: none;
+}
+
+html[data-fety-mobile-shell="1"] .fety-home-cal-period-section--notes .fety-cal-note-footer {
+  margin-top: auto;
+  justify-content: center;
+  width: 100%;
+  padding-top: 12px;
+}
+
+html[data-fety-mobile-shell="1"] .fety-home-cal-period-section--notes .fety-cal-note-save {
+  min-width: 140px;
 }
 
 .fety-mobile-insights {
