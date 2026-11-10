@@ -1,10 +1,43 @@
 import { defineConfig, type HtmlTagDescriptor, type Plugin } from 'vite'
 import react from '@vitejs/plugin-react'
 import tailwindcss from '@tailwindcss/vite'
+import fs from 'node:fs'
 import path from 'node:path'
 
 import siteConfiguration from './.figma/make/site.json'
 import { transactionExtractPlugin } from './vite/transactionExtractPlugin'
+
+const PUBLIC_ICON_ASSETS = [
+  'favicon.ico',
+  'favicon-16x16.png',
+  'favicon-32x32.png',
+  'apple-touch-icon.png',
+  'android-chrome-192x192.png',
+  'android-chrome-512x512.png',
+] as const
+
+/** Fail the build if public icons are Git LFS pointer files (broken in Vercel/Figma CI). */
+function assertPublicIconsAreRealFiles(): Plugin {
+  return {
+    name: 'assert-public-icons',
+    buildStart() {
+      for (const name of PUBLIC_ICON_ASSETS) {
+        const filePath = path.join(process.cwd(), 'public', name)
+        if (!fs.existsSync(filePath)) {
+          this.warn(`Missing public icon: ${name}`)
+          continue
+        }
+        const head = fs.readFileSync(filePath, 'utf8').slice(0, 64)
+        if (head.startsWith('version https://git-lfs.github.com/spec/v1')) {
+          this.error(
+            `${name} is a Git LFS pointer, not image data. ` +
+              'Run `git add --renormalize public/` after .gitattributes exempts public/, then commit.',
+          )
+        }
+      }
+    },
+  }
+}
 
 // Vite config — https://vitejs.dev/config/
 export default defineConfig(({ mode }) => {
@@ -20,6 +53,7 @@ export default defineConfig(({ mode }) => {
     plugins: [
       react(),
       tailwindcss(),
+      assertPublicIconsAreRealFiles(),
       figmaSiteConfiguration(siteConfiguration),
       figmaErrorOverlayReplay(),
       figmaReactRefreshBoundaryFallback(),

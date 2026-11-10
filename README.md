@@ -48,6 +48,8 @@ For **Figma Make** preview (not Vercel), sync Git in the Make file and run a fre
 
 Site title, description, and meta tags come from `.figma/make/site.json` via `vite.config.ts`.
 
+Favicons live in `public/` (lettermark tab icon + wordmark install icons). They are **excluded from Git LFS** in `.gitattributes` so Vercel and other CI hosts serve real PNG/ICO files—not LFS pointer text. After changing icons, commit and redeploy; hard-refresh the tab or re-add the home-screen shortcut to clear cache.
+
 ## Scripts
 
 | Command        | Description              |
