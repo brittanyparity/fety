@@ -18,7 +18,7 @@ export default function MobileInsightsTab({
   return (
     <div className="fety-mobile-insights">
       <p className="fety-mobile-insights-lede">Cash flow, spending mix, and affordability — tuned for quick review on the go.</p>
-      <HomeInsightCharts analysis={analysis} summary={summary} store={store} focusDateISO={focusDateISO} />
+      <HomeInsightCharts analysis={analysis} summary={summary} store={store} focusDateISO={focusDateISO} layout="tiles" />
     </div>
   );
 }

@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useCallback, useMemo, useState } from "react";
 import AddTransactionModal, {
   type AddTransactionModalActions,
   type AddTransactionPayload,
@@ -7,7 +7,7 @@ import { buildCalendarMap, mergeCalendarMaps, todayISO } from "../lib/fetyCalcul
 import { calendarYearsForHomeView } from "../lib/calendarView";
 import type { FetyStore } from "../types/fety";
 import { HomeCalendarDailyDetail } from "../views/calendar/homeCalendarPeriodDetail";
-import MobileDateStrip from "./MobileDateStrip";
+import MobileHomeDatePicker from "./MobileHomeDatePicker";
 
 export default function MobileHomeTab({
   store,
@@ -20,6 +20,7 @@ export default function MobileHomeTab({
   onCompleteTransaction,
   onMarkTransactionUpcoming,
   onAddCalendarNote,
+  onUpdateCalendarNote,
   onDeleteCalendarNote,
 }: {
   store: FetyStore;
@@ -32,6 +33,7 @@ export default function MobileHomeTab({
   onCompleteTransaction?: (id: string, completedAtISO?: string) => void;
   onMarkTransactionUpcoming?: (id: string) => void;
   onAddCalendarNote: (dateISO: string, text: string) => void;
+  onUpdateCalendarNote: (dateISO: string, noteId: string, text: string) => void;
   onDeleteCalendarNote: (dateISO: string, noteId: string) => void;
 }) {
   const [addOpen, setAddOpen] = useState(false);
@@ -41,26 +43,46 @@ export default function MobileHomeTab({
   const dayData = calendarMap.get(selectedDateISO);
   const date = useMemo(() => new Date(`${selectedDateISO}T12:00:00`), [selectedDateISO]);
 
+  const endingBalanceForDate = useCallback(
+    (dateISO: string) => calendarMap.get(dateISO)?.endBal ?? 0,
+    [calendarMap],
+  );
+
   return (
-    <div className="fety-mobile-home">
-      <MobileDateStrip selectedISO={selectedDateISO} onSelect={onSelectedDateChange} calendarMap={calendarMap} />
-      <div className="fety-mobile-home-toolbar">
-        <button type="button" className="fety-mobile-primary-btn" onClick={() => setAddOpen(true)}>
-          Add transaction
-        </button>
+    <div className="fety-mobile-home fety-mobile-home--split">
+      <div className="fety-mobile-home-date-dock">
+        <div className="fety-mobile-home-top-bar">
+          <MobileHomeDatePicker
+            selectedISO={selectedDateISO}
+            onSelect={onSelectedDateChange}
+            endingBalanceForDate={endingBalanceForDate}
+          />
+          <button
+            type="button"
+            className="fety-mobile-floating-btn fety-mobile-floating-btn--emphasis"
+            onClick={() => setAddOpen(true)}
+          >
+            Add transaction
+          </button>
+        </div>
       </div>
-      <div className="fety-mobile-home-day">
-        <HomeCalendarDailyDetail
-          date={date}
-          dateISO={selectedDateISO}
-          data={dayData}
-          calendarNotes={store.calendarNotes}
-          store={store}
-          onUpdateTransaction={onUpdateTransaction}
-          onDeleteTransaction={onDeleteTransaction}
-          onCompleteTransaction={onCompleteTransaction}
-          onMarkTransactionUpcoming={onMarkTransactionUpcoming}
-        />
+      <div className="fety-mobile-home-scroll">
+        <div className="fety-mobile-home-day">
+          <HomeCalendarDailyDetail
+            date={date}
+            dateISO={selectedDateISO}
+            data={dayData}
+            calendarNotes={store.calendarNotes}
+            store={store}
+            onUpdateTransaction={onUpdateTransaction}
+            onDeleteTransaction={onDeleteTransaction}
+            onCompleteTransaction={onCompleteTransaction}
+            onMarkTransactionUpcoming={onMarkTransactionUpcoming}
+            onAddCalendarNote={onAddCalendarNote}
+            onUpdateCalendarNote={onUpdateCalendarNote}
+            onDeleteCalendarNote={onDeleteCalendarNote}
+          />
+        </div>
       </div>
       <AddTransactionModal
         open={addOpen}

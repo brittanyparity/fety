@@ -13,7 +13,14 @@ import {
   netWorthTotalsOnDate,
 } from "./lib/ledger";
 import { flowForTransactionType, getTransactionTypes, isTransferTransactionType } from "./lib/transactionTypes";
-import { calendarEndingBalanceBg, calendarEndingBalanceBgStrong, calBalanceColor, calSignedColor } from "./lib/calendarUi";
+import {
+  calendarEndingBalanceBg,
+  calendarEndingBalanceBgStrong,
+  calBalanceColor,
+  calDayBalanceColor,
+  calFigureColor,
+  calSignedColor,
+} from "./lib/calendarUi";
 import { CalendarPeriodMenu } from "./components/CalendarPeriodMenu";
 import CalendarNoteIcon from "./components/CalendarNoteIcon";
 import CalendarAccountsBreakdown from "./components/CalendarAccountsBreakdown";
@@ -143,10 +150,10 @@ function DayInsightsSection({ day, store }: { day: CalDay | null; store: FetySto
       </div>
       <div className="fety-cal-day-insights-stats">
         {[
-          { label: "Starting", value: usd(day.startBal), color: calBalanceColor(day.startBal) },
-          { label: "Income", value: day.income > 0 ? `+${usd(day.income)}` : "—", color: calSignedColor(day.income) },
-          { label: "Expenses", value: day.expenses < 0 ? usd(day.expenses) : "—", color: calSignedColor(day.expenses) },
-          { label: "Ending", value: usd(day.endBal), color: calBalanceColor(day.endBal) },
+          { label: "Starting", value: usd(day.startBal), color: calDayBalanceColor(day.startBal, day.endBal) },
+          { label: "Income", value: day.income > 0 ? `+${usd(day.income)}` : "—", color: calFigureColor(day.income, day.endBal) },
+          { label: "Expenses", value: day.expenses < 0 ? usd(day.expenses) : "—", color: calFigureColor(day.expenses, day.endBal) },
+          { label: "Ending", value: usd(day.endBal), color: calDayBalanceColor(day.endBal, day.endBal) },
         ].map((row) => (
           <div key={row.label}>
             <p>{row.label}</p>
@@ -1504,6 +1511,7 @@ function CalendarView({
   onCompleteTransaction,
   onMarkTransactionUpcoming,
   onAddCalendarNote,
+  onUpdateCalendarNote,
   onDeleteCalendarNote,
   dayOpenRequest,
   onConsumeDayOpenRequest,
@@ -1516,6 +1524,7 @@ function CalendarView({
   onCompleteTransaction: ReturnType<typeof useFetyData>["completeTransaction"];
   onMarkTransactionUpcoming: ReturnType<typeof useFetyData>["markTransactionUpcoming"];
   onAddCalendarNote: (dateISO: string, text: string) => void;
+  onUpdateCalendarNote: (dateISO: string, noteId: string, text: string) => void;
   onDeleteCalendarNote: (dateISO: string, noteId: string) => void;
   dayOpenRequest?: CalendarDayOpenRequest | null;
   onConsumeDayOpenRequest?: () => void;
@@ -1601,6 +1610,7 @@ function CalendarView({
       transactionTypes={transactionTypes}
       dayNotes={panelISO ? notesForCalendarDay(store.calendarNotes, panelISO) : []}
       onAddNote={onAddCalendarNote}
+      onUpdateNote={onUpdateCalendarNote}
       onDeleteNote={onDeleteCalendarNote}
       onJumpToDate={jumpToDateISO}
       onClose={() => setSelected(null)}
@@ -1741,6 +1751,7 @@ function MonthlyCalGrid({
           const isSelected = selected === key;
           const isToday    = date.toDateString() === today.toDateString();
           const net = data ? data.endBal - data.startBal : 0;
+          const dayEndBal = data?.endBal ?? 0;
 
           return (
             <button
@@ -1760,7 +1771,25 @@ function MonthlyCalGrid({
               }}
             >
               <div className="fety-cal-day-top" style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
-                <span className="fety-cal-day-num" style={{ fontSize: 13, fontWeight: 600, color: isSelected ? calSignedColor(net, true) : isToday ? "var(--lime-dk)" : "var(--ink)", lineHeight: 1 }}>
+                <span
+                  className="fety-cal-day-num"
+                  style={{
+                    fontSize: 13,
+                    fontWeight: 600,
+                    color: data
+                      ? isSelected
+                        ? calFigureColor(net, dayEndBal, true)
+                        : isToday
+                          ? "var(--lime-dk)"
+                          : calFigureColor(net, dayEndBal)
+                      : isSelected
+                        ? calSignedColor(net, true)
+                        : isToday
+                          ? "var(--lime-dk)"
+                          : "var(--ink)",
+                    lineHeight: 1,
+                  }}
+                >
                   {date.getDate()}
                 </span>
                 {hasCalendarNote(calendarNotes, key) ? (
@@ -1856,11 +1885,32 @@ function WeeklyCalGrid({
     const isSelected  = selected === key;
     const isToday     = date.toDateString() === today.toDateString();
     const net = data ? data.endBal - data.startBal : 0;
+    const dayEndBal = data?.endBal ?? 0;
     return (
       <button key={key} type="button" className="fety-cal-week-cell" onClick={() => onSelect(key)} style={{ background: data ? calendarEndingBalanceBg(data.endBal, isSelected) : "var(--surface)", border: isSelected ? "2px solid var(--ink)" : "1px solid var(--border)", borderRadius: 12, padding: "12px 10px", cursor: "pointer", textAlign: "left", display: "flex", flexDirection: "column", gap: 8 }}>
         <div>
           <p style={{ fontSize: 10, fontWeight: 600, color: isSelected ? "rgba(255,255,255,0.6)" : "var(--ink-3)", textTransform: "uppercase", letterSpacing: "0.16em" }}>{DAYS_SHORT[date.getDay()]}</p>
-          <p style={{ fontSize: 18, fontWeight: 400, color: isSelected ? calSignedColor(net, true) : isToday ? "var(--lime-dk)" : "var(--ink)", letterSpacing: "-0.5px", lineHeight: 1.1 }}>{date.getDate()}</p>
+          <p
+            style={{
+              fontSize: 18,
+              fontWeight: 400,
+              color: data
+                ? isSelected
+                  ? calFigureColor(net, dayEndBal, true)
+                  : isToday
+                    ? "var(--lime-dk)"
+                    : calFigureColor(net, dayEndBal)
+                : isSelected
+                  ? calSignedColor(net, true)
+                  : isToday
+                    ? "var(--lime-dk)"
+                    : "var(--ink)",
+              letterSpacing: "-0.5px",
+              lineHeight: 1.1,
+            }}
+          >
+            {date.getDate()}
+          </p>
         </div>
         {data ? (
           <DayActivityCopy data={data} money={money} selected={isSelected} />
@@ -1892,6 +1942,7 @@ function WeeklyCalGrid({
 function DailyCalView({ date, calendarMap, store }: { date: Date; calendarMap: CalendarMap; store: FetyStore }) {
   const key = CAL_KEY(date);
   const data = calendarMap.get(key);
+  const dayEndBal = data?.endBal ?? 0;
 
   return (
     <div className="fety-cal-daily" style={{ maxWidth: 720, width: "100%", margin: "0 auto", display: "flex", flexDirection: "column", gap: 14 }}>
@@ -1904,11 +1955,11 @@ function DailyCalView({ date, calendarMap, store }: { date: Date; calendarMap: C
       <div className="fety-cal-daily-balance-stack" style={{ display: "flex", flexDirection: "column", gap: 10 }}>
         <div style={{ background: "var(--surface)", borderRadius: 16, padding: "18px 20px", border: "1px solid var(--border)" }}>
           <p style={{ fontSize: 10, fontWeight: 600, color: "var(--ink-3)", marginBottom: 6, textTransform: "uppercase", letterSpacing: "0.16em" }}>Starting Balance</p>
-          <p style={{ fontSize: 24, fontWeight: 400, color: calBalanceColor(data?.startBal ?? 0), letterSpacing: "-0.8px", fontFamily: "var(--font-sans)" }}>{data ? usd(data.startBal) : "—"}</p>
+          <p style={{ fontSize: 24, fontWeight: 400, color: calDayBalanceColor(data?.startBal ?? 0, dayEndBal), letterSpacing: "-0.8px", fontFamily: "var(--font-sans)" }}>{data ? usd(data.startBal) : "—"}</p>
         </div>
         <div style={{ background: data ? calendarEndingBalanceBgStrong(data.endBal) : "var(--surface)", borderRadius: 16, padding: "18px 20px", border: "1px solid var(--border)" }}>
           <p style={{ fontSize: 10, fontWeight: 600, color: "var(--ink-3)", marginBottom: 6, textTransform: "uppercase", letterSpacing: "0.16em" }}>Ending Balance</p>
-          <p style={{ fontSize: 24, fontWeight: 400, color: calBalanceColor(data?.endBal ?? 0), letterSpacing: "-0.8px", fontFamily: "var(--font-sans)" }}>{data ? usd(data.endBal) : "—"}</p>
+          <p style={{ fontSize: 24, fontWeight: 400, color: calDayBalanceColor(data?.endBal ?? 0, dayEndBal), letterSpacing: "-0.8px", fontFamily: "var(--font-sans)" }}>{data ? usd(data.endBal) : "—"}</p>
         </div>
       </div>
 
@@ -1918,13 +1969,13 @@ function DailyCalView({ date, calendarMap, store }: { date: Date; calendarMap: C
           {data.income > 0 && (
             <div style={{ flex: 1, background: "var(--surface)", border: "1px solid var(--border)", borderRadius: 12, padding: "14px 16px", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
               <span style={{ fontSize: 12, fontWeight: 500, color: "var(--ink-2)" }}>Total In</span>
-              <span style={{ fontFamily: "var(--font-sans)", fontWeight: 600, color: "var(--clear-dk)", fontSize: 16 }}>+{usd(data.income)}</span>
+              <span style={{ fontFamily: "var(--font-sans)", fontWeight: 600, color: calFigureColor(data.income, dayEndBal), fontSize: 16 }}>+{usd(data.income)}</span>
             </div>
           )}
           {data.expenses < 0 && (
             <div style={{ flex: 1, background: "var(--surface)", border: "1px solid var(--border)", borderRadius: 12, padding: "14px 16px", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
               <span style={{ fontSize: 12, fontWeight: 500, color: "var(--ink-2)" }}>Total Out</span>
-              <span style={{ fontFamily: "var(--font-sans)", fontWeight: 600, color: "var(--trouble-dk)", fontSize: 16 }}>{usd(data.expenses)}</span>
+              <span style={{ fontFamily: "var(--font-sans)", fontWeight: 600, color: calFigureColor(data.expenses, dayEndBal), fontSize: 16 }}>{usd(data.expenses)}</span>
             </div>
           )}
         </div>
@@ -1961,8 +2012,8 @@ function DailyCalView({ date, calendarMap, store }: { date: Date; calendarMap: C
             })()}
           </div>
           <div style={{ display: "flex", justifyContent: "space-between", marginTop: 6, fontSize: 9, color: "var(--ink-3)" }}>
-            <span>Start · <span style={{ color: calSignedColor(data.startBal) }}>{usd(data.startBal)}</span></span>
-            <span>End · <span style={{ color: calBalanceColor(data.endBal) }}>{usd(data.endBal)}</span></span>
+            <span>Start · <span style={{ color: calDayBalanceColor(data.startBal, dayEndBal) }}>{usd(data.startBal)}</span></span>
+            <span>End · <span style={{ color: calDayBalanceColor(data.endBal, dayEndBal) }}>{usd(data.endBal)}</span></span>
           </div>
         </div>
       )}
@@ -1982,6 +2033,7 @@ function CalendarSidePanel({
   transactionTypes,
   dayNotes,
   onAddNote,
+  onUpdateNote,
   onDeleteNote,
   onJumpToDate,
   onClose,
@@ -2001,6 +2053,7 @@ function CalendarSidePanel({
   transactionTypes: FetyTransactionType[];
   dayNotes: import("./types/fety").CalendarDayNote[];
   onAddNote: (dateISO: string, text: string) => void;
+  onUpdateNote?: (dateISO: string, noteId: string, text: string) => void;
   onDeleteNote: (dateISO: string, noteId: string) => void;
   onJumpToDate: (iso: string) => void;
   onClose: () => void;
@@ -2178,6 +2231,7 @@ function CalendarSidePanel({
               dateISO={CAL_KEY(day.date)}
               notes={dayNotes}
               onAddNote={onAddNote}
+              onUpdateNote={onUpdateNote}
               onDeleteNote={onDeleteNote}
             />
 
@@ -2185,10 +2239,10 @@ function CalendarSidePanel({
               <div style={{ background: "var(--bg)", border: "1px solid var(--border)", borderRadius: 12, padding: "12px 14px", marginBottom: 12 }}>
                 <p className="fety-label" style={{ marginBottom: 10 }}>Balance sheet</p>
                 {[
-                  { label: "Starting", value: usd(day.startBal), color: calBalanceColor(day.startBal) },
-                  { label: "Income", value: day.income > 0 ? `+${usd(day.income)}` : "—", color: calSignedColor(day.income) },
-                  { label: "Expenses", value: day.expenses < 0 ? usd(day.expenses) : "—", color: calSignedColor(day.expenses) },
-                  { label: "Ending", value: usd(day.endBal), color: calBalanceColor(day.endBal) },
+                  { label: "Starting", value: usd(day.startBal), color: calDayBalanceColor(day.startBal, day.endBal) },
+                  { label: "Income", value: day.income > 0 ? `+${usd(day.income)}` : "—", color: calFigureColor(day.income, day.endBal) },
+                  { label: "Expenses", value: day.expenses < 0 ? usd(day.expenses) : "—", color: calFigureColor(day.expenses, day.endBal) },
+                  { label: "Ending", value: usd(day.endBal), color: calDayBalanceColor(day.endBal, day.endBal) },
                 ].map((r, i) => (
                   <div key={r.label} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", paddingTop: i > 0 ? 7 : 0, paddingBottom: 7, borderTop: i > 0 ? "1px solid var(--border)" : undefined }}>
                     <span style={{ fontSize: 11, color: "var(--ink-3)" }}>{r.label}</span>
@@ -2334,8 +2388,6 @@ function CalendarSidePanel({
             }}
             onSave={onUpdateTransaction}
             onDelete={onDeleteTransaction}
-            onMarkCompleted={onCompleteTransaction}
-            onMarkUpcoming={onMarkTransactionUpcoming}
           />
         </>
       )}
@@ -2354,6 +2406,7 @@ function DashboardView({
   onCompleteTransaction,
   onMarkTransactionUpcoming,
   onAddCalendarNote,
+  onUpdateCalendarNote,
   onDeleteCalendarNote,
 }: {
   store: FetyStore;
@@ -2365,6 +2418,7 @@ function DashboardView({
   onCompleteTransaction: ReturnType<typeof useFetyData>["completeTransaction"];
   onMarkTransactionUpcoming: ReturnType<typeof useFetyData>["markTransactionUpcoming"];
   onAddCalendarNote: (dateISO: string, text: string) => void;
+  onUpdateCalendarNote: (dateISO: string, noteId: string, text: string) => void;
   onDeleteCalendarNote: (dateISO: string, noteId: string) => void;
 }) {
   const [focusDateISO, setFocusDateISO] = useState(todayISO);
@@ -2392,6 +2446,7 @@ function DashboardView({
       onCompleteTransaction={onCompleteTransaction}
       onMarkTransactionUpcoming={onMarkTransactionUpcoming}
       onAddCalendarNote={onAddCalendarNote}
+      onUpdateCalendarNote={onUpdateCalendarNote}
       onDeleteCalendarNote={onDeleteCalendarNote}
       balanceChart={<BalanceChartWidget />}
     />
@@ -2454,6 +2509,7 @@ export default function App() {
     startExplorePlatform,
     completeSetup,
     addCalendarNote,
+    updateCalendarNote,
     deleteCalendarNote,
     markTipDone,
     archiveTip,
@@ -2703,6 +2759,7 @@ export default function App() {
             onCompleteTransaction={completeTransaction}
             onMarkTransactionUpcoming={markTransactionUpcoming}
             onAddCalendarNote={addCalendarNote}
+            onUpdateCalendarNote={updateCalendarNote}
             onDeleteCalendarNote={deleteCalendarNote}
           />
         );
@@ -2744,10 +2801,33 @@ export default function App() {
     resetAll,
     startFreshSetup,
     addCalendarNote,
+    updateCalendarNote,
     deleteCalendarNote,
     undoOffer,
     undoLastChange,
     dismissUndo,
+    manage: {
+      updateCategoryBudget,
+      updateCategory,
+      addCategory,
+      deleteCategory,
+      updateBill,
+      addBill,
+      deleteBill,
+      updateIncomeStream,
+      addIncomeStream,
+      deleteIncomeStream,
+      updateRecurringTransaction,
+      addRecurringTransaction,
+      deleteRecurringTransaction,
+      addGoal,
+      updateGoal,
+      deleteGoal,
+      updateAccount,
+      addAccount,
+      deleteAccount,
+      reconcileAccount,
+    },
   };
 
   if (isMobileProduct) {

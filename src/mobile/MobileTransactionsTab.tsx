@@ -1,17 +1,21 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
+import { createPortal } from "react-dom";
 import AddTransactionModal, {
   type AddTransactionModalActions,
   type AddTransactionPayload,
 } from "../components/AddTransactionModal";
 import EditTransactionModal from "../components/EditTransactionModal";
-import { formatTransactionGroupDate, todayISO } from "../lib/fetyCalculations";
-import { flowForTransactionType } from "../lib/transactionTypes";
-import { formatTransactionCategoryTypeLines, transactionListPrimaryTitle } from "../lib/ledger";
-import { isManualStoredTransaction, normalizePostingStatus, postingStatusLabel } from "../lib/transactionPosting";
+import TransactionListFiltersForm from "../components/TransactionListFiltersForm";
+import TransactionListTile from "../components/TransactionListTile";
+import { endingBalanceOnDate, formatTransactionGroupDate, todayISO } from "../lib/fetyCalculations";
+import {
+  defaultTransactionListFilters,
+  filterTransactionsList,
+  transactionListFiltersActive,
+  type TransactionListFilterState,
+} from "../lib/transactionListFilters";
 import type { FetyStore, Transaction } from "../types/fety";
-
-const usd = (n: number) =>
-  new Intl.NumberFormat("en-US", { style: "currency", currency: "USD" }).format(n);
+import { MobileFilterIcon } from "./MobileNavIcons";
 
 export default function MobileTransactionsTab({
   store,
@@ -19,8 +23,7 @@ export default function MobileTransactionsTab({
   addTransactionActions,
   onUpdate,
   onDelete,
-  onCompleteTransaction,
-  onMarkTransactionUpcoming,
+  accountFilter,
 }: {
   store: FetyStore;
   onAdd: (input: AddTransactionPayload) => void;
@@ -28,26 +31,52 @@ export default function MobileTransactionsTab({
   onUpdate: (
     id: string,
     updates: Partial<
-      Pick<Transaction, "desc" | "amount" | "type" | "category" | "dateISO" | "fromAccountId" | "toAccountId" | "goalId">
+      Pick<Transaction, "desc" | "amount" | "type" | "category" | "dateISO" | "fromAccountId" | "toAccountId" | "goalId" | "postingStatus" | "completedAtISO">
     >,
   ) => void;
   onDelete: (id: string) => void;
   onCompleteTransaction?: (id: string, completedAtISO?: string) => void;
   onMarkTransactionUpcoming?: (id: string) => void;
+  accountFilter?: string | null;
 }) {
   const [addOpen, setAddOpen] = useState(false);
+  const [filtersOpen, setFiltersOpen] = useState(false);
   const [editTxn, setEditTxn] = useState<Transaction | null>(null);
-  const [includeFuture, setIncludeFuture] = useState(false);
+  const [filters, setFilters] = useState<TransactionListFilterState>(() =>
+    defaultTransactionListFilters(accountFilter),
+  );
+  const filterBaseline = useMemo(() => defaultTransactionListFilters(accountFilter), [accountFilter]);
   const today = todayISO();
 
-  const shown = useMemo(() => {
-    return store.transactions
-      .filter((t) => {
-        if (!includeFuture && t.dateISO > today) return false;
-        return true;
-      })
-      .sort((a, b) => b.dateISO.localeCompare(a.dateISO) || b.id.localeCompare(a.id));
-  }, [store.transactions, includeFuture, today]);
+  useEffect(() => {
+    if (accountFilter) setFilters((f) => ({ ...f, accountFilter: accountFilter }));
+    else if (accountFilter === null) setFilters((f) => ({ ...f, accountFilter: "all" }));
+  }, [accountFilter]);
+
+  useEffect(() => {
+    if (!filtersOpen) return;
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") setFiltersOpen(false);
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [filtersOpen]);
+
+  const endingBalanceForDate = useMemo(
+    () => (dateISO: string) => endingBalanceOnDate(store, dateISO),
+    [store],
+  );
+
+  const filtersActive = transactionListFiltersActive(filters, filterBaseline);
+
+  const shown = useMemo(
+    () =>
+      filterTransactionsList(store.transactions, filters, {
+        transactionTypes: store.transactionTypes,
+        earliestDateISO: store.profile.balanceAsOfISO,
+      }),
+    [store.transactions, store.transactionTypes, store.profile.balanceAsOfISO, filters],
+  );
 
   const groups = useMemo(() => {
     const map = new Map<string, Transaction[]>();
@@ -59,44 +88,107 @@ export default function MobileTransactionsTab({
   }, [shown]);
 
   return (
-    <div className="fety-mobile-transactions">
-      <div className="fety-mobile-section-head">
-        <h2 className="fety-mobile-section-title">All transactions</h2>
-        <label className="fety-mobile-check">
-          <input type="checkbox" checked={includeFuture} onChange={(e) => setIncludeFuture(e.target.checked)} />
-          Include future
-        </label>
+    <div className="fety-mobile-transactions fety-mobile-transactions--split">
+      <div className="fety-mobile-transactions-toolbar-dock">
+        <div className="fety-mobile-home-top-bar fety-mobile-home-top-bar--end">
+          <div className="fety-mobile-toolbar-actions">
+            <button
+              type="button"
+              className={`fety-mobile-floating-icon-btn${filtersActive ? " fety-mobile-floating-icon-btn--active" : ""}`}
+              aria-label="Filter transactions"
+              aria-expanded={filtersOpen}
+              onClick={() => setFiltersOpen(true)}
+            >
+              <MobileFilterIcon />
+            </button>
+            <button
+              type="button"
+              className="fety-mobile-floating-btn fety-mobile-floating-btn--emphasis"
+              onClick={() => setAddOpen(true)}
+            >
+              Add transaction
+            </button>
+          </div>
+        </div>
       </div>
-      <button type="button" className="fety-mobile-primary-btn fety-mobile-primary-btn--block" onClick={() => setAddOpen(true)}>
-        Add transaction
-      </button>
-      <div className="fety-mobile-txn-list">
-        {groups.length === 0 ? (
-          <p className="fety-mobile-empty">No transactions yet. Add one to get started.</p>
-        ) : (
-          groups.map(([dateISO, txns]) => (
-            <section key={dateISO} className="fety-mobile-txn-group">
-              <h3 className="fety-mobile-txn-group-date">
-                {formatTransactionGroupDate(dateISO)}
-                {dateISO > today ? <span className="fety-mobile-txn-upcoming">Upcoming</span> : null}
-              </h3>
-              <ul>
-                {txns.map((t) => (
-                  <MobileTxnRow
-                    key={t.id}
-                    t={t}
+      <div className="fety-mobile-transactions-scroll">
+        <div className="fety-mobile-txn-list">
+          {groups.length === 0 ? (
+            <p className="fety-mobile-empty">
+              {store.transactions.length === 0
+                ? "No transactions yet. Add one to get started."
+                : "No transactions match these filters."}
+            </p>
+          ) : (
+            groups.map(([dateISO, txns]) => (
+              <section key={dateISO} className="fety-mobile-txn-group">
+                <h3 className="fety-mobile-txn-group-date">
+                  {formatTransactionGroupDate(dateISO)}
+                  {dateISO > today ? <span className="fety-mobile-txn-upcoming">Upcoming</span> : null}
+                </h3>
+                <ul>
+                  {txns.map((t) => (
+                    <TransactionListTile
+                      key={t.id}
+                      transaction={t}
+                      store={store}
+                      onEdit={() => setEditTxn(t)}
+                      onDelete={() => onDelete(t.id)}
+                    />
+                  ))}
+                </ul>
+              </section>
+            ))
+          )}
+        </div>
+      </div>
+      {filtersOpen
+        ? createPortal(
+            <div className="fety-modal fety-modal--mobile-sheet" role="dialog" aria-modal="true" aria-labelledby="fety-mobile-txn-filters-title">
+              <button
+                type="button"
+                className="fety-modal-backdrop"
+                aria-label="Close filters"
+                onClick={() => setFiltersOpen(false)}
+              />
+              <div className="fety-modal-panel fety-modal-panel--mobile-filters">
+                <header className="fety-modal-header">
+                  <h2 id="fety-mobile-txn-filters-title" className="fety-modal-title">
+                    Filters
+                  </h2>
+                  <button type="button" className="fety-modal-close" aria-label="Close" onClick={() => setFiltersOpen(false)}>
+                    ×
+                  </button>
+                </header>
+                <div className="fety-mobile-txn-filters-body">
+                  <TransactionListFiltersForm
                     store={store}
-                    onEdit={() => setEditTxn(t)}
-                    onDelete={() => onDelete(t.id)}
-                    onComplete={onCompleteTransaction}
-                    onMarkUpcoming={onMarkTransactionUpcoming}
+                    transactions={store.transactions}
+                    transactionTypes={store.transactionTypes}
+                    accounts={store.accounts}
+                    filters={filters}
+                    onFiltersChange={setFilters}
+                    endingBalanceForDate={endingBalanceForDate}
+                    layout="stack"
                   />
-                ))}
-              </ul>
-            </section>
-          ))
-        )}
-      </div>
+                </div>
+                <div className="fety-mobile-txn-filters-foot">
+                  <button
+                    type="button"
+                    className="fety-modal-btn-secondary"
+                    onClick={() => setFilters(filterBaseline)}
+                  >
+                    Reset
+                  </button>
+                  <button type="button" className="fety-modal-btn-primary" onClick={() => setFiltersOpen(false)}>
+                    Done
+                  </button>
+                </div>
+              </div>
+            </div>,
+            document.body,
+          )
+        : null}
       <AddTransactionModal
         open={addOpen}
         dateISO={todayISO()}
@@ -117,69 +209,5 @@ export default function MobileTransactionsTab({
         }}
       />
     </div>
-  );
-}
-
-function MobileTxnRow({
-  t,
-  store,
-  onEdit,
-  onDelete,
-  onComplete,
-  onMarkUpcoming,
-}: {
-  t: Transaction;
-  store: FetyStore;
-  onEdit: () => void;
-  onDelete: () => void;
-  onComplete?: (id: string, completedAtISO?: string) => void;
-  onMarkUpcoming?: (id: string) => void;
-}) {
-  const manual = isManualStoredTransaction(t);
-  const status = manual ? normalizePostingStatus(t.postingStatus) : "completed";
-  const meta = formatTransactionCategoryTypeLines(t, store);
-  const title = transactionListPrimaryTitle(t, store);
-  const flow = flowForTransactionType(store, t.type);
-  const amountColor =
-    flow === "transfer" ? "var(--ink-2)" : t.amount >= 0 ? "var(--clear-dk)" : "var(--trouble-dk)";
-
-  return (
-    <li className="fety-mobile-txn-row">
-      <div className="fety-mobile-txn-row-main">
-        <span className="fety-mobile-txn-icon" aria-hidden>
-          {t.icon}
-        </span>
-        <div className="fety-mobile-txn-text">
-          <p className="fety-mobile-txn-title">{title}</p>
-          <p className="fety-mobile-txn-meta">{meta.subtitle}</p>
-          {manual ? (
-            <span className={`fety-mobile-txn-status fety-mobile-txn-status--${status}`}>
-              {postingStatusLabel(t.postingStatus)}
-            </span>
-          ) : null}
-        </div>
-        <span className="fety-mobile-txn-amt" style={{ color: amountColor }}>
-          {flow === "transfer" ? usd(Math.abs(t.amount)) : `${t.amount >= 0 ? "+" : ""}${usd(t.amount)}`}
-        </span>
-      </div>
-      <div className="fety-mobile-txn-row-actions">
-        <button type="button" className="fety-mobile-link-btn" onClick={onEdit}>
-          Edit
-        </button>
-        {manual && status === "planned" && onComplete ? (
-          <button type="button" className="fety-mobile-link-btn" onClick={() => onComplete(t.id, todayISO())}>
-            Complete
-          </button>
-        ) : null}
-        {manual && status === "completed" && onMarkUpcoming ? (
-          <button type="button" className="fety-mobile-link-btn" onClick={() => onMarkUpcoming(t.id)}>
-            Mark upcoming
-          </button>
-        ) : null}
-        <button type="button" className="fety-mobile-link-btn fety-mobile-link-btn--danger" onClick={onDelete}>
-          Delete
-        </button>
-      </div>
-    </li>
   );
 }

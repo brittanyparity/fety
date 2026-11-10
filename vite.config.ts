@@ -53,6 +53,7 @@ type FigmaSiteConfiguration = {
   }
   icons?: {
     icon?: string
+    appleTouchIcon?: string
   }
   openGraph?: {
     image?: string
@@ -86,6 +87,7 @@ function figmaSiteConfiguration(config: FigmaSiteConfiguration): Plugin {
   const title = config.title ?? "Figma Make App"
   const description = config.description ?? ''
   const favicon = config.icons?.icon ?? ''
+  const appleTouchIcon = config.icons?.appleTouchIcon ?? ''
   const socialImage = config.openGraph?.image ?? ''
   const language = sanitizeHtmlValue(config.language) || 'en'
   const googleAnalyticsId = sanitizeHtmlValue(config.analytics?.googleAnalyticsId)
@@ -134,7 +136,13 @@ function figmaSiteConfiguration(config: FigmaSiteConfiguration): Plugin {
         }
         if (favicon) {
           tags.push({ tag: 'link', attrs: { rel: 'icon', href: favicon }, injectTo: 'head' })
+          tags.push({ tag: 'link', attrs: { rel: 'icon', type: 'image/svg+xml', href: favicon }, injectTo: 'head' })
         }
+        if (appleTouchIcon) {
+          tags.push({ tag: 'link', attrs: { rel: 'apple-touch-icon', href: appleTouchIcon }, injectTo: 'head' })
+        }
+        tags.push({ tag: 'link', attrs: { rel: 'manifest', href: '/manifest.webmanifest' }, injectTo: 'head' })
+        tags.push({ tag: 'meta', attrs: { name: 'theme-color', content: '#FAFAF9' }, injectTo: 'head' })
         if (title) {
           tags.push({ tag: 'meta', attrs: { property: 'og:title', content: title }, injectTo: 'head' })
         }

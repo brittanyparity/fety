@@ -23,7 +23,9 @@ import {
 } from "../lib/transactionCategories";
 import TransactionPictureReview from "./TransactionPictureReview";
 import { extractTransactionFromImage, type ExtractedTransactionDraft } from "../lib/transactionImageExtract";
+import { todayISO } from "../lib/fetyCalculations";
 import { applyPostingDefaults } from "../lib/transactionPosting";
+import TransactionPostingStatusFields, { postingStatusFromForm } from "./TransactionPostingStatusFields";
 import type {
   AddTransactionInput,
   BillFrequency,
@@ -101,6 +103,7 @@ export default function AddTransactionModal({
   const [pictureError, setPictureError] = useState<string | null>(null);
   const [extractDraft, setExtractDraft] = useState<ExtractedTransactionDraft | null>(null);
   const [markCompletedOnSave, setMarkCompletedOnSave] = useState(true);
+  const [completedAtISO, setCompletedAtISO] = useState(dateISO);
 
   const [showAddCategory, setShowAddCategory] = useState(false);
   const [newCategoryName, setNewCategoryName] = useState("");
@@ -137,7 +140,8 @@ export default function AddTransactionModal({
     setPictureBusy(false);
     setPictureError(null);
     setExtractDraft(null);
-    setMarkCompletedOnSave(true);
+    setMarkCompletedOnSave(false);
+    setCompletedAtISO(dateISO);
   }, [open, dateISO, defaultTypeId]);
 
   useEffect(() => {
@@ -206,8 +210,8 @@ export default function AddTransactionModal({
       goalId: validGoalId || undefined,
       scheduledItemKind: ref?.kind,
       scheduledItemId: ref?.id,
-      postingStatus: markCompletedOnSave ? "completed" : "planned",
-      completedAtISO: markCompletedOnSave ? transactionDateISO : undefined,
+      postingStatus: postingStatusFromForm(markCompletedOnSave),
+      completedAtISO: markCompletedOnSave ? completedAtISO || transactionDateISO : undefined,
     };
   };
 
@@ -602,14 +606,15 @@ export default function AddTransactionModal({
             </select>
           </div>
 
-          <label className="fety-txn-posting-choice">
-            <input
-              type="checkbox"
-              checked={markCompletedOnSave}
-              onChange={(e) => setMarkCompletedOnSave(e.target.checked)}
-            />
-            <span>This has already happened — count it in my balances now</span>
-          </label>
+          <TransactionPostingStatusFields
+            dateISO={transactionDateISO}
+            markCompleted={markCompletedOnSave}
+            onMarkCompletedChange={setMarkCompletedOnSave}
+            completedAtISO={completedAtISO}
+            onCompletedAtISOChange={setCompletedAtISO}
+            earliestDateISO={earliestDateISO}
+            inputStyle={panelInput}
+          />
 
           {scheduleMismatch ? (
             <div className="fety-txn-schedule-prompt" role="status">

@@ -11,7 +11,11 @@ import {
 } from "../lib/transactionCategories";
 import { isScheduledTransaction } from "../lib/billScheduling";
 import { todayISO } from "../lib/fetyCalculations";
-import { normalizePostingStatus, postingStatusLabel } from "../lib/transactionPosting";
+import TransactionPostingStatusFields, {
+  defaultCompletedAtForTransaction,
+  markCompletedFromTransaction,
+  postingStatusFromForm,
+} from "./TransactionPostingStatusFields";
 import type { FetyStore, FetyTransactionType, Transaction, TransactionType } from "../types/fety";
 
 type EditTransactionModalProps = {
@@ -39,8 +43,6 @@ type EditTransactionModalProps = {
     >,
   ) => void;
   onDelete?: (id: string) => void;
-  onMarkCompleted?: (id: string, completedAtISO?: string) => void;
-  onMarkUpcoming?: (id: string) => void;
 };
 
 const panelInput: CSSProperties = {
@@ -66,8 +68,6 @@ export default function EditTransactionModal({
   onClose,
   onSave,
   onDelete,
-  onMarkCompleted,
-  onMarkUpcoming,
 }: EditTransactionModalProps) {
   const transactionTypes = useMemo(() => getTransactionTypes(store), [store]);
   const accounts = store.accounts;
@@ -99,9 +99,9 @@ export default function EditTransactionModal({
     setToAccountId(transaction.toAccountId ?? "");
     setGoalId(transaction.goalId ?? "");
     setNotes(transaction.notes ?? "");
-    const completed = normalizePostingStatus(transaction.postingStatus) === "completed";
+    const completed = markCompletedFromTransaction(transaction);
     setMarkCompleted(completed);
-    setCompletedAtISO(transaction.completedAtISO ?? transaction.dateISO);
+    setCompletedAtISO(defaultCompletedAtForTransaction(transaction));
   }, [open, transaction]);
 
   useEffect(() => {
@@ -144,7 +144,7 @@ export default function EditTransactionModal({
       notes: notes.trim() || undefined,
       ...(isManual
         ? {
-            postingStatus: markCompleted ? ("completed" as const) : ("planned" as const),
+            postingStatus: postingStatusFromForm(markCompleted),
             completedAtISO: markCompleted ? completedAtISO || dateISO : undefined,
           }
         : {}),
@@ -243,58 +243,15 @@ export default function EditTransactionModal({
           </section>
 
           {isManual ? (
-            <section className="fety-txn-modal-section">
-              <h3 className="fety-txn-modal-section-title">Status — {postingStatusLabel(markCompleted ? "completed" : "planned")}</h3>
-              <label className="fety-txn-posting-choice">
-                <input
-                  type="checkbox"
-                  checked={markCompleted}
-                  onChange={(e) => setMarkCompleted(e.target.checked)}
-                />
-                <span>This has already happened — count it in my balances</span>
-              </label>
-              {markCompleted ? (
-                <div style={{ marginTop: 10 }}>
-                  <label className="fety-label" htmlFor="fety-edit-tx-completed">
-                    Completed on
-                  </label>
-                  <input
-                    id="fety-edit-tx-completed"
-                    type="date"
-                    value={completedAtISO}
-                    min={earliestDateISO || undefined}
-                    onChange={(e) => setCompletedAtISO(e.target.value)}
-                    style={{ ...panelInput, marginTop: 6 }}
-                  />
-                </div>
-              ) : null}
-              <div className="fety-txn-edit-quick-actions">
-                {!markCompleted && onMarkCompleted ? (
-                  <button
-                    type="button"
-                    className="fety-txn-complete-btn"
-                    onClick={() => {
-                      onMarkCompleted(transaction.id, todayISO());
-                      onClose();
-                    }}
-                  >
-                    Mark as Completed
-                  </button>
-                ) : null}
-                {markCompleted && onMarkUpcoming ? (
-                  <button
-                    type="button"
-                    className="fety-txn-undo-complete-btn"
-                    onClick={() => {
-                      onMarkUpcoming(transaction.id);
-                      onClose();
-                    }}
-                  >
-                    Mark as Upcoming
-                  </button>
-                ) : null}
-              </div>
-            </section>
+            <TransactionPostingStatusFields
+              dateISO={dateISO}
+              markCompleted={markCompleted}
+              onMarkCompletedChange={setMarkCompleted}
+              completedAtISO={completedAtISO}
+              onCompletedAtISOChange={setCompletedAtISO}
+              earliestDateISO={earliestDateISO}
+              inputStyle={panelInput}
+            />
           ) : null}
 
           <div>

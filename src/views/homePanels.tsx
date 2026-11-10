@@ -68,11 +68,13 @@ export function NotesPanel({
   store,
   focusDateISO,
   onAddNote,
+  onUpdateNote,
   onDeleteNote,
 }: {
   store: FetyStore;
   focusDateISO: string;
   onAddNote: (dateISO: string, text: string) => void;
+  onUpdateNote?: (dateISO: string, noteId: string, text: string) => void;
   onDeleteNote: (dateISO: string, noteId: string) => void;
 }) {
   const dayNotes = useMemo(
@@ -86,6 +88,7 @@ export function NotesPanel({
         dateISO={focusDateISO}
         notes={dayNotes}
         onAddNote={onAddNote}
+        onUpdateNote={onUpdateNote}
         onDeleteNote={onDeleteNote}
         compact
       />

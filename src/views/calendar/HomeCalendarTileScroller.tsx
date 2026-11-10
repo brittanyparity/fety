@@ -95,14 +95,19 @@ export default function HomeCalendarTileScroller({
     if (!el) return;
     const ro = new ResizeObserver(refresh);
     ro.observe(el);
+    const isMobileShell = document.documentElement.dataset.fetyMobileShell === "1";
     const blockWheel = (event: WheelEvent) => {
       event.preventDefault();
       event.stopPropagation();
     };
-    el.addEventListener("wheel", blockWheel, { passive: false });
+    if (!isMobileShell) {
+      el.addEventListener("wheel", blockWheel, { passive: false });
+    }
     return () => {
       ro.disconnect();
-      el.removeEventListener("wheel", blockWheel);
+      if (!isMobileShell) {
+        el.removeEventListener("wheel", blockWheel);
+      }
     };
   }, [refresh, children]);
 

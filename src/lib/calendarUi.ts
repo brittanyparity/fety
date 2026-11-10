@@ -1,14 +1,37 @@
 /** Calendar amount / balance color helpers (positive = green, negative = red). */
 
+const ZERO_BALANCE_EPS = 0.005;
+
+export function isZeroEndingBalance(endBal: number): boolean {
+  return Math.abs(endBal) <= ZERO_BALANCE_EPS;
+}
+
+function calAmber(whenSelected?: boolean): string {
+  return whenSelected ? "var(--amber)" : "var(--amber-dk)";
+}
+
 export function calSignedColor(amount: number, whenSelected?: boolean): string {
   if (!Number.isFinite(amount)) return whenSelected ? "rgba(255,255,255,0.7)" : "var(--ink-3)";
   if (whenSelected) return amount >= 0 ? "var(--clear)" : "var(--trouble)";
   return amount >= 0 ? "var(--clear-dk)" : "var(--trouble-dk)";
 }
 
-/** Running balance text (green when positive, red when negative — not daily net cash flow). */
+/** Running balance text (green when positive, red when negative, amber at zero). */
 export function calBalanceColor(balance: number, whenSelected?: boolean): string {
+  if (isZeroEndingBalance(balance)) return calAmber(whenSelected);
   return calSignedColor(balance, whenSelected);
+}
+
+/** Amount color when the day's ending balance is known (all figures amber on zero-balance days). */
+export function calFigureColor(amount: number, dayEndBalance: number, whenSelected?: boolean): string {
+  if (isZeroEndingBalance(dayEndBalance)) return calAmber(whenSelected);
+  return calSignedColor(amount, whenSelected);
+}
+
+/** Balance figure on a calendar day tile (start/end rows respect zero ending balance for the day). */
+export function calDayBalanceColor(balance: number, dayEndBalance: number, whenSelected?: boolean): string {
+  if (isZeroEndingBalance(dayEndBalance)) return calAmber(whenSelected);
+  return calBalanceColor(balance, whenSelected);
 }
 
 /** Net worth total: green positive, red negative, amber at zero. */

@@ -5,22 +5,28 @@ export default function DayNotesPanel({
   dateISO,
   notes,
   onAddNote,
+  onUpdateNote,
   onDeleteNote,
   compact,
 }: {
   dateISO: string;
   notes: CalendarDayNote[];
   onAddNote: (dateISO: string, text: string) => void;
+  onUpdateNote?: (dateISO: string, noteId: string, text: string) => void;
   onDeleteNote?: (dateISO: string, noteId: string) => void;
   /** Tighter layout for home card */
   compact?: boolean;
 }) {
   const [draft, setDraft] = useState("");
+  const [editingId, setEditingId] = useState<string | null>(null);
+  const [editDraft, setEditDraft] = useState("");
   const [savedNotice, setSavedNotice] = useState<string | null>(null);
   const savedNoticeTimerRef = useRef<number | null>(null);
 
   useEffect(() => {
     setDraft("");
+    setEditingId(null);
+    setEditDraft("");
     setSavedNotice(null);
   }, [dateISO]);
 
@@ -54,6 +60,27 @@ export default function DayNotesPanel({
     flashSaved(`Note added for ${dateLabel}.`);
   };
 
+  const startEdit = (note: CalendarDayNote) => {
+    setEditingId(note.id);
+    setEditDraft(note.text);
+    setSavedNotice(null);
+  };
+
+  const cancelEdit = () => {
+    setEditingId(null);
+    setEditDraft("");
+  };
+
+  const saveEdit = () => {
+    if (!editingId || !onUpdateNote) return;
+    const trimmed = editDraft.trim();
+    if (!trimmed) return;
+    onUpdateNote(dateISO, editingId, trimmed);
+    setEditingId(null);
+    setEditDraft("");
+    flashSaved(`Note updated for ${dateLabel}.`);
+  };
+
   return (
     <div className={`fety-day-notes${compact ? " fety-day-notes--compact" : ""}`}>
       {savedNotice ? (
@@ -70,17 +97,53 @@ export default function DayNotesPanel({
         <ul className="fety-day-notes-list" aria-label={`Notes for ${dateLabel}`}>
           {notes.map((note) => (
             <li key={note.id} className="fety-day-notes-row">
-              <p className="fety-day-notes-row-text">{note.text}</p>
-              {onDeleteNote ? (
-                <button
-                  type="button"
-                  className="fety-day-notes-row-remove"
-                  aria-label="Remove note"
-                  onClick={() => onDeleteNote(dateISO, note.id)}
-                >
-                  Remove
-                </button>
-              ) : null}
+              {editingId === note.id ? (
+                <>
+                  <label className="fety-day-notes-row-edit-field">
+                    <span className="fety-label">Edit note</span>
+                    <textarea
+                      value={editDraft}
+                      onChange={(e) => setEditDraft(e.target.value)}
+                      rows={compact ? 3 : 4}
+                      autoFocus
+                    />
+                  </label>
+                  <div className="fety-day-notes-row-actions fety-day-notes-row-actions--edit">
+                    <button type="button" className="fety-day-notes-row-save" disabled={!editDraft.trim()} onClick={saveEdit}>
+                      Save
+                    </button>
+                    <button type="button" className="fety-day-notes-row-cancel" onClick={cancelEdit}>
+                      Cancel
+                    </button>
+                  </div>
+                </>
+              ) : (
+                <>
+                  <p className="fety-day-notes-row-text">{note.text}</p>
+                  <div className="fety-day-notes-row-actions">
+                    {onUpdateNote ? (
+                      <button
+                        type="button"
+                        className="fety-day-notes-row-edit"
+                        aria-label="Edit note"
+                        onClick={() => startEdit(note)}
+                      >
+                        Edit
+                      </button>
+                    ) : null}
+                    {onDeleteNote ? (
+                      <button
+                        type="button"
+                        className="fety-day-notes-row-remove"
+                        aria-label="Remove note"
+                        onClick={() => onDeleteNote(dateISO, note.id)}
+                      >
+                        Remove
+                      </button>
+                    ) : null}
+                  </div>
+                </>
+              )}
             </li>
           ))}
         </ul>

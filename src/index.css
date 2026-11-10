@@ -1277,6 +1277,53 @@ html, body, #root {
   background: var(--clear-bg);
 }
 
+.fety-txn-status-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  padding: 3px 8px;
+  border-radius: 99px;
+  white-space: nowrap;
+}
+
+.fety-txn-status-badge-icon {
+  flex-shrink: 0;
+  opacity: 0.9;
+}
+
+.fety-txn-status-badge--completed {
+  color: var(--clear-dk);
+  background: var(--clear-bg);
+}
+
+.fety-txn-status-badge--upcoming {
+  color: var(--warn-dk);
+  background: var(--warn-bg);
+}
+
+.fety-txn-status-badge--pending {
+  color: var(--ink-2);
+  background: var(--paper);
+}
+
+.fety-txn-row-list-actions {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  flex-shrink: 0;
+  min-width: min(100%, 168px);
+}
+
+.fety-txn-row-list-actions-primary {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
 .fety-txn-complete-btn,
 .fety-txn-undo-complete-btn {
   border: none;
@@ -2242,9 +2289,12 @@ html, body, #root {
 }
 
 .fety-budget-category-income-pct {
+  margin: 0;
+  flex-shrink: 0;
   font-size: 10px;
   color: var(--ink-3);
-  margin: 0 0 6px;
+  text-align: right;
+  line-height: 1.3;
 }
 
 .fety-txn-toolbar-actions {
@@ -2425,8 +2475,24 @@ html, body, #root {
   word-break: break-word;
 }
 
-.fety-day-notes-row-remove {
+.fety-day-notes-row-actions {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 4px;
   flex-shrink: 0;
+}
+
+.fety-day-notes-row-actions--edit {
+  align-self: flex-start;
+  flex-direction: row;
+  gap: 8px;
+}
+
+.fety-day-notes-row-edit,
+.fety-day-notes-row-remove,
+.fety-day-notes-row-save,
+.fety-day-notes-row-cancel {
   padding: 0;
   border: none;
   background: transparent;
@@ -2438,7 +2504,41 @@ html, body, #root {
   text-underline-offset: 2px;
 }
 
-.fety-day-notes-row-remove:hover {
+.fety-day-notes-row-save {
+  color: var(--ink);
+  text-decoration: none;
+}
+
+.fety-day-notes-row-save:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+.fety-day-notes-row-edit:hover,
+.fety-day-notes-row-remove:hover,
+.fety-day-notes-row-cancel:hover {
+  color: var(--ink);
+}
+
+.fety-day-notes-row-edit-field {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.fety-day-notes-row-edit-field textarea {
+  width: 100%;
+  min-height: 64px;
+  padding: 8px 10px;
+  border-radius: 8px;
+  border: 1px solid var(--border);
+  font-family: inherit;
+  font-size: 13px;
+  line-height: 1.45;
+  resize: vertical;
+  background: var(--surface);
   color: var(--ink);
 }
 
@@ -3800,6 +3900,71 @@ html, body, #root {
   color: var(--ink-3);
 }
 
+.fety-home-cal-period-section--transactions {
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+}
+
+.fety-home-cal-tx-section-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.fety-home-cal-tx-section-head .fety-home-cal-period-section-label {
+  margin: 0;
+}
+
+.fety-home-cal-tx-section-toggle {
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  margin: -4px -6px -4px 0;
+  border: none;
+  border-radius: 8px;
+  background: transparent;
+  color: var(--ink-3);
+  cursor: pointer;
+  font-family: inherit;
+}
+
+.fety-home-cal-tx-section-toggle:hover {
+  background: var(--bg);
+  color: var(--ink-2);
+}
+
+.fety-home-cal-tx-chevron {
+  flex-shrink: 0;
+  transition: transform 0.2s ease;
+}
+
+.fety-home-cal-tx-chevron--open {
+  transform: rotate(180deg);
+}
+
+.fety-home-cal-tx-tile-list {
+  margin: 10px 0 0;
+  padding: 0;
+  list-style: none;
+}
+
+.fety-home-cal-tx-tile-list .fety-mobile-txn-row {
+  margin-bottom: 8px;
+}
+
+.fety-home-cal-tx-tile-list .fety-mobile-txn-row:last-child {
+  margin-bottom: 0;
+}
+
+.fety-home-cal-tx-section-empty {
+  margin: 10px 0 0;
+}
+
 .fety-home-cal-period-section--notes {
   margin-top: 18px;
 }
@@ -3845,6 +4010,20 @@ html, body, #root {
   display: flex;
   flex-direction: column;
   gap: 8px;
+}
+
+.fety-home-cal-period-tx-item {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.fety-home-cal-period-tx-foot {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 0 8px 2px;
 }
 
 .fety-home-cal-period-tx-row {
@@ -7496,34 +7675,20 @@ select.fety-txn-toolbar-select {
   line-height: 1.1;
 }
 
-.fety-budget-summary-value--with-marker {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  gap: 8px;
+.fety-budget-summary-value--income {
+  color: var(--clear-dk);
+}
+
+.fety-budget-summary-value--budget {
+  color: var(--ink-3);
+}
+
+.fety-budget-summary-value--spent {
+  color: var(--trouble-dk);
 }
 
 .fety-budget-summary-value--remaining {
   color: var(--amber-dk);
-}
-
-.fety-budget-summary-value--over {
-  color: var(--trouble-dk);
-}
-
-.fety-budget-marker {
-  width: 9px;
-  height: 9px;
-  border-radius: 2px;
-  flex-shrink: 0;
-}
-
-.fety-budget-marker--spent {
-  background: var(--trouble-dk);
-}
-
-.fety-budget-marker--remaining {
-  background: var(--amber-dk);
 }
 
 .fety-budget-category-grid {
@@ -7542,7 +7707,7 @@ select.fety-txn-toolbar-select {
   background: var(--surface);
   border: 1px solid var(--border);
   border-radius: 14px;
-  padding: 16px 18px 14px;
+  padding: 14px 16px 12px;
   min-width: 0;
 }
 
@@ -7551,7 +7716,7 @@ select.fety-txn-toolbar-select {
   align-items: flex-start;
   justify-content: space-between;
   gap: 10px;
-  margin-bottom: 12px;
+  margin-bottom: 8px;
   min-height: 28px;
 }
 
@@ -7651,7 +7816,7 @@ select.fety-txn-toolbar-select {
   align-items: baseline;
   justify-content: space-between;
   gap: 10px;
-  margin-bottom: 10px;
+  margin-bottom: 8px;
 }
 
 .fety-budget-category-spent {
@@ -7694,8 +7859,19 @@ select.fety-txn-toolbar-select {
   background: var(--trouble-dk);
 }
 
+.fety-budget-category-tile-foot {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 10px;
+  margin-top: 8px;
+  min-width: 0;
+}
+
 .fety-budget-category-foot {
-  margin: 8px 0 0;
+  margin: 0;
+  flex: 1;
+  min-width: 0;
   font-size: 12px;
   color: var(--ink-3);
   line-height: 1.3;
@@ -7703,6 +7879,10 @@ select.fety-txn-toolbar-select {
 
 .fety-budget-category-foot--over {
   color: var(--trouble-dk);
+}
+
+.fety-budget-category-bar + .fety-budget-category-foot {
+  margin-top: 10px;
 }
 
 .fety-budget-category-edit {
@@ -7776,6 +7956,19 @@ select.fety-txn-toolbar-select {
   display: none;
 }
 
+.fety-budget-scheduled-kind-tile--bill .fety-budget-category-bar-fill--default,
+.fety-budget-scheduled-kind-tile--bill .fety-budget-category-bar-fill--tight,
+.fety-budget-scheduled-kind-tile--recur .fety-budget-category-bar-fill--default,
+.fety-budget-scheduled-kind-tile--recur .fety-budget-category-bar-fill--tight {
+  background: var(--trouble-dk);
+}
+
+.fety-budget-scheduled-kind-tile--income .fety-budget-category-bar-fill--default,
+.fety-budget-scheduled-kind-tile--income .fety-budget-category-bar-fill--tight,
+.fety-budget-scheduled-kind-tile--income .fety-budget-category-bar-fill--over {
+  background: var(--clear-dk);
+}
+
 .fety-budget-scheduled-panel {
   min-width: 0;
   background: var(--surface);
@@ -7826,10 +8019,10 @@ select.fety-txn-toolbar-select {
   background: var(--surface);
   border: 1px solid var(--border);
   border-radius: 16px;
-  padding: 20px 22px;
+  padding: 14px 16px 12px;
   display: flex;
   flex-direction: column;
-  gap: 12px;
+  gap: 8px;
 }
 
 .fety-goals-card-head {
@@ -7879,13 +8072,14 @@ select.fety-txn-toolbar-select {
 }
 
 .fety-goals-card-byline {
-  margin: 6px 0 0;
-  padding-left: 28px;
+  margin: 0;
+  flex-shrink: 0;
   font-size: 10px;
   font-weight: 500;
   letter-spacing: 0.1em;
   text-transform: uppercase;
   color: var(--ink-3);
+  text-align: right;
   line-height: 1.2;
 }
 
@@ -7982,8 +8176,18 @@ select.fety-txn-toolbar-select {
   background: var(--trouble-dk);
 }
 
+.fety-goals-tile-foot {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 10px;
+  min-width: 0;
+}
+
 .fety-goals-foot {
   margin: 0;
+  flex: 1;
+  min-width: 0;
   font-size: 11px;
   color: var(--ink-3);
   line-height: 1.35;

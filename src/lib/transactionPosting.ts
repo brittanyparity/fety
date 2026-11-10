@@ -11,6 +11,37 @@ export function normalizePostingStatus(
   return status ?? "completed";
 }
 
+/** Effective status for a manual transaction (uses date when postingStatus is unset). */
+export function resolveManualPostingStatus(t: Pick<Transaction, "postingStatus" | "dateISO">): TransactionPostingStatus {
+  if (t.postingStatus === "completed" || t.postingStatus === "planned") return t.postingStatus;
+  return defaultPostingStatusForNewTransaction(t.dateISO);
+}
+
+export type TransactionStatusDisplayKind = "completed" | "upcoming" | "pending";
+
+export function transactionStatusDisplayKind(t: Transaction): TransactionStatusDisplayKind | null {
+  if (!isManualStoredTransaction(t)) return "upcoming";
+  if (t.postingStatus === "completed") return "completed";
+  const today = todayISO();
+  if (t.postingStatus === "planned") {
+    return t.dateISO > today ? "upcoming" : "pending";
+  }
+  return t.dateISO > today ? "upcoming" : "pending";
+}
+
+export function transactionStatusDisplayLabel(t: Transaction): string | null {
+  if (!isManualStoredTransaction(t)) return "Upcoming";
+  const kind = transactionStatusDisplayKind(t);
+  if (kind === "completed") return "Complete";
+  if (kind === "upcoming") return "Upcoming";
+  if (kind === "pending") return "Pending Status";
+  return null;
+}
+
+export function postingStatusLabelForTransaction(t: Transaction): string {
+  return transactionStatusDisplayLabel(t) ?? "Complete";
+}
+
 export function isManualStoredTransaction(t: Transaction): boolean {
   return !isScheduledTransaction(t.id);
 }
@@ -22,7 +53,7 @@ export function transactionDisplayDateISO(t: Transaction): string {
 
 /** Date that counts toward balances once completed. */
 export function transactionLedgerDateISO(t: Transaction): string {
-  const status = normalizePostingStatus(t.postingStatus);
+  const status = isManualStoredTransaction(t) ? resolveManualPostingStatus(t) : normalizePostingStatus(t.postingStatus);
   if (status === "completed" && t.completedAtISO) return t.completedAtISO;
   return t.dateISO;
 }
@@ -30,7 +61,7 @@ export function transactionLedgerDateISO(t: Transaction): string {
 /** Included in real-time totals (net worth through today, category spend to date, etc.). */
 export function transactionCountsInActualLedger(t: Transaction): boolean {
   if (!isManualStoredTransaction(t)) return true;
-  return normalizePostingStatus(t.postingStatus) === "completed";
+  return resolveManualPostingStatus(t) === "completed";
 }
 
 /**
@@ -39,7 +70,7 @@ export function transactionCountsInActualLedger(t: Transaction): boolean {
  */
 export function transactionCountsInProjectedLedger(t: Transaction, throughISO: string): boolean {
   if (!isManualStoredTransaction(t)) return transactionLedgerDateISO(t) <= throughISO;
-  const status = normalizePostingStatus(t.postingStatus);
+  const status = resolveManualPostingStatus(t);
   if (status === "completed") return transactionLedgerDateISO(t) <= throughISO;
   return t.dateISO <= throughISO;
 }
@@ -96,6 +127,12 @@ export function markTransactionPlannedAgain(t: Transaction): Transaction {
   };
 }
 
-export function postingStatusLabel(status: TransactionPostingStatus | undefined): string {
-  return normalizePostingStatus(status) === "planned" ? "Upcoming" : "Completed";
+export function postingStatusLabel(status: TransactionPostingStatus | undefined, dateISO?: string): string {
+  if (status === "completed") return "Complete";
+  if (status === "planned") {
+    if (dateISO && dateISO > todayISO()) return "Upcoming";
+    return "Pending Status";
+  }
+  if (dateISO && dateISO > todayISO()) return "Upcoming";
+  return "Pending Status";
 }

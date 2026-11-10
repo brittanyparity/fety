@@ -37,7 +37,7 @@ export default function ScheduledKindProgressTile({
   const bar = barState(row.monthActual, row.monthlyScheduled);
 
   return (
-    <div className="fety-budget-category-tile fety-budget-scheduled-kind-tile">
+    <div className={`fety-budget-category-tile fety-budget-scheduled-kind-tile fety-budget-scheduled-kind-tile--${row.kind}`}>
       <div className="fety-budget-category-tile-top">
         <h3 className="fety-budget-category-name">
           <span className="fety-budget-category-icon" aria-hidden>

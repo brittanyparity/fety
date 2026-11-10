@@ -9,6 +9,8 @@ import {
   resolveTransactionCategory,
   transactionCategoryPickerGroups,
 } from "../lib/transactionCategories";
+import TransactionPostingStatusFields, { postingStatusFromForm } from "./TransactionPostingStatusFields";
+import { defaultPostingStatusForNewTransaction } from "../lib/transactionPosting";
 import type { AddTransactionInput, FetyStore, TransactionType } from "../types/fety";
 
 export default function TransactionPictureReview({
@@ -34,7 +36,10 @@ export default function TransactionPictureReview({
   const [notes, setNotes] = useState(draft.notes ?? "");
   const [fromAccountId, setFromAccountId] = useState("");
   const [toAccountId, setToAccountId] = useState("");
-  const [markCompleted, setMarkCompleted] = useState(true);
+  const [markCompleted, setMarkCompleted] = useState(
+    () => defaultPostingStatusForNewTransaction(draft.dateISO ?? dateISO) === "completed",
+  );
+  const [completedAtISO, setCompletedAtISO] = useState(draft.dateISO ?? dateISO);
 
   const txFlow = flowForTransactionType(store, type);
   const categoryGroups = useMemo(
@@ -58,17 +63,15 @@ export default function TransactionPictureReview({
       notes: notes.trim() || undefined,
       fromAccountId: fromAccountId || undefined,
       toAccountId: toAccountId || undefined,
-      postingStatus: markCompleted ? "completed" : "planned",
-      completedAtISO: markCompleted ? transactionDateISO : undefined,
+      postingStatus: postingStatusFromForm(markCompleted),
+      completedAtISO: markCompleted ? completedAtISO || transactionDateISO : undefined,
     });
   };
 
   return (
     <form className="fety-txn-picture-review" onSubmit={handleSubmit}>
       <p className="fety-txn-picture-review-lede">
-        Review what we pulled from your picture. Fix anything that looks off, then save. Saving records the
-        transaction — it does not mark it paid until you choose that below or use <strong>Mark as Completed</strong>{" "}
-        later.
+        Review what we pulled from your picture. Fix anything that looks off, then save.
       </p>
       {uncertain.size > 0 ? (
         <p className="fety-txn-picture-review-flag">
@@ -132,14 +135,14 @@ export default function TransactionPictureReview({
         Notes (optional)
         <textarea className="fety-input" rows={2} value={notes} onChange={(e) => setNotes(e.target.value)} />
       </label>
-      <label className="fety-txn-posting-choice">
-        <input
-          type="checkbox"
-          checked={markCompleted}
-          onChange={(e) => setMarkCompleted(e.target.checked)}
-        />
-        <span>This has already happened — count it in my balances now</span>
-      </label>
+      <TransactionPostingStatusFields
+        dateISO={transactionDateISO}
+        markCompleted={markCompleted}
+        onMarkCompletedChange={setMarkCompleted}
+        completedAtISO={completedAtISO}
+        onCompletedAtISOChange={setCompletedAtISO}
+        earliestDateISO={store.profile.balanceAsOfISO}
+      />
       <div className="fety-modal-actions">
         <button type="button" className="fety-btn-secondary" onClick={onCancel}>
           Cancel

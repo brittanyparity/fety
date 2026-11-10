@@ -5,6 +5,8 @@ import { calendarNotePreview, hasCalendarNote, noteForCalendarDay } from "../../
 import {
   calendarEndingBalanceBg,
   calBalanceColor,
+  calDayBalanceColor,
+  calFigureColor,
   calSignedColor,
 } from "../../lib/calendarUi";
 import { useIsNarrow } from "../../hooks/useIsNarrow";
@@ -133,6 +135,7 @@ export function WeeklyCalGrid({
     const isSelected = selected === key;
     const isToday = date.toDateString() === today.toDateString();
     const net = data ? data.endBal - data.startBal : 0;
+    const dayEndBal = data?.endBal ?? 0;
     return (
       <button
         key={key}
@@ -167,7 +170,17 @@ export function WeeklyCalGrid({
             style={{
               fontSize: compact ? 16 : 18,
               fontWeight: 400,
-              color: isSelected ? calSignedColor(net, true) : isToday ? "var(--lime-dk)" : "var(--ink)",
+              color: data
+                ? isSelected
+                  ? calFigureColor(net, dayEndBal, true)
+                  : isToday
+                    ? "var(--lime-dk)"
+                    : calFigureColor(net, dayEndBal)
+                : isSelected
+                  ? calSignedColor(net, true)
+                  : isToday
+                    ? "var(--lime-dk)"
+                    : "var(--ink)",
               letterSpacing: "-0.5px",
               lineHeight: 1.1,
             }}
@@ -245,6 +258,7 @@ export function YearlyCalGrid({
           const key = CAL_KEY(date);
           const data = calendarMap.get(key);
           const net = data ? data.endBal - data.startBal : 0;
+          const dayEndBal = data?.endBal ?? 0;
           const isSelected = selected === key;
           const isToday = date.toDateString() === today.toDateString();
           const isFirstOfMonth = date.getDate() === 1;
@@ -275,7 +289,23 @@ export function YearlyCalGrid({
                     {MONTHS[date.getMonth()].slice(0, 3)}
                   </span>
                 ) : null}
-                <span style={{ fontSize: 10, fontWeight: 600, color: isSelected ? calSignedColor(net, true) : isToday ? "var(--clear-dk)" : "var(--ink)" }}>
+                <span
+                  style={{
+                    fontSize: 10,
+                    fontWeight: 600,
+                    color: data
+                      ? isSelected
+                        ? calFigureColor(net, dayEndBal, true)
+                        : isToday
+                          ? "var(--clear-dk)"
+                          : calFigureColor(net, dayEndBal)
+                      : isSelected
+                        ? calSignedColor(net, true)
+                        : isToday
+                          ? "var(--clear-dk)"
+                          : "var(--ink)",
+                  }}
+                >
                   {date.getDate()}
                 </span>
                 {hasCalendarNote(calendarNotes, key) ? (
@@ -309,6 +339,7 @@ export function HomeDailyCalSummary({
 }) {
   const key = CAL_KEY(date);
   const data = calendarMap.get(key);
+  const dayEndBal = data?.endBal ?? 0;
   const notes = useMemo(() => store.calendarNotes, [store.calendarNotes]);
 
   return (
@@ -320,11 +351,11 @@ export function HomeDailyCalSummary({
       <div className="fety-home-cal-daily-balances">
         <div className="fety-home-cal-daily-bal">
           <span className="fety-label">Starting</span>
-          <strong style={{ color: calBalanceColor(data?.startBal ?? 0) }}>{data ? usd(data.startBal) : "—"}</strong>
+          <strong style={{ color: calDayBalanceColor(data?.startBal ?? 0, dayEndBal) }}>{data ? usd(data.startBal) : "—"}</strong>
         </div>
         <div className="fety-home-cal-daily-bal">
           <span className="fety-label">Ending</span>
-          <strong style={{ color: calBalanceColor(data?.endBal ?? 0) }}>{data ? usd(data.endBal) : "—"}</strong>
+          <strong style={{ color: calDayBalanceColor(data?.endBal ?? 0, dayEndBal) }}>{data ? usd(data.endBal) : "—"}</strong>
         </div>
       </div>
       {data ? <DayActivityCopy data={data} money={usd} /> : null}

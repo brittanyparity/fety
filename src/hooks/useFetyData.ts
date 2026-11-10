@@ -741,8 +741,17 @@ export function useFetyData() {
     });
   }, [patch]);
 
-  /** @deprecated Use addCalendarNote — kept for call sites that append notes. */
-  const updateCalendarNote = addCalendarNote;
+  const updateCalendarNote = useCallback((dateISO: string, noteId: string, text: string) => {
+    const trimmed = text.trim();
+    if (!trimmed) return;
+    patch((prev) => {
+      const byDay = normalizeCalendarNotes(prev.calendarNotes);
+      const dayNotes = byDay[dateISO] ?? [];
+      if (!dayNotes.some((n) => n.id === noteId)) return prev;
+      const nextDay = dayNotes.map((n) => (n.id === noteId ? { ...n, text: trimmed } : n));
+      return { ...prev, calendarNotes: { ...byDay, [dateISO]: nextDay } };
+    });
+  }, [patch]);
 
   const markTipDone = useCallback(
     (tipId: string) => {

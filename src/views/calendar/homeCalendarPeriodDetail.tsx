@@ -1,12 +1,14 @@
 import { useMemo, useState } from "react";
 import CalendarAccountsBreakdown from "../../components/CalendarAccountsBreakdown";
 import CalendarNoteIcon from "../../components/CalendarNoteIcon";
+import DayNotesPanel from "../../components/DayNotesPanel";
 import EditTransactionModal from "../../components/EditTransactionModal";
+import TransactionListTile from "../../components/TransactionListTile";
+import { isManualStoredTransaction } from "../../lib/transactionPosting";
 import { notesForCalendarDay } from "../../lib/calendarNotes";
-import { calendarEndingBalanceBg, calBalanceColor, calSignedColor } from "../../lib/calendarUi";
+import { calendarEndingBalanceBg, calDayBalanceColor, calFigureColor } from "../../lib/calendarUi";
 import { actualCashBalance } from "../../lib/affordability";
 import { todayISO } from "../../lib/fetyCalculations";
-import { isManualStoredTransaction, normalizePostingStatus, postingStatusLabel } from "../../lib/transactionPosting";
 import type { CalDay, CalDayItem, FetyStore, Transaction } from "../../types/fety";
 import HomeCalendarTileScroller from "./HomeCalendarTileScroller";
 import HomeOpenDayButton from "./HomeOpenDayButton";
@@ -36,15 +38,17 @@ function DailyBalanceRow({
   label,
   amount,
   hasData,
+  dayEndBalance,
 }: {
   label: string;
   amount: number;
   hasData: boolean;
+  dayEndBalance: number;
 }) {
   return (
     <div className="fety-home-cal-period-bal-row">
       <span className="fety-home-cal-period-bal-label">{label}</span>
-      <p className="fety-home-cal-period-balance" style={{ color: calBalanceColor(amount) }}>
+      <p className="fety-home-cal-period-balance" style={{ color: calDayBalanceColor(amount, dayEndBalance) }}>
         {hasData ? usdFull(amount) : "—"}
       </p>
     </div>
@@ -56,12 +60,14 @@ function EquationBalanceRow({
   amount,
   isSelected,
   hasData,
+  dayEndBalance,
   end,
 }: {
   label: string;
   amount: number;
   isSelected: boolean;
   hasData: boolean;
+  dayEndBalance: number;
   end?: boolean;
 }) {
   return (
@@ -69,7 +75,7 @@ function EquationBalanceRow({
       <span className="fety-home-cal-eq-bal-label">{label}</span>
       <p
         className={`fety-home-cal-eq-value${end ? " fety-home-cal-eq-value--end" : ""}`}
-        style={{ color: calBalanceColor(amount, isSelected) }}
+        style={{ color: calDayBalanceColor(amount, dayEndBalance, isSelected) }}
       >
         {hasData ? usdFull(amount) : "—"}
       </p>
@@ -77,113 +83,95 @@ function EquationBalanceRow({
   );
 }
 
-function DayNotesList({ dateISO, calendarNotes }: { dateISO: string; calendarNotes?: FetyStore["calendarNotes"] }) {
-  const notes = notesForCalendarDay(calendarNotes, dateISO);
-  if (notes.length === 0) return null;
+function transactionForDayItem(
+  item: CalDayItem,
+  dateISO: string,
+  txById: Map<string, Transaction>,
+): Transaction {
+  const stored = txById.get(item.id);
+  if (stored) return stored;
+  return {
+    id: item.id,
+    dateISO,
+    desc: item.desc,
+    category: item.category,
+    amount: item.amount,
+    type: item.txnType,
+    icon: item.icon,
+  };
+}
+
+function TransactionsSectionChevron({ open }: { open: boolean }) {
   return (
-    <ul className="fety-home-cal-period-notes">
-      {notes.map((note) => (
-        <li key={note.id}>{note.text.trim()}</li>
-      ))}
-    </ul>
+    <svg
+      width="14"
+      height="14"
+      viewBox="0 0 14 14"
+      fill="none"
+      className={open ? "fety-home-cal-tx-chevron fety-home-cal-tx-chevron--open" : "fety-home-cal-tx-chevron"}
+      aria-hidden
+    >
+      <path d="M3 5l4 4 4-4" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" />
+    </svg>
   );
 }
 
-function DayTransactionsList({
+function DayTransactionsSection({
   items,
   emptyLabel = "No transactions on this day.",
+  dateISO,
+  store,
   onEditItem,
+  onDeleteItem,
   txById,
-  onCompleteTransaction,
-  onMarkTransactionUpcoming,
 }: {
   items: CalDayItem[];
   emptyLabel?: string;
+  dateISO: string;
+  store: FetyStore;
   onEditItem: (item: CalDayItem) => void;
+  onDeleteItem?: (id: string) => void;
   txById: Map<string, Transaction>;
-  onCompleteTransaction?: (id: string, completedAtISO?: string) => void;
-  onMarkTransactionUpcoming?: (id: string) => void;
 }) {
-  if (items.length === 0) {
-    return <p className="fety-home-cal-period-muted">{emptyLabel}</p>;
-  }
+  const [open, setOpen] = useState(true);
+
   return (
-    <ul className="fety-home-cal-period-tx-list">
-      {items.map((item) => {
-        const stored = txById.get(item.id);
-        const manual = stored ? isManualStoredTransaction(stored) : false;
-        const postingStatus = manual ? normalizePostingStatus(stored!.postingStatus) : "completed";
-        return (
-          <li key={item.id}>
-            <div
-              className="fety-home-cal-period-tx-row fety-home-cal-period-tx-row--interactive"
-              role="button"
-              tabIndex={0}
-              onClick={() => onEditItem(item)}
-              onKeyDown={(e) => {
-                if (e.key === "Enter" || e.key === " ") {
-                  e.preventDefault();
-                  onEditItem(item);
-                }
-              }}
-            >
-              <span className="fety-home-cal-period-tx-icon" aria-hidden>
-                {item.icon}
-              </span>
-              <span className="fety-home-cal-period-tx-name">{txLabel(item)}</span>
-              {manual ? (
-                <span
-                  className={
-                    postingStatus === "planned"
-                      ? "fety-txn-status-pill fety-txn-status-pill--upcoming"
-                      : "fety-txn-status-pill fety-txn-status-pill--completed"
-                  }
-                >
-                  {postingStatusLabel(stored!.postingStatus)}
-                </span>
-              ) : null}
-              <span className="fety-home-cal-period-tx-amt" style={{ color: calSignedColor(item.amount) }}>
-                {signedAmount(item.amount)}
-              </span>
-              {manual && postingStatus === "planned" && onCompleteTransaction ? (
-                <button
-                  type="button"
-                  className="fety-txn-complete-btn"
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    onCompleteTransaction(stored!.id, todayISO());
-                  }}
-                >
-                  Mark as Completed
-                </button>
-              ) : null}
-              {manual && postingStatus === "completed" && onMarkTransactionUpcoming ? (
-                <button
-                  type="button"
-                  className="fety-txn-undo-complete-btn"
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    onMarkTransactionUpcoming(stored!.id);
-                  }}
-                >
-                  Mark as Upcoming
-                </button>
-              ) : null}
-              <button
-                type="button"
-                className="fety-home-cal-period-tx-edit"
-                onClick={(e) => {
-                  e.stopPropagation();
-                  onEditItem(item);
-                }}
-              >
-                Edit
-              </button>
-            </div>
-          </li>
-        );
-      })}
-    </ul>
+    <section className="fety-home-cal-period-section fety-home-cal-period-section--transactions">
+      <div className="fety-home-cal-tx-section-head">
+        <h4 className="fety-home-cal-period-section-label">Transactions</h4>
+        <button
+          type="button"
+          className="fety-home-cal-tx-section-toggle"
+          aria-expanded={open}
+          aria-label={open ? "Collapse transactions" : "Expand transactions"}
+          onClick={() => setOpen((v) => !v)}
+        >
+          <TransactionsSectionChevron open={open} />
+        </button>
+      </div>
+      {open ? (
+        items.length === 0 ? (
+          <p className="fety-home-cal-period-muted fety-home-cal-tx-section-empty">{emptyLabel}</p>
+        ) : (
+          <ul className="fety-mobile-txn-list fety-home-cal-tx-tile-list">
+            {items.map((item) => {
+              const stored = txById.get(item.id);
+              const transaction = transactionForDayItem(item, dateISO, txById);
+              const canDelete = Boolean(onDeleteItem && stored && isManualStoredTransaction(stored));
+              return (
+                <TransactionListTile
+                  key={item.id}
+                  transaction={transaction}
+                  store={store}
+                  onEdit={() => onEditItem(item)}
+                  onDelete={canDelete ? () => onDeleteItem!(item.id) : undefined}
+                />
+              );
+            })}
+          </ul>
+        )
+      ) : null}
+    </section>
   );
 }
 
@@ -197,12 +185,18 @@ export function HomeCalendarDailyDetail({
   onDeleteTransaction,
   onCompleteTransaction,
   onMarkTransactionUpcoming,
+  onAddCalendarNote,
+  onUpdateCalendarNote,
+  onDeleteCalendarNote,
 }: {
   date: Date;
   dateISO: string;
   data?: CalDay;
   calendarNotes?: FetyStore["calendarNotes"];
   store: FetyStore;
+  onAddCalendarNote?: (dateISO: string, text: string) => void;
+  onUpdateCalendarNote?: (dateISO: string, noteId: string, text: string) => void;
+  onDeleteCalendarNote?: (dateISO: string, noteId: string) => void;
   onUpdateTransaction: (
     id: string,
     updates: Partial<
@@ -266,25 +260,25 @@ export function HomeCalendarDailyDetail({
             label={showActualVsPlanned ? "Starting balance (planned)" : "Starting Balance"}
             amount={startBal}
             hasData={Boolean(data)}
+            dayEndBalance={endBal}
           />
         </section>
 
-        <section className="fety-home-cal-period-section">
-          <h4 className="fety-home-cal-period-section-label">Transactions</h4>
-          <DayTransactionsList
-            items={items}
-            onEditItem={openEdit}
-            txById={txById}
-            onCompleteTransaction={onCompleteTransaction}
-            onMarkTransactionUpcoming={onMarkTransactionUpcoming}
-          />
-        </section>
+        <DayTransactionsSection
+          items={items}
+          dateISO={dateISO}
+          store={store}
+          onEditItem={openEdit}
+          onDeleteItem={onDeleteTransaction}
+          txById={txById}
+        />
 
         <section className="fety-home-cal-period-section">
           <DailyBalanceRow
             label={showActualVsPlanned ? "Ending balance (planned)" : "Ending Balance"}
             amount={endBal}
             hasData={Boolean(data)}
+            dayEndBalance={endBal}
           />
         </section>
 
@@ -301,8 +295,21 @@ export function HomeCalendarDailyDetail({
             <CalendarNoteIcon size={11} />
             Notes
           </h4>
-          {notesForCalendarDay(calendarNotes, dateISO).length > 0 ? (
-            <DayNotesList dateISO={dateISO} calendarNotes={calendarNotes} />
+          {onAddCalendarNote ? (
+            <DayNotesPanel
+              dateISO={dateISO}
+              notes={notesForCalendarDay(calendarNotes, dateISO)}
+              onAddNote={onAddCalendarNote}
+              onUpdateNote={onUpdateCalendarNote}
+              onDeleteNote={onDeleteCalendarNote}
+              compact
+            />
+          ) : notesForCalendarDay(calendarNotes, dateISO).length > 0 ? (
+            <ul className="fety-home-cal-period-notes">
+              {notesForCalendarDay(calendarNotes, dateISO).map((note) => (
+                <li key={note.id}>{note.text.trim()}</li>
+              ))}
+            </ul>
           ) : (
             <p className="fety-home-cal-period-muted">No notes for this day.</p>
           )}
@@ -372,7 +379,13 @@ export function HomeCalendarEquationDay({
       <p className="fety-home-cal-eq-head">{dayHead}</p>
 
       <HomeCalendarTileScroller className="fety-home-cal-tile-scroll-wrap--eq">
-        <EquationBalanceRow label="Start" amount={startBal} isSelected={isSelected} hasData={Boolean(data)} />
+        <EquationBalanceRow
+          label="Start"
+          amount={startBal}
+          isSelected={isSelected}
+          hasData={Boolean(data)}
+          dayEndBalance={endBal}
+        />
 
         <div className="fety-home-cal-eq-rule" aria-hidden />
 
@@ -387,7 +400,7 @@ export function HomeCalendarEquationDay({
                   <span className="fety-home-cal-eq-tx-desc">{txLabel(item)}</span>
                 </div>
                 <div className="fety-home-cal-eq-tx-amt-row">
-                  <span className="fety-home-cal-eq-tx-amt" style={{ color: calSignedColor(item.amount, isSelected) }}>
+                  <span className="fety-home-cal-eq-tx-amt" style={{ color: calFigureColor(item.amount, endBal, isSelected) }}>
                     {signedAmount(item.amount)}
                   </span>
                 </div>
@@ -400,7 +413,14 @@ export function HomeCalendarEquationDay({
 
         <div className="fety-home-cal-eq-rule" aria-hidden />
 
-        <EquationBalanceRow label="End" amount={endBal} isSelected={isSelected} hasData={Boolean(data)} end />
+        <EquationBalanceRow
+          label="End"
+          amount={endBal}
+          isSelected={isSelected}
+          hasData={Boolean(data)}
+          dayEndBalance={endBal}
+          end
+        />
 
         {notes.length > 0 ? (
           <div className="fety-home-cal-eq-notes-block">

@@ -179,11 +179,13 @@ export default function HomeInsightCharts({
   summary,
   store,
   focusDateISO,
+  layout = "tabs",
 }: {
   analysis: FinancialAnalysis;
   summary: FinanceSummary;
   store: FetyStore;
   focusDateISO: string;
+  layout?: "tabs" | "tiles";
 }) {
   const [tab, setTab] = useState<InsightChartTab>("picture");
   const mixLegend = useMemo(() => categoryMixPieData(analysis), [analysis]);
@@ -210,6 +212,88 @@ export default function HomeInsightCharts({
       : mixBudgetTotal > 0
         ? `You have ${mixLegend.length} categories totaling ${formatUsd(mixBudgetTotal)} per month — here's how that plan is divided as of ${dayLabel}.`
         : "Add monthly amounts to your categories and this chart will show where your budget weight sits.";
+
+  const incomePanel = (
+    <div className="fety-home-insight-split">
+      <div className="fety-home-insight-copy">
+        <p className="fety-home-insight-lede">{pictureLede}</p>
+        <dl className="fety-analysis-stats fety-analysis-stats--compact fety-analysis-stats--picture-grid">
+          <div>
+            <dt>Income</dt>
+            <dd>{formatUsd(analysis.expectedMonthlyIncome)}</dd>
+          </div>
+          <div>
+            <dt>Expenses</dt>
+            <dd>{formatUsd(analysis.regularObligations)}</dd>
+          </div>
+          <div>
+            <dt>Goals</dt>
+            <dd>{formatUsd(goalsMonthly)}</dd>
+          </div>
+          <div>
+            <dt>Available</dt>
+            <dd>{formatUsd(incomeAvailable)}</dd>
+          </div>
+        </dl>
+      </div>
+      <div className="fety-home-insight-visual">
+        <IncomeAllocationChart analysis={analysis} size={layout === "tiles" ? 160 : 180} />
+      </div>
+    </div>
+  );
+
+  const mixPanel = (
+    <div className="fety-home-insight-split">
+      <div className="fety-home-insight-copy">
+        <p className="fety-home-insight-lede">{mixLede}</p>
+        <ul
+          className={`fety-analysis-legend fety-analysis-legend--compact${layout === "tiles" ? "" : " fety-analysis-legend--two-col"}`}
+        >
+          {mixLegend.map((d) => (
+            <li key={d.name}>
+              <span className="fety-analysis-swatch" style={{ background: d.fill }} />
+              <span>{d.name}</span>
+              <strong>
+                {d.pct}% · {formatUsd(d.amount)}
+              </strong>
+            </li>
+          ))}
+        </ul>
+      </div>
+      <div className="fety-home-insight-visual fety-home-insight-visual--center">
+        <CategoryMixChart analysis={analysis} size={layout === "tiles" ? 168 : 200} />
+      </div>
+    </div>
+  );
+
+  const powerPanel = (
+    <SpendingPowerPanel analysis={analysis} summary={summary} store={store} focusDateISO={focusDateISO} />
+  );
+
+  if (layout === "tiles") {
+    return (
+      <div className="fety-home-insight-charts fety-home-insight-charts--tiles">
+        <section className="fety-mobile-insight-tile" aria-labelledby="fety-mobile-insight-income-title">
+          <h2 id="fety-mobile-insight-income-title" className="fety-mobile-insight-tile-title">
+            Income
+          </h2>
+          <div className="fety-home-insight-panel fety-home-insight-panel--vcenter">{incomePanel}</div>
+        </section>
+        <section className="fety-mobile-insight-tile" aria-labelledby="fety-mobile-insight-mix-title">
+          <h2 id="fety-mobile-insight-mix-title" className="fety-mobile-insight-tile-title">
+            Budget mix
+          </h2>
+          <div className="fety-home-insight-panel fety-home-insight-panel--vcenter">{mixPanel}</div>
+        </section>
+        <section className="fety-mobile-insight-tile" aria-labelledby="fety-mobile-insight-power-title">
+          <h2 id="fety-mobile-insight-power-title" className="fety-mobile-insight-tile-title">
+            Affordability
+          </h2>
+          <div className="fety-home-insight-panel fety-home-insight-panel--vcenter">{powerPanel}</div>
+        </section>
+      </div>
+    );
+  }
 
   return (
     <div className="fety-home-insight-charts">
@@ -256,32 +340,7 @@ export default function HomeInsightCharts({
           role="tabpanel"
           aria-labelledby="fety-home-insight-tab-picture"
         >
-          <div className="fety-home-insight-split">
-            <div className="fety-home-insight-copy">
-              <p className="fety-home-insight-lede">{pictureLede}</p>
-              <dl className="fety-analysis-stats fety-analysis-stats--compact fety-analysis-stats--picture-grid">
-                <div>
-                  <dt>Income</dt>
-                  <dd>{formatUsd(analysis.expectedMonthlyIncome)}</dd>
-                </div>
-                <div>
-                  <dt>Expenses</dt>
-                  <dd>{formatUsd(analysis.regularObligations)}</dd>
-                </div>
-                <div>
-                  <dt>Goals</dt>
-                  <dd>{formatUsd(goalsMonthly)}</dd>
-                </div>
-                <div>
-                  <dt>Available</dt>
-                  <dd>{formatUsd(incomeAvailable)}</dd>
-                </div>
-              </dl>
-            </div>
-            <div className="fety-home-insight-visual">
-              <IncomeAllocationChart analysis={analysis} size={180} />
-            </div>
-          </div>
+          {incomePanel}
         </div>
       ) : null}
 
@@ -292,25 +351,7 @@ export default function HomeInsightCharts({
           role="tabpanel"
           aria-labelledby="fety-home-insight-tab-mix"
         >
-          <div className="fety-home-insight-split">
-            <div className="fety-home-insight-copy">
-              <p className="fety-home-insight-lede">{mixLede}</p>
-              <ul className="fety-analysis-legend fety-analysis-legend--compact fety-analysis-legend--two-col">
-                {mixLegend.map((d) => (
-                  <li key={d.name}>
-                    <span className="fety-analysis-swatch" style={{ background: d.fill }} />
-                    <span>{d.name}</span>
-                    <strong>
-                      {d.pct}% · {formatUsd(d.amount)}
-                    </strong>
-                  </li>
-                ))}
-              </ul>
-            </div>
-            <div className="fety-home-insight-visual fety-home-insight-visual--center">
-              <CategoryMixChart analysis={analysis} size={200} />
-            </div>
-          </div>
+          {mixPanel}
         </div>
       ) : null}
 
@@ -321,12 +362,7 @@ export default function HomeInsightCharts({
           role="tabpanel"
           aria-labelledby="fety-home-insight-tab-power"
         >
-          <SpendingPowerPanel
-            analysis={analysis}
-            summary={summary}
-            store={store}
-            focusDateISO={focusDateISO}
-          />
+          {powerPanel}
         </div>
       ) : null}
     </div>

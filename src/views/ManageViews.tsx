@@ -1,17 +1,20 @@
 import { useEffect, useMemo, useState } from "react";
 import { createPortal } from "react-dom";
 import AddTransactionModal, { type AddTransactionModalActions } from "../components/AddTransactionModal";
-import TransactionDateRangeFilter from "../components/TransactionDateRangeFilter";
+import EditTransactionModal from "../components/EditTransactionModal";
+import TransactionListFiltersForm from "../components/TransactionListFiltersForm";
 import TransactionAccountFields from "../components/TransactionAccountFields";
 import TransactionCategorySelect from "../components/TransactionCategorySelect";
 import {
   filterBudgetCategories,
   filterPickerGroupsForFlow,
   resolveTransactionCategory,
-  allTransactionCategoryNames,
-  isRetiredCategoryName,
-  transactionCategoryPickerGroups,
 } from "../lib/transactionCategories";
+import {
+  defaultTransactionListFilters,
+  filterTransactionsList,
+  type TransactionListFilterState,
+} from "../lib/transactionListFilters";
 import { computeScheduledKindProgress } from "../lib/scheduledKindProgress";
 import ScheduledKindProgressTile from "./budget/ScheduledKindProgressTile";
 import type {
@@ -33,9 +36,11 @@ import { endingBalanceOnDate, formatTransactionGroupDate, todayISO } from "../li
 import { incomeScheduledTotalInMonth } from "../lib/scheduleMonthTotals";
 import {
   isManualStoredTransaction,
-  normalizePostingStatus,
-  postingStatusLabel,
+  resolveManualPostingStatus,
+  transactionStatusDisplayKind,
+  transactionStatusDisplayLabel,
 } from "../lib/transactionPosting";
+import TransactionStatusBadge from "../components/TransactionStatusBadge";
 import { EditableNumber, EditableText } from "../components/EditableField";
 import EmojiIconPicker from "../components/EmojiIconPicker";
 import BillScheduleFields from "../components/BillScheduleFields";
@@ -511,23 +516,31 @@ export function BudgetManageView({
   const typeLabel = (id: TransactionType) => transactionTypes.find((t) => t.id === id)?.name ?? id;
 
   const budgetCategories = filterBudgetCategories(categories);
-  const totalBudget = budgetCategories.reduce((s, c) => s + c.monthlyBudget, 0);
-  const totalSpent = budgetCategories.reduce((s, c) => s + c.spent, 0);
+  const budgetMonthRef = useMemo(() => new Date(), []);
 
   const scheduledKindProgress = useMemo(
     () =>
-      computeScheduledKindProgress({
-        bills,
-        incomeStreams,
-        recurringTransactions,
-        transactions,
-        profile,
-        transactionTypes,
-        typeIcons,
-      }),
-    [bills, incomeStreams, recurringTransactions, transactions, profile, transactionTypes, typeIcons],
+      computeScheduledKindProgress(
+        {
+          bills,
+          incomeStreams,
+          recurringTransactions,
+          transactions,
+          profile,
+          transactionTypes,
+          typeIcons,
+        },
+        budgetMonthRef,
+      ),
+    [bills, incomeStreams, recurringTransactions, transactions, profile, transactionTypes, typeIcons, budgetMonthRef],
   );
   const [billsProgress, incomeProgress, recurProgress] = scheduledKindProgress;
+
+  const categoriesBudgetTotal = budgetCategories.reduce((s, c) => s + c.monthlyBudget, 0);
+  const categoriesSpentTotal = budgetCategories.reduce((s, c) => s + c.spent, 0);
+  const totalBudget =
+    categoriesBudgetTotal + billsProgress.monthlyScheduled + recurProgress.monthlyScheduled;
+  const totalSpent = categoriesSpentTotal + billsProgress.monthActual + recurProgress.monthActual;
 
   const submitBill = (e: React.FormEvent) => {
     e.preventDefault();
@@ -637,20 +650,10 @@ export function BudgetManageView({
   });
 
   const totalRemaining = totalBudget - totalSpent;
-  const budgetMonthRef = useMemo(() => new Date(), []);
   const monthlyIncomePlanned = useMemo(
     () => incomeScheduledTotalInMonth(incomeStreams, budgetMonthRef),
     [incomeStreams, budgetMonthRef],
   );
-  const incomeStreamBreakdown = useMemo(() => {
-    const total = monthlyIncomePlanned;
-    if (total <= 0) return [];
-    return incomeStreams.map((s) => {
-      const amount = incomeScheduledTotalInMonth([s], budgetMonthRef);
-      return { id: s.id, name: s.name, icon: s.icon, amount, pct: Math.round((amount / total) * 1000) / 10 };
-    });
-  }, [incomeStreams, budgetMonthRef, monthlyIncomePlanned]);
-
   const submitNewCategory = (e: React.FormEvent) => {
     e.preventDefault();
     const name = newCategoryName.trim();
@@ -677,50 +680,23 @@ export function BudgetManageView({
       >
         <div className="fety-budget-summary-cell">
           <p className="fety-budget-summary-label">Monthly income</p>
-          <p className="fety-budget-summary-value">{usd(monthlyIncomePlanned)}</p>
+          <p className="fety-budget-summary-value fety-budget-summary-value--income">{usd(monthlyIncomePlanned)}</p>
         </div>
         <div className="fety-budget-summary-cell">
-          <p className="fety-budget-summary-label">Monthly budgeted</p>
-          <p className="fety-budget-summary-value">{usd(totalBudget)}</p>
+          <p className="fety-budget-summary-label">Monthly budget</p>
+          <p className="fety-budget-summary-value fety-budget-summary-value--budget">{usd(totalBudget)}</p>
         </div>
         <div className="fety-budget-summary-cell">
           <p className="fety-budget-summary-label">Spent so far</p>
-          <p className="fety-budget-summary-value fety-budget-summary-value--with-marker">
-            <span className="fety-budget-marker fety-budget-marker--spent" aria-hidden />
-            {usd(totalSpent)}
-          </p>
+          <p className="fety-budget-summary-value fety-budget-summary-value--spent">{usd(totalSpent)}</p>
         </div>
         <div className="fety-budget-summary-cell">
           <p className="fety-budget-summary-label">Remaining</p>
-          <p
-            className={`fety-budget-summary-value fety-budget-summary-value--with-marker${totalRemaining < 0 ? " fety-budget-summary-value--over" : " fety-budget-summary-value--remaining"}`}
-          >
-            <span
-              className={`fety-budget-marker${totalRemaining < 0 ? " fety-budget-marker--spent" : " fety-budget-marker--remaining"}`}
-              aria-hidden
-            />
+          <p className="fety-budget-summary-value fety-budget-summary-value--remaining">
             {usd(Math.abs(totalRemaining))}
           </p>
         </div>
       </div>
-
-      {incomeStreamBreakdown.length > 0 ? (
-        <section className="fety-budget-income-breakdown">
-          <h2 className="fety-budget-section-heading">Income streams this month</h2>
-          <ul className="fety-budget-income-list">
-            {incomeStreamBreakdown.map((row) => (
-              <li key={row.id} className="fety-budget-income-row">
-                <span>
-                  {row.icon} {row.name}
-                </span>
-                <span>
-                  {usd(row.amount)} · {row.pct}%
-                </span>
-              </li>
-            ))}
-          </ul>
-        </section>
-      ) : null}
 
       <h2 className="fety-budget-section-heading">Budget categories</h2>
       <div className={`fety-budget-category-grid${viewMode === "list" ? " fety-budget-category-grid--list" : ""}`}>
@@ -824,9 +800,6 @@ export function BudgetManageView({
                       Savings goal: {linkedGoal.icon} {linkedGoal.name} — contributions from this category count toward that goal.
                     </p>
                   ) : null}
-                  {monthlyIncomePlanned > 0 && c.monthlyBudget > 0 ? (
-                    <p className="fety-budget-category-income-pct">{incomePct}% of monthly income</p>
-                  ) : null}
                   <div className="fety-budget-category-amounts">
                     <span className="fety-budget-category-spent">{usd(c.spent)}</span>
                     <span className="fety-budget-category-cap">{usd(c.monthlyBudget)}</span>
@@ -843,9 +816,14 @@ export function BudgetManageView({
                       style={{ width: `${bar.pct}%` }}
                     />
                   </div>
-                  <p className={`fety-budget-category-foot${bar.over ? " fety-budget-category-foot--over" : ""}`}>
-                    {bar.over ? `${usd(c.spent - c.monthlyBudget)} over` : `${usd(Math.max(0, bar.left))} left`}
-                  </p>
+                  <div className="fety-budget-category-tile-foot">
+                    <p className={`fety-budget-category-foot${bar.over ? " fety-budget-category-foot--over" : ""}`}>
+                      {bar.over ? `${usd(c.spent - c.monthlyBudget)} over` : `${usd(Math.max(0, bar.left))} left`}
+                    </p>
+                    {monthlyIncomePlanned > 0 && c.monthlyBudget > 0 ? (
+                      <p className="fety-budget-category-income-pct">{incomePct}% of monthly income</p>
+                    ) : null}
+                  </div>
                 </>
               )}
             </div>
@@ -1476,7 +1454,7 @@ export function TransactionsManageView({
   onUpdate: (
     id: string,
     updates: Partial<
-      Pick<Transaction, "desc" | "amount" | "type" | "category" | "dateISO" | "icon" | "fromAccountId" | "toAccountId" | "goalId">
+      Pick<Transaction, "desc" | "amount" | "type" | "category" | "dateISO" | "icon" | "fromAccountId" | "toAccountId" | "goalId" | "postingStatus" | "completedAtISO">
     >,
   ) => void;
   onDelete: (id: string) => void;
@@ -1489,30 +1467,19 @@ export function TransactionsManageView({
 }) {
   const ledgerStore = { accounts, goals, transactionTypes, typeIcons, transactions, profile: { startingBalance: 0, displayName: "", email: "", currency: "USD" } } as import("../types/fety").FetyStore;
   const defaultTypeId = transactionTypes.find((t) => t.id === "expense")?.id ?? transactionTypes[0]?.id ?? "expense";
-  const [filter, setFilter] = useState("All");
-  const [accountFilter, setAccountFilter] = useState<string>("all");
-  const [dateRangeStartISO, setDateRangeStartISO] = useState("");
-  const [dateRangeEndISO, setDateRangeEndISO] = useState("");
-  const [categoryFilter, setCategoryFilter] = useState("all");
-  const [statusFilter, setStatusFilter] = useState<"all" | "upcoming" | "completed">("all");
-  const [includeFutureDates, setIncludeFutureDates] = useState(false);
+  const [filters, setFilters] = useState<TransactionListFilterState>(() =>
+    defaultTransactionListFilters(initialAccountFilter),
+  );
   const [bulkMode, setBulkMode] = useState(false);
   const [selectedIds, setSelectedIds] = useState<Set<string>>(() => new Set());
-  const [editId, setEditId] = useState<string | null>(null);
+  const [editModalTxn, setEditModalTxn] = useState<Transaction | null>(null);
 
   useEffect(() => {
-    if (initialAccountFilter) setAccountFilter(initialAccountFilter);
-    else if (initialAccountFilter === null) setAccountFilter("all");
+    if (initialAccountFilter) setFilters((f) => ({ ...f, accountFilter: initialAccountFilter }));
+    else if (initialAccountFilter === null) setFilters((f) => ({ ...f, accountFilter: "all" }));
   }, [initialAccountFilter]);
 
   const [addOpen, setAddOpen] = useState(false);
-  const [editDesc, setEditDesc] = useState("");
-  const [editAmount, setEditAmount] = useState("");
-  const [editType, setEditType] = useState<TransactionType>(defaultTypeId);
-  const [editCategory, setEditCategory] = useState("Other");
-  const [editFromAccountId, setEditFromAccountId] = useState("");
-  const [editToAccountId, setEditToAccountId] = useState("");
-  const [editGoalId, setEditGoalId] = useState("");
 
   const addTxStore = useMemo(
     () =>
@@ -1536,61 +1503,14 @@ export function TransactionsManageView({
     [addTxStore, endingBalanceForDateProp],
   );
 
-  const filterLabels = ["All", ...transactionTypes.map((t) => t.name)];
-
-  const categoryFilterGroups = useMemo(() => {
-    const include =
-      categoryFilter !== "all" && categoryFilter.trim() ? categoryFilter : undefined;
-    const groups = transactionCategoryPickerGroups(addTxStore, include);
-    const known = new Set(allTransactionCategoryNames(groups));
-    const orphans: string[] = [];
-    for (const t of transactions) {
-      const name = t.category?.trim();
-      if (!name || isRetiredCategoryName(name) || known.has(name)) continue;
-      known.add(name);
-      orphans.push(name);
-    }
-    orphans.sort((a, b) => a.localeCompare(b));
-    return { ...groups, orphans };
-  }, [addTxStore, categoryFilter, transactions]);
-
-  const shown = useMemo(() => {
-    return transactions.filter((t) => {
-      if (earliestDateISO && t.dateISO < earliestDateISO) return false;
-      if (accountFilter !== "all" && t.fromAccountId !== accountFilter && t.toAccountId !== accountFilter) return false;
-      if (filter !== "All") {
-        const tt = transactionTypes.find((x) => x.id === t.type);
-        if (tt?.name !== filter && t.type !== filter) return false;
-      }
-      if (dateRangeStartISO && dateRangeEndISO) {
-        if (t.dateISO < dateRangeStartISO || t.dateISO > dateRangeEndISO) return false;
-      } else if (!dateRangeStartISO && !dateRangeEndISO && !includeFutureDates && t.dateISO > todayISO()) {
-        return false;
-      }
-      if (categoryFilter !== "all" && t.category !== categoryFilter) return false;
-      if (statusFilter !== "all") {
-        if (!isManualStoredTransaction(t)) {
-          if (statusFilter === "upcoming") return false;
-        } else {
-          const status = normalizePostingStatus(t.postingStatus);
-          if (statusFilter === "upcoming" && status !== "planned") return false;
-          if (statusFilter === "completed" && status !== "completed") return false;
-        }
-      }
-      return true;
-    });
-  }, [
-    transactions,
-    earliestDateISO,
-    accountFilter,
-    filter,
-    dateRangeStartISO,
-    dateRangeEndISO,
-    categoryFilter,
-    statusFilter,
-    includeFutureDates,
-    transactionTypes,
-  ]);
+  const shown = useMemo(
+    () =>
+      filterTransactionsList(transactions, filters, {
+        transactionTypes,
+        earliestDateISO,
+      }),
+    [transactions, filters, transactionTypes, earliestDateISO],
+  );
 
   const dateGroups = useMemo(() => {
     const byDateISO: Record<string, Transaction[]> = {};
@@ -1628,103 +1548,31 @@ export function TransactionsManageView({
     const meta = formatTransactionCategoryTypeLines(t, addTxStore);
     const detail = formatTransactionDetailLine(t, addTxStore);
     const manual = isManualStoredTransaction(t);
-    const postingStatus = manual ? normalizePostingStatus(t.postingStatus) : "completed";
+    const postingStatus = manual ? resolveManualPostingStatus(t) : "completed";
+    const displayKind = manual ? transactionStatusDisplayKind(t) : null;
     const statusLine =
       manual && postingStatus === "completed" && t.completedAtISO && t.completedAtISO !== t.dateISO
         ? `Completed ${formatTransactionGroupDate(t.completedAtISO)}`
         : manual
-          ? postingStatusLabel(t.postingStatus)
+          ? transactionStatusDisplayLabel(t)
           : null;
     return (
       <div
         key={t.id}
-        className={manual && postingStatus === "planned" ? "fety-txn-row fety-txn-row--upcoming" : "fety-txn-row"}
+        className={
+          displayKind === "upcoming" || displayKind === "pending"
+            ? "fety-txn-row fety-txn-row--upcoming"
+            : "fety-txn-row"
+        }
         style={{
           display: "flex",
-          alignItems: editId === t.id ? "stretch" : "center",
+          alignItems: "center",
           padding: "12px 18px",
           borderTop: "1px solid var(--border)",
           gap: 12,
         }}
       >
-        {editId === t.id ? (
-          <div className="fety-txn-list-edit">
-            <div className="fety-txn-list-edit-fields">
-              <div className="fety-form-desc">
-                <label className="fety-label" style={{ display: "block", marginBottom: 4 }}>Name</label>
-                <input value={editDesc} onChange={(e) => setEditDesc(e.target.value)} style={inputStyle} placeholder="Name" />
-              </div>
-              <div>
-                <label className="fety-label" style={{ display: "block", marginBottom: 4 }}>Amount</label>
-                <CurrencyInput value={editAmount} onChange={setEditAmount} placeholder="0.00" />
-              </div>
-              <div>
-                <label className="fety-label" style={{ display: "block", marginBottom: 4 }}>Transaction type</label>
-                <select value={editType} onChange={(e) => setEditType(e.target.value)} style={inputStyle}>
-                  {transactionTypes.map((tt) => (
-                    <option key={tt.id} value={tt.id}>
-                      {tt.name}
-                    </option>
-                  ))}
-                </select>
-              </div>
-              <div>
-                <label className="fety-label" style={{ display: "block", marginBottom: 4 }}>Transaction category</label>
-                <TransactionCategorySelect
-                  store={addTxStore}
-                  transactionType={editType}
-                  value={editCategory}
-                  onChange={setEditCategory}
-                  style={inputStyle}
-                />
-              </div>
-            </div>
-            <TransactionRoutingFields
-              type={editType}
-              accounts={accounts}
-              goals={goals}
-              fromAccountId={editFromAccountId}
-              toAccountId={editToAccountId}
-              goalId={editGoalId}
-              onFromAccountId={setEditFromAccountId}
-              onToAccountId={setEditToAccountId}
-              onGoalId={setEditGoalId}
-              storeForFlow={ledgerStore}
-              spreadTransfer
-            />
-            <div className="fety-txn-list-edit-actions">
-              <button type="button" onClick={() => setEditId(null)} className="fety-txn-list-edit-btn fety-txn-list-edit-btn--secondary">
-                Cancel
-              </button>
-              <button
-                type="button"
-                className="fety-txn-list-edit-btn fety-txn-list-edit-btn--primary"
-                onClick={() => {
-                  const n = parseFloat(editAmount);
-                  const categoryGroups = filterPickerGroupsForFlow(
-                    transactionCategoryPickerGroups(addTxStore, editCategory),
-                    flowForTransactionType(ledgerStore, editType),
-                  );
-                  const categoryToSave = resolveTransactionCategory(categoryGroups, editCategory);
-                  if (!editDesc.trim() || !Number.isFinite(n) || !categoryToSave) return;
-                  onUpdate(t.id, {
-                    desc: editDesc.trim(),
-                    amount: n,
-                    type: editType,
-                    category: categoryToSave,
-                    fromAccountId: editFromAccountId || undefined,
-                    toAccountId: editToAccountId || undefined,
-                    goalId: editGoalId || undefined,
-                  });
-                  setEditId(null);
-                }}
-              >
-                Save
-              </button>
-            </div>
-          </div>
-        ) : (
-          <>
+        <>
             {bulkMode ? (
               <label className="fety-txn-bulk-check" style={{ display: "flex", alignItems: "center" }}>
                 <input
@@ -1741,17 +1589,6 @@ export function TransactionsManageView({
               <p style={{ fontSize: 10, color: "var(--ink-3)", marginTop: 2 }}>
                 {[meta.subtitle, detail, statusLine].filter(Boolean).join(" · ")}
               </p>
-              {manual ? (
-                <span
-                  className={
-                    postingStatus === "planned"
-                      ? "fety-txn-status-pill fety-txn-status-pill--upcoming"
-                      : "fety-txn-status-pill fety-txn-status-pill--completed"
-                  }
-                >
-                  {postingStatusLabel(t.postingStatus)}
-                </span>
-              ) : null}
             </div>
             <span
               style={{
@@ -1769,36 +1606,11 @@ export function TransactionsManageView({
                 ? usdF(Math.abs(t.amount))
                 : `${t.amount >= 0 ? "+" : ""}${usdF(t.amount)}`}
             </span>
-            {manual && postingStatus === "planned" && onCompleteTransaction ? (
+            <div className="fety-txn-row-list-actions">
+              <div className="fety-txn-row-list-actions-primary">
               <button
-                type="button"
-                className="fety-txn-complete-btn"
-                onClick={() => onCompleteTransaction(t.id, todayISO())}
-              >
-                Mark as Completed
-              </button>
-            ) : null}
-            {manual && postingStatus === "completed" && onMarkTransactionUpcoming ? (
-              <button
-                type="button"
-                className="fety-txn-undo-complete-btn"
-                onClick={() => onMarkTransactionUpcoming(t.id)}
-              >
-                Mark as Upcoming
-              </button>
-            ) : null}
-            <button
               type="button"
-              onClick={() => {
-                setEditId(t.id);
-                setEditDesc(t.desc);
-                setEditAmount(amountToEditString(t.amount));
-                setEditType(t.type);
-                setEditCategory(t.category);
-                setEditFromAccountId(t.fromAccountId ?? "");
-                setEditToAccountId(t.toAccountId ?? "");
-                setEditGoalId(t.goalId ?? "");
-              }}
+              onClick={() => setEditModalTxn(t)}
               style={{ border: "none", background: "transparent", color: "var(--ink-3)", cursor: "pointer", fontSize: 11 }}
             >
               Edit
@@ -1806,8 +1618,10 @@ export function TransactionsManageView({
             {!bulkMode ? (
               <button type="button" onClick={() => onDelete(t.id)} style={{ border: "none", background: "transparent", color: "var(--ink-3)", cursor: "pointer", fontSize: 11 }}>Delete</button>
             ) : null}
-          </>
-        )}
+              </div>
+              <TransactionStatusBadge transaction={t} />
+            </div>
+        </>
       </div>
     );
   };
@@ -1828,146 +1642,16 @@ export function TransactionsManageView({
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
       <div className="fety-txn-toolbar">
-        <div className="fety-txn-toolbar-filters">
-          <div className="fety-txn-toolbar-field">
-            <span className="fety-label" id="fety-txn-filter-date-label">
-              Date
-            </span>
-            <div className="fety-txn-toolbar-control-row">
-              <TransactionDateRangeFilter
-                rangeStartISO={dateRangeStartISO}
-                rangeEndISO={dateRangeEndISO}
-                endingBalanceForDate={endingBalanceForDate}
-                onRangeChange={(start, end) => {
-                  setDateRangeStartISO(start);
-                  setDateRangeEndISO(end);
-                }}
-              />
-            </div>
-          </div>
-          <div className="fety-txn-toolbar-field">
-            <label className="fety-label" htmlFor="fety-txn-filter-category">
-              Category
-            </label>
-            <select
-              id="fety-txn-filter-category"
-              className="fety-txn-toolbar-select"
-              value={categoryFilter}
-              onChange={(e) => setCategoryFilter(e.target.value)}
-            >
-              <option value="all">All categories</option>
-              {categoryFilterGroups.budget.length > 0 ? (
-                <optgroup label="Budget categories">
-                  {categoryFilterGroups.budget.map((name) => (
-                    <option key={`budget-${name}`} value={name}>
-                      {name}
-                    </option>
-                  ))}
-                </optgroup>
-              ) : null}
-              {categoryFilterGroups.scheduledBills.length > 0 ? (
-                <optgroup label="Bills">
-                  {categoryFilterGroups.scheduledBills.map((name) => (
-                    <option key={`bill-${name}`} value={name}>
-                      {name}
-                    </option>
-                  ))}
-                </optgroup>
-              ) : null}
-              {categoryFilterGroups.scheduledIncome.length > 0 ? (
-                <optgroup label="Income">
-                  {categoryFilterGroups.scheduledIncome.map((name) => (
-                    <option key={`income-${name}`} value={name}>
-                      {name}
-                    </option>
-                  ))}
-                </optgroup>
-              ) : null}
-              {categoryFilterGroups.scheduledRecurring.length > 0 ? (
-                <optgroup label="Recurring transactions">
-                  {categoryFilterGroups.scheduledRecurring.map((name) => (
-                    <option key={`recur-${name}`} value={name}>
-                      {name}
-                    </option>
-                  ))}
-                </optgroup>
-              ) : null}
-              {categoryFilterGroups.orphans.length > 0 ? (
-                <optgroup label="Other">
-                  {categoryFilterGroups.orphans.map((name) => (
-                    <option key={`orphan-${name}`} value={name}>
-                      {name}
-                    </option>
-                  ))}
-                </optgroup>
-              ) : null}
-            </select>
-          </div>
-          <div className="fety-txn-toolbar-field">
-            <label className="fety-label" htmlFor="fety-txn-filter-status">
-              Status
-            </label>
-            <select
-              id="fety-txn-filter-status"
-              className="fety-txn-toolbar-select"
-              value={statusFilter}
-              onChange={(e) => setStatusFilter(e.target.value as "all" | "upcoming" | "completed")}
-            >
-              <option value="all">All statuses</option>
-              <option value="upcoming">Upcoming</option>
-              <option value="completed">Completed</option>
-            </select>
-          </div>
-          {accounts.length > 0 ? (
-            <div className="fety-txn-toolbar-field">
-              <label className="fety-label" htmlFor="fety-txn-filter-account">
-                Account
-              </label>
-              <select
-                id="fety-txn-filter-account"
-                className="fety-txn-toolbar-select"
-                value={accountFilter}
-                onChange={(e) => setAccountFilter(e.target.value)}
-              >
-                <option value="all">All accounts</option>
-                {accounts.map((a) => (
-                  <option key={a.id} value={a.id}>
-                    {a.icon} {a.name}
-                  </option>
-                ))}
-              </select>
-            </div>
-          ) : null}
-          <div className="fety-txn-toolbar-field fety-txn-toolbar-field--types">
-            <span className="fety-label">Type</span>
-            <div className="fety-txn-toolbar-type-row" role="group" aria-label="Transaction type">
-              {filterLabels.map((f) => (
-                <button
-                  key={f}
-                  type="button"
-                  onClick={() => setFilter(f)}
-                  className={`fety-txn-type-pill${filter === f ? " fety-txn-type-pill--active" : ""}`}
-                >
-                  {f}
-                </button>
-              ))}
-            </div>
-          </div>
-          <div className="fety-txn-toolbar-field fety-txn-toolbar-field--future">
-            <label className="fety-txn-include-future">
-              <input
-                type="checkbox"
-                checked={includeFutureDates}
-                onChange={(e) => setIncludeFutureDates(e.target.checked)}
-                disabled={Boolean(dateRangeStartISO || dateRangeEndISO)}
-              />
-              Include future dates
-            </label>
-            {!dateRangeStartISO && !dateRangeEndISO && !includeFutureDates ? (
-              <p className="fety-txn-date-hint">Showing all dates through today unless you set a range.</p>
-            ) : null}
-          </div>
-        </div>
+        <TransactionListFiltersForm
+          store={addTxStore}
+          transactions={transactions}
+          transactionTypes={transactionTypes}
+          accounts={accounts}
+          filters={filters}
+          onFiltersChange={setFilters}
+          endingBalanceForDate={endingBalanceForDate}
+          layout="toolbar"
+        />
         <div className="fety-txn-toolbar-actions">
           {onDeleteBulk ? (
             <>
@@ -2010,6 +1694,21 @@ export function TransactionsManageView({
         onClose={() => setAddOpen(false)}
         onSubmit={(input) => onAdd(input)}
         actions={addTransactionActions}
+      />
+
+      <EditTransactionModal
+        open={editModalTxn != null}
+        transaction={editModalTxn}
+        store={addTxStore}
+        onClose={() => setEditModalTxn(null)}
+        onSave={(id, updates) => {
+          onUpdate(id, updates);
+          setEditModalTxn(null);
+        }}
+        onDelete={(id) => {
+          onDelete(id);
+          setEditModalTxn(null);
+        }}
       />
 
       <div style={{ background: "var(--surface)", borderRadius: 16, border: "1px solid var(--border)", overflow: "hidden" }}>
@@ -2227,7 +1926,6 @@ export function GoalsManageView({
                         </span>
                         <span className="fety-goals-card-name-text">{g.name}</span>
                       </h3>
-                      {byline ? <p className="fety-goals-card-byline">{byline}</p> : null}
                     </div>
                     <div className="fety-goals-card-head-side">
                       <span
@@ -2258,9 +1956,12 @@ export function GoalsManageView({
                   <div className="fety-goals-bar" aria-hidden>
                     <div className="fety-goals-bar-fill" style={{ width: `${Math.min(pct, 100)}%` }} />
                   </div>
-                  <p className="fety-goals-foot">
-                    {pct}% · {usdGoal(toGo)} to go
-                  </p>
+                  <div className="fety-goals-tile-foot">
+                    <p className="fety-goals-foot">
+                      {pct}% · {usdGoal(toGo)} to go
+                    </p>
+                    {byline ? <p className="fety-goals-card-byline">{byline}</p> : null}
+                  </div>
                 </>
               )}
             </div>

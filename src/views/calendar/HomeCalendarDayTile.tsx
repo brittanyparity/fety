@@ -1,4 +1,4 @@
-import { calendarEndingBalanceBg, calSignedColor } from "../../lib/calendarUi";
+import { calendarEndingBalanceBg, calFigureColor } from "../../lib/calendarUi";
 import CalendarNoteIcon from "../../components/CalendarNoteIcon";
 import { hasCalendarNote } from "../../lib/calendarNotes";
 import type { CalDay, CalDayItem, FetyStore } from "../../types/fety";
@@ -122,7 +122,7 @@ export default function HomeCalendarDayTile({
                 <span className="fety-home-calendar-day-item-text">{homeCalItemLabel(item)}</span>
                 <span
                   className="fety-home-calendar-day-item-amt"
-                  style={{ color: calSignedColor(item.amount, isSelected) }}
+                  style={{ color: calFigureColor(item.amount, endBal, isSelected) }}
                 >
                   {homeCalItemAmount(item.amount)}
                 </span>

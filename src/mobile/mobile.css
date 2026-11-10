@@ -7,29 +7,48 @@
   max-height: 100dvh;
   background: var(--paper);
   overflow: hidden;
+  --fety-mobile-tab-bar-clearance: calc(76px + env(safe-area-inset-bottom, 0px));
+  --fety-mobile-home-top-float-clearance: calc(10px + 40px + 10px);
+  --fety-mobile-txn-toolbar-clearance: var(--fety-mobile-home-top-float-clearance);
 }
 
 .fety-mobile-header {
   flex-shrink: 0;
-  display: flex;
+  display: grid;
+  grid-template-columns: 48px 1fr 48px;
   align-items: center;
-  justify-content: space-between;
+  gap: 8px;
   padding: 10px 14px;
   border-bottom: 1px solid var(--border);
   background: var(--surface);
 }
 
-.fety-mobile-header-brand {
+.fety-mobile-header-slot {
   display: flex;
   align-items: center;
-  gap: 10px;
+  justify-content: center;
   min-width: 0;
 }
 
+.fety-mobile-header-slot--left .fety-logo {
+  margin-right: 0;
+}
+
+.fety-mobile-header-slot--left .fety-logo-word {
+  display: none;
+}
+
+.fety-mobile-header-slot--left .fety-logo-mark {
+  display: block;
+  font-size: 28px;
+}
+
 .fety-mobile-header-title {
+  margin: 0;
   font-size: 15px;
   font-weight: 600;
   color: var(--ink);
+  text-align: center;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -41,9 +60,18 @@
   border-radius: 10px;
   width: 40px;
   height: 40px;
-  font-size: 18px;
   cursor: pointer;
-  color: var(--ink-2);
+  color: var(--ink-3);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.fety-mobile-header-brand {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
 }
 
 .fety-mobile-main {
@@ -53,20 +81,281 @@
   overflow-y: auto;
   -webkit-overflow-scrolling: touch;
   padding: 12px 14px calc(12px + env(safe-area-inset-bottom, 0px));
+  background: transparent;
+  scroll-padding-bottom: var(--fety-mobile-tab-bar-clearance);
+}
+
+.fety-mobile-main--home {
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  padding-top: 0;
+  padding-left: 0;
+  padding-right: 0;
+  padding-bottom: 0;
+}
+
+.fety-mobile-home--split {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-height: 0;
+  height: 100%;
+}
+
+.fety-mobile-home-date-dock {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  z-index: 5;
+  flex-shrink: 0;
+  background: transparent;
+  border: none;
+  padding: 10px 12px 10px;
+  pointer-events: none;
+}
+
+.fety-mobile-home-date-dock .fety-mobile-home-top-bar {
+  pointer-events: auto;
+}
+
+.fety-mobile-home-scroll {
+  flex: 1;
+  min-height: 0;
+  overflow-x: hidden;
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+  overscroll-behavior-y: contain;
+  touch-action: pan-y;
+  scrollbar-width: none;
+  padding: var(--fety-mobile-home-top-float-clearance) 14px var(--fety-mobile-tab-bar-clearance);
+}
+
+.fety-mobile-home-scroll::-webkit-scrollbar {
+  display: none;
+}
+
+.fety-mobile-home-top-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 0 2px;
+}
+
+.fety-mobile-home-top-bar--end {
+  justify-content: flex-end;
+}
+
+.fety-mobile-toolbar-actions {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-left: auto;
+}
+
+.fety-mobile-floating-icon-btn {
+  position: relative;
+  flex-shrink: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 40px;
+  height: 40px;
+  margin: 0;
+  padding: 0;
+  border: none;
+  border-radius: 50%;
+  background: var(--surface);
+  color: var(--ink);
+  cursor: pointer;
+  box-shadow: 0 4px 20px color-mix(in srgb, var(--ink) 10%, transparent);
+}
+
+.fety-mobile-floating-icon-btn:active {
+  background: var(--bg);
+}
+
+.fety-mobile-floating-icon-btn--active::after {
+  content: "";
+  position: absolute;
+  top: 3px;
+  right: 3px;
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--ink);
+  box-shadow: 0 0 0 2px var(--surface);
+}
+
+.fety-mobile-floating-btn {
+  border: none;
+  background: var(--surface);
+  color: var(--ink);
+  font-size: 12px;
+  font-weight: 600;
+  font-family: inherit;
+  padding: 8px 14px;
+  border-radius: 999px;
+  cursor: pointer;
+  white-space: nowrap;
+  box-shadow: 0 4px 20px color-mix(in srgb, var(--ink) 10%, transparent);
+}
+
+.fety-mobile-floating-btn:active {
+  background: var(--bg);
+}
+
+.fety-mobile-floating-btn--emphasis {
+  background: var(--ink);
+  color: var(--surface);
+}
+
+.fety-mobile-floating-btn--emphasis:active {
+  opacity: 0.92;
+}
+
+.fety-mobile-date-picker-trigger {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  max-width: min(48vw, 200px);
+  border: none;
+  background: var(--surface);
+  color: var(--ink);
+  font-size: 12px;
+  font-weight: 600;
+  padding: 8px 14px;
+  border-radius: 999px;
+  cursor: pointer;
+  font-family: inherit;
+  box-shadow: 0 4px 20px color-mix(in srgb, var(--ink) 10%, transparent);
+}
+
+.fety-mobile-date-picker-trigger:active {
+  background: var(--bg);
+}
+
+.fety-mobile-date-picker-trigger-label {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.fety-mobile-date-picker-caret {
+  flex-shrink: 0;
+  color: var(--ink-3);
+}
+
+.fety-mobile-date-picker-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 1050;
+  background: rgb(0 0 0 / 0.35);
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+  padding: 16px 14px calc(16px + env(safe-area-inset-bottom, 0px));
+}
+
+.fety-mobile-date-picker-sheet {
+  width: 100%;
+  max-width: 400px;
+  background: var(--surface);
+  border-radius: 20px;
+  padding: 14px 14px 16px;
+  box-shadow: 0 12px 40px rgb(0 0 0 / 0.18);
+  border: 1px solid var(--border);
+}
+
+.fety-mobile-date-picker-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 10px;
+}
+
+.fety-mobile-date-picker-title {
+  margin: 0;
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--ink);
+}
+
+.fety-mobile-date-picker-today-row {
+  display: flex;
+  justify-content: flex-start;
+  margin-bottom: 10px;
+}
+
+.fety-mobile-date-picker-sheet .fety-cal-mini-month {
+  width: 100%;
+}
+
+.fety-mobile-today-btn {
+  border: 1px solid var(--border);
+  background: var(--surface);
+  color: var(--ink-2);
+  font-size: 11px;
+  font-weight: 600;
+  padding: 6px 12px;
+  border-radius: 99px;
+  cursor: pointer;
+}
+
+.fety-mobile-today-btn:active {
+  background: var(--bg);
 }
 
 .fety-mobile-tab-bar {
-  flex-shrink: 0;
+  position: fixed;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  z-index: 40;
+  display: flex;
+  justify-content: center;
+  padding: 0 12px calc(10px + env(safe-area-inset-bottom, 0px));
+  pointer-events: none;
+  background: transparent;
+  border: none;
+  box-shadow: none;
+}
+
+.fety-mobile-tab-bar-pill {
+  pointer-events: auto;
+  position: relative;
   display: flex;
   align-items: stretch;
-  justify-content: space-around;
-  gap: 2px;
-  padding: 6px 4px calc(6px + env(safe-area-inset-bottom, 0px));
-  border-top: 1px solid var(--border);
+  width: min(100%, 420px);
+  padding: 5px;
+  border-radius: 999px;
   background: var(--surface);
+  border: none;
+  box-shadow: 0 4px 20px color-mix(in srgb, var(--ink) 10%, transparent);
+}
+
+.fety-mobile-tab-bar-slider {
+  position: absolute;
+  top: 5px;
+  bottom: 5px;
+  left: 0;
+  border-radius: 999px;
+  background: var(--bg);
+  box-shadow: 0 1px 3px color-mix(in srgb, var(--ink) 6%, transparent);
+  transition:
+    transform 0.28s cubic-bezier(0.4, 0, 0.2, 1),
+    width 0.28s cubic-bezier(0.4, 0, 0.2, 1),
+    opacity 0.15s ease;
+  z-index: 0;
 }
 
 .fety-mobile-tab-bar-btn {
+  position: relative;
+  z-index: 1;
   flex: 1;
   display: flex;
   flex-direction: column;
@@ -74,32 +363,107 @@
   gap: 2px;
   border: none;
   background: transparent;
-  padding: 6px 4px;
-  border-radius: 10px;
+  padding: 6px 4px 5px;
+  border-radius: 999px;
   color: var(--ink-3);
-  font-size: 10px;
+  font-size: 9px;
   font-weight: 600;
   cursor: pointer;
   min-width: 0;
+  transition: color 0.2s ease;
 }
 
 .fety-mobile-tab-bar-btn--active {
   color: var(--ink);
-  background: var(--paper);
 }
 
 .fety-mobile-tab-bar-icon {
-  font-size: 16px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
   line-height: 1;
+  color: inherit;
+}
+
+.fety-mobile-tab-bar-icon svg {
+  display: block;
 }
 
 .fety-mobile-tab-bar-label {
   line-height: 1.1;
 }
 
+.fety-mobile-budget,
+.fety-mobile-insights,
+.fety-mobile-goals {
+  padding-bottom: var(--fety-mobile-tab-bar-clearance);
+}
+
+.fety-mobile-transactions--split {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-height: 0;
+  height: 100%;
+}
+
+.fety-mobile-transactions-toolbar-dock {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  z-index: 5;
+  flex-shrink: 0;
+  padding: 10px 8px 10px;
+  background: transparent;
+  border: none;
+  pointer-events: none;
+}
+
+.fety-mobile-transactions-toolbar-dock .fety-mobile-home-top-bar {
+  pointer-events: auto;
+}
+
+.fety-mobile-transactions-toolbar-dock .fety-mobile-txn-account-hint {
+  pointer-events: auto;
+  margin: 0 2px 8px;
+}
+
+.fety-mobile-txn-account-hint {
+  font-size: 10px;
+  font-weight: 600;
+  color: var(--ink-3);
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.fety-mobile-transactions-scroll {
+  flex: 1;
+  min-height: 0;
+  overflow-x: hidden;
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+  overscroll-behavior-y: contain;
+  touch-action: pan-y;
+  scrollbar-width: none;
+  padding: var(--fety-mobile-txn-toolbar-clearance) 10px var(--fety-mobile-tab-bar-clearance);
+}
+
+.fety-mobile-transactions-scroll::-webkit-scrollbar {
+  display: none;
+}
+
+.fety-mobile-main--transactions {
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  padding: 0;
+}
+
 .fety-mobile-date-strip-wrap {
-  margin: 0 -14px 12px;
-  padding: 0 0 4px;
+  margin: 0 -14px 0;
+  padding: 0 0 8px;
 }
 
 .fety-mobile-date-strip {
@@ -160,25 +524,40 @@
   color: var(--ink-3);
 }
 
-.fety-mobile-date-pill-tag {
-  position: absolute;
-  top: 4px;
-  right: 4px;
-  font-size: 7px;
-  font-weight: 700;
-  text-transform: uppercase;
-  color: var(--ink-3);
+.fety-mobile-date-pill--selected .fety-mobile-date-pill-dow {
+  color: rgba(255, 255, 255, 0.68);
 }
 
-.fety-mobile-home-toolbar {
-  margin-bottom: 10px;
+.fety-mobile-date-pill--selected .fety-mobile-date-pill-dom {
+  color: rgba(255, 255, 255, 0.96);
+}
+
+.fety-mobile-date-pill--selected .fety-mobile-date-pill-bal {
+  color: rgba(255, 255, 255, 0.78);
+}
+
+.fety-mobile-date-pill--selected .fety-mobile-date-pill-bal--empty {
+  color: rgba(255, 255, 255, 0.5);
+}
+
+.fety-mobile-date-pill-tag {
+  display: none;
+}
+
+.fety-mobile-primary-btn--compact {
+  font-size: 11px;
+  font-weight: 600;
+  padding: 6px 12px;
+  border-radius: 99px;
+  white-space: nowrap;
+  flex-shrink: 0;
 }
 
 .fety-mobile-home-day {
   background: var(--surface);
   border: 1px solid var(--border);
   border-radius: 16px;
-  overflow: hidden;
+  overflow: visible;
 }
 
 .fety-mobile-home-day .fety-home-cal-period--daily {
@@ -332,13 +711,143 @@
 }
 
 .fety-mobile-txn-row-main {
+  display: grid;
+  grid-template-columns: auto 1fr minmax(72px, max-content);
+  gap: 8px 10px;
+  align-items: start;
+}
+
+.fety-mobile-txn-row-actions {
   display: flex;
-  align-items: flex-start;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  margin-top: 8px;
+  padding-top: 8px;
+  border-top: 1px solid var(--border-soft);
+}
+
+.fety-mobile-txn-row-actions-primary {
+  display: flex;
+  flex-wrap: wrap;
   gap: 10px;
 }
 
 .fety-mobile-txn-icon {
   font-size: 18px;
+  line-height: 1.2;
+  margin-top: 2px;
+  flex-shrink: 0;
+}
+
+.fety-mobile-budget-row-title {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  color: var(--ink);
+}
+
+.fety-mobile-goal-icon {
+  font-size: 22px;
+  line-height: 1;
+  flex-shrink: 0;
+}
+
+.fety-posting-toggle {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 3px;
+  flex-shrink: 0;
+  width: 44px;
+}
+
+.fety-posting-toggle-btn {
+  border: none;
+  background: transparent;
+  padding: 0;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 99px;
+}
+
+.fety-posting-toggle-btn:disabled {
+  cursor: default;
+  opacity: 0.5;
+}
+
+.fety-posting-toggle-label {
+  font-size: 8px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--ink-3);
+  line-height: 1.1;
+  text-align: center;
+}
+
+.fety-posting-toggle-label--on {
+  color: var(--clear-dk);
+}
+
+.fety-txn-glyph-icon {
+  color: var(--ink-3);
+  flex-shrink: 0;
+}
+
+html[data-fety-mobile-shell="1"] .fety-home-cal-period-tx-row--interactive {
+  display: grid;
+  grid-template-columns: 22px 1fr minmax(68px, max-content);
+  grid-template-rows: auto;
+  gap: 4px 8px;
+  align-items: center;
+  width: 100%;
+  box-sizing: border-box;
+}
+
+html[data-fety-mobile-shell="1"] .fety-home-cal-period-tx-foot {
+  padding: 4px 0 0;
+}
+
+html[data-fety-mobile-shell="1"] .fety-home-cal-period-tx-name {
+  font-size: 12px;
+  line-height: 1.35;
+  word-break: break-word;
+}
+
+html[data-fety-mobile-shell="1"] .fety-home-cal-period-tx-amt {
+  font-size: 12px;
+  text-align: right;
+}
+
+html[data-fety-mobile-shell="1"] .fety-home-cal-period-tx-icon {
+  display: flex;
+  align-items: center;
+}
+
+html[data-fety-mobile-shell="1"] .fety-home-cal-period--daily {
+  overflow: visible;
+  min-height: auto;
+  flex: none;
+}
+
+html[data-fety-mobile-shell="1"] .fety-home-cal-period--daily .fety-home-cal-tile-scroll-wrap--daily {
+  overflow: visible;
+  flex: none;
+  min-height: auto;
+}
+
+html[data-fety-mobile-shell="1"] .fety-home-cal-period--daily .fety-home-cal-tile-scroll {
+  overflow: visible;
+  flex: none;
+  min-height: auto;
+}
+
+html[data-fety-mobile-shell="1"] .fety-home-cal-period--daily .fety-home-cal-tile-scroll-nav {
+  display: none;
 }
 
 .fety-mobile-txn-text {
@@ -347,16 +856,20 @@
 }
 
 .fety-mobile-txn-title {
-  font-size: 13px;
+  font-size: 12px;
   font-weight: 600;
   margin: 0;
   color: var(--ink);
+  line-height: 1.3;
+  word-break: break-word;
 }
 
 .fety-mobile-txn-meta {
   font-size: 10px;
   color: var(--ink-3);
   margin: 2px 0 0;
+  line-height: 1.35;
+  word-break: break-word;
 }
 
 .fety-mobile-txn-status {
@@ -378,18 +891,12 @@
 }
 
 .fety-mobile-txn-amt {
-  font-size: 13px;
+  font-size: 12px;
   font-weight: 600;
   white-space: nowrap;
-}
-
-.fety-mobile-txn-row-actions {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 10px;
-  margin-top: 8px;
-  padding-top: 8px;
-  border-top: 1px solid var(--border-soft);
+  text-align: right;
+  align-self: start;
+  padding-top: 2px;
 }
 
 .fety-mobile-link-btn {
@@ -429,6 +936,14 @@
   margin: 2px 0 0;
 }
 
+html[data-fety-mobile-shell="1"] .fety-home-cal-period-section--notes .fety-day-notes--compact {
+  gap: 10px;
+}
+
+html[data-fety-mobile-shell="1"] .fety-home-cal-period-section--notes .fety-day-notes-compose textarea {
+  font-size: 16px;
+}
+
 .fety-mobile-insights-lede {
   font-size: 12px;
   color: var(--ink-2);
@@ -436,11 +951,62 @@
   line-height: 1.45;
 }
 
-.fety-mobile-insights .fety-home-insight-charts {
+.fety-mobile-insights .fety-home-insight-charts--tiles {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding: 0;
+  background: transparent;
+  border: none;
+}
+
+.fety-mobile-insight-tile {
   background: var(--surface);
   border: 1px solid var(--border);
   border-radius: 16px;
-  padding: 12px;
+  padding: 14px 16px 16px;
+}
+
+.fety-mobile-insight-tile-title {
+  margin: 0 0 10px;
+  font-size: 15px;
+  font-weight: 600;
+  letter-spacing: -0.02em;
+  color: var(--ink);
+  line-height: 1.25;
+}
+
+html[data-fety-mobile-shell="1"] .fety-home-insight-charts--tiles .fety-home-insight-split {
+  grid-template-columns: 1fr;
+  gap: 14px;
+  align-items: stretch;
+}
+
+html[data-fety-mobile-shell="1"] .fety-home-insight-charts--tiles .fety-home-insight-panel {
+  padding: 0;
+}
+
+html[data-fety-mobile-shell="1"] .fety-home-insight-charts--tiles .fety-home-insight-lede {
+  font-size: 12px;
+  margin-bottom: 8px;
+}
+
+html[data-fety-mobile-shell="1"] .fety-home-insight-charts--tiles .fety-analysis-stats--compact dd {
+  font-size: 16px;
+}
+
+html[data-fety-mobile-shell="1"] .fety-home-insight-charts--tiles .fety-home-spending-mix-head {
+  flex-direction: column;
+  align-items: stretch;
+  gap: 10px;
+}
+
+html[data-fety-mobile-shell="1"] .fety-home-insight-charts--tiles .fety-home-spending-mix-explainer {
+  font-size: 12px;
+}
+
+html[data-fety-mobile-shell="1"] .fety-home-insight-charts--tiles .fety-home-spending-mix-amount {
+  font-size: 28px;
 }
 
 .fety-mobile-settings-overlay {
@@ -479,6 +1045,175 @@
   overflow-y: auto;
   padding: 16px;
   -webkit-overflow-scrolling: touch;
+}
+
+.fety-mobile-settings-segments {
+  display: flex;
+  gap: 8px;
+  padding: 0 16px 12px;
+  border-bottom: 1px solid var(--border-soft);
+}
+
+.fety-mobile-settings-segment {
+  flex: 1;
+  border: 1px solid var(--border);
+  background: var(--paper);
+  color: var(--ink-2);
+  font-size: 12px;
+  font-weight: 600;
+  font-family: inherit;
+  padding: 8px 10px;
+  border-radius: 10px;
+  cursor: pointer;
+}
+
+.fety-mobile-settings-segment--active {
+  background: var(--ink);
+  color: var(--surface);
+  border-color: var(--ink);
+}
+
+.fety-mobile-manage-view {
+  padding-bottom: var(--fety-mobile-tab-bar-clearance);
+}
+
+.fety-mobile-manage-view .fety-budget-page,
+.fety-mobile-manage-view .fety-goals-page,
+.fety-mobile-settings-body .fety-networth-manage {
+  max-width: 100%;
+}
+
+html[data-fety-mobile-shell="1"] .fety-mobile-manage-view .fety-budget-grid,
+html[data-fety-mobile-shell="1"] .fety-mobile-manage-view .fety-goals-grid {
+  grid-template-columns: 1fr;
+}
+
+html[data-fety-mobile-shell="1"] .fety-mobile-manage-view input,
+html[data-fety-mobile-shell="1"] .fety-mobile-manage-view select,
+html[data-fety-mobile-shell="1"] .fety-mobile-settings-body input,
+html[data-fety-mobile-shell="1"] .fety-mobile-settings-body select,
+html[data-fety-mobile-shell="1"] .fety-mobile-txn-filters-form select {
+  font-size: 16px;
+}
+
+html[data-fety-mobile-shell="1"] .fety-mobile-manage-view .fety-budget-summary-bar {
+  display: grid !important;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0;
+  flex-direction: unset !important;
+}
+
+html[data-fety-mobile-shell="1"] .fety-mobile-manage-view .fety-budget-summary-cell {
+  flex: none;
+  display: flex;
+  flex-direction: column;
+  align-items: center !important;
+  justify-content: center;
+  padding: 10px 10px;
+  text-align: center !important;
+  border-right: 1px solid var(--border) !important;
+  border-bottom: 1px solid var(--border) !important;
+}
+
+html[data-fety-mobile-shell="1"] .fety-mobile-manage-view .fety-budget-summary-cell:nth-child(2n) {
+  border-right: none !important;
+}
+
+html[data-fety-mobile-shell="1"] .fety-mobile-manage-view .fety-budget-summary-cell:nth-child(n + 3) {
+  border-bottom: none !important;
+}
+
+html[data-fety-mobile-shell="1"] .fety-mobile-manage-view .fety-budget-summary-label {
+  margin: 0 0 4px;
+  width: 100%;
+  font-size: 8px;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-align: center;
+}
+
+html[data-fety-mobile-shell="1"] .fety-mobile-manage-view .fety-budget-summary-value {
+  font-size: 17px;
+  font-weight: 500;
+  letter-spacing: -0.02em;
+  text-align: center;
+}
+
+html[data-fety-mobile-shell="1"] .fety-modal--mobile-sheet {
+  align-items: flex-end;
+  justify-content: center;
+  padding: 0;
+}
+
+html[data-fety-mobile-shell="1"] .fety-modal-panel--mobile-filters {
+  display: flex;
+  flex-direction: column;
+  width: 100%;
+  max-width: none;
+  max-height: min(92vh, 720px);
+  margin: 0;
+  padding: 16px 0 0;
+  border-radius: 20px 20px 0 0;
+  border-bottom: none;
+  overflow: hidden;
+}
+
+html[data-fety-mobile-shell="1"] .fety-modal-panel--mobile-filters .fety-modal-header {
+  margin: 0;
+  padding: 0 18px 12px;
+}
+
+html[data-fety-mobile-shell="1"] .fety-mobile-txn-filters-body {
+  flex: 1;
+  min-height: 0;
+  overflow-x: hidden;
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+  scrollbar-width: none;
+  padding: 0 18px 8px;
+}
+
+html[data-fety-mobile-shell="1"] .fety-mobile-txn-filters-body::-webkit-scrollbar {
+  display: none;
+}
+
+html[data-fety-mobile-shell="1"] .fety-mobile-txn-filters-form {
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 14px;
+  flex: none;
+  width: 100%;
+}
+
+html[data-fety-mobile-shell="1"] .fety-mobile-txn-filters-form .fety-txn-toolbar-field,
+html[data-fety-mobile-shell="1"] .fety-mobile-txn-filters-form .fety-txn-toolbar-field--types,
+html[data-fety-mobile-shell="1"] .fety-mobile-txn-filters-form .fety-txn-toolbar-field--future {
+  width: 100%;
+  flex: none;
+}
+
+html[data-fety-mobile-shell="1"] .fety-mobile-txn-filters-form .fety-txn-toolbar-select {
+  width: 100%;
+}
+
+html[data-fety-mobile-shell="1"] .fety-mobile-txn-filters-form .fety-txn-date-range-trigger {
+  width: 100%;
+  justify-content: space-between;
+}
+
+html[data-fety-mobile-shell="1"] .fety-mobile-txn-filters-foot {
+  display: flex;
+  gap: 10px;
+  padding: 12px 18px calc(12px + env(safe-area-inset-bottom, 0px));
+  border-top: 1px solid var(--border);
+  margin-top: 8px;
+}
+
+html[data-fety-mobile-shell="1"] .fety-mobile-txn-filters-foot .fety-modal-btn-secondary,
+html[data-fety-mobile-shell="1"] .fety-mobile-txn-filters-foot .fety-modal-btn-primary {
+  flex: 1;
+  min-height: 44px;
 }
 
 /* When mobile shell is active, hide desktop-only body chrome if any leaks */

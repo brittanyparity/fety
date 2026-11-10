@@ -189,6 +189,9 @@ export function HomeCalendarDailyGrid({
   onDeleteTransaction,
   onCompleteTransaction,
   onMarkTransactionUpcoming,
+  onAddCalendarNote,
+  onUpdateCalendarNote,
+  onDeleteCalendarNote,
 }: {
   date: Date;
   calendarMap: CalendarMap;
@@ -196,6 +199,9 @@ export function HomeCalendarDailyGrid({
   selectedDateISO: string;
   onSelectDay: (dateISO: string) => void;
   today: Date;
+  onAddCalendarNote?: (dateISO: string, text: string) => void;
+  onUpdateCalendarNote?: (dateISO: string, noteId: string, text: string) => void;
+  onDeleteCalendarNote?: (dateISO: string, noteId: string) => void;
   onUpdateTransaction: (
     id: string,
     updates: Partial<
@@ -223,6 +229,9 @@ export function HomeCalendarDailyGrid({
       onDeleteTransaction={onDeleteTransaction}
       onCompleteTransaction={onCompleteTransaction}
       onMarkTransactionUpcoming={onMarkTransactionUpcoming}
+      onAddCalendarNote={onAddCalendarNote}
+      onUpdateCalendarNote={onUpdateCalendarNote}
+      onDeleteCalendarNote={onDeleteCalendarNote}
     />
   );
 }

@@ -150,10 +150,16 @@ function HomeCalendarCard({
   onDeleteTransaction,
   onCompleteTransaction,
   onMarkTransactionUpcoming,
+  onAddCalendarNote,
+  onUpdateCalendarNote,
+  onDeleteCalendarNote,
 }: {
   store: FetyStore;
   selectedDateISO: string;
   onSelectDate: (dateISO: string) => void;
+  onAddCalendarNote: (dateISO: string, text: string) => void;
+  onUpdateCalendarNote: (dateISO: string, noteId: string, text: string) => void;
+  onDeleteCalendarNote: (dateISO: string, noteId: string) => void;
   onAddTransaction: (input: AddTransactionPayload) => void;
   addTransactionActions?: AddTransactionModalActions;
   onUpdateTransaction: (
@@ -305,6 +311,9 @@ function HomeCalendarCard({
               onDeleteTransaction={onDeleteTransaction}
               onCompleteTransaction={onCompleteTransaction}
               onMarkTransactionUpcoming={onMarkTransactionUpcoming}
+              onAddCalendarNote={onAddCalendarNote}
+              onUpdateCalendarNote={onUpdateCalendarNote}
+              onDeleteCalendarNote={onDeleteCalendarNote}
             />
           ) : null}
         </div>
@@ -475,6 +484,7 @@ export default function HomeView({
   onCompleteTransaction,
   onMarkTransactionUpcoming,
   onAddCalendarNote,
+  onUpdateCalendarNote,
   onDeleteCalendarNote,
   balanceChart,
 }: {
@@ -500,6 +510,7 @@ export default function HomeView({
   onCompleteTransaction?: (id: string, completedAtISO?: string) => void;
   onMarkTransactionUpcoming?: (id: string) => void;
   onAddCalendarNote: (dateISO: string, text: string) => void;
+  onUpdateCalendarNote: (dateISO: string, noteId: string, text: string) => void;
   onDeleteCalendarNote: (dateISO: string, noteId: string) => void;
   balanceChart: ReactNode;
 }) {
@@ -545,6 +556,9 @@ export default function HomeView({
           onDeleteTransaction={onDeleteTransaction}
           onCompleteTransaction={onCompleteTransaction}
           onMarkTransactionUpcoming={onMarkTransactionUpcoming}
+          onAddCalendarNote={onAddCalendarNote}
+          onUpdateCalendarNote={onUpdateCalendarNote}
+          onDeleteCalendarNote={onDeleteCalendarNote}
         />
       </div>
 
@@ -563,6 +577,7 @@ export default function HomeView({
             store={store}
             focusDateISO={focusDateISO}
             onAddNote={onAddCalendarNote}
+            onUpdateNote={onUpdateCalendarNote}
             onDeleteNote={onDeleteCalendarNote}
           />
         </HomeCard>
