@@ -48,6 +48,24 @@ export default function TransactionListFiltersForm({
 
   const patch = (partial: Partial<TransactionListFilterState>) => onFiltersChange({ ...filters, ...partial });
 
+  const allTypesSelected = filters.typeFilters.length === 0;
+
+  const toggleTypeFilter = (label: string) => {
+    if (label === "All") {
+      patch({ typeFilters: [] });
+      return;
+    }
+    if (allTypesSelected) {
+      patch({ typeFilters: [label] });
+      return;
+    }
+    if (filters.typeFilters.includes(label)) {
+      patch({ typeFilters: filters.typeFilters.filter((x) => x !== label) });
+    } else {
+      patch({ typeFilters: [...filters.typeFilters, label] });
+    }
+  };
+
   const wrapperClass =
     layout === "toolbar" ? "fety-txn-toolbar-filters" : "fety-mobile-txn-filters-form fety-txn-toolbar-filters";
 
@@ -163,16 +181,20 @@ export default function TransactionListFiltersForm({
       <div className="fety-txn-toolbar-field fety-txn-toolbar-field--types">
         <span className="fety-label">Type</span>
         <div className="fety-txn-toolbar-type-row" role="group" aria-label="Transaction type">
-          {filterLabels.map((f) => (
-            <button
-              key={f}
-              type="button"
-              onClick={() => patch({ typeFilter: f })}
-              className={`fety-txn-type-pill${filters.typeFilter === f ? " fety-txn-type-pill--active" : ""}`}
-            >
-              {f}
-            </button>
-          ))}
+          {filterLabels.map((f) => {
+            const active = f === "All" ? allTypesSelected : filters.typeFilters.includes(f);
+            return (
+              <button
+                key={f}
+                type="button"
+                aria-pressed={active}
+                onClick={() => toggleTypeFilter(f)}
+                className={`fety-txn-type-pill${active ? " fety-txn-type-pill--active" : ""}`}
+              >
+                {f}
+              </button>
+            );
+          })}
         </div>
       </div>
       <div className="fety-txn-toolbar-field fety-txn-toolbar-field--future">

@@ -1,9 +1,27 @@
 import type { FetyTransactionType, Transaction } from "../types/fety";
+
+function typeFiltersDiffer(a: string[], b: string[]): boolean {
+  if (a.length !== b.length) return true;
+  const sa = [...a].sort();
+  const sb = [...b].sort();
+  return sa.some((v, i) => v !== sb[i]);
+}
+
+export function transactionMatchesTypeFilters(
+  t: Transaction,
+  typeFilters: string[],
+  transactionTypes: FetyTransactionType[],
+): boolean {
+  if (typeFilters.length === 0) return true;
+  const tt = transactionTypes.find((x) => x.id === t.type);
+  return typeFilters.some((f) => f === tt?.name || f === t.type);
+}
 import { todayISO } from "./fetyCalculations";
 import { isManualStoredTransaction, transactionStatusDisplayKind } from "./transactionPosting";
 
+/** Empty = all transaction types. Values are type display names from `FetyTransactionType.name`. */
 export type TransactionListFilterState = {
-  typeFilter: string;
+  typeFilters: string[];
   accountFilter: string;
   dateRangeStartISO: string;
   dateRangeEndISO: string;
@@ -14,7 +32,7 @@ export type TransactionListFilterState = {
 
 export function defaultTransactionListFilters(initialAccountId?: string | null): TransactionListFilterState {
   return {
-    typeFilter: "All",
+    typeFilters: [],
     accountFilter: initialAccountId && initialAccountId !== "all" ? initialAccountId : "all",
     dateRangeStartISO: "",
     dateRangeEndISO: "",
@@ -30,7 +48,7 @@ export function transactionListFiltersActive(
 ): boolean {
   const base = baseline ?? defaultTransactionListFilters();
   return (
-    filters.typeFilter !== base.typeFilter ||
+    typeFiltersDiffer(filters.typeFilters, base.typeFilters) ||
     filters.accountFilter !== base.accountFilter ||
     filters.dateRangeStartISO !== base.dateRangeStartISO ||
     filters.dateRangeEndISO !== base.dateRangeEndISO ||
@@ -55,10 +73,7 @@ export function filterTransactionsList(
     if (filters.accountFilter !== "all" && t.fromAccountId !== filters.accountFilter && t.toAccountId !== filters.accountFilter) {
       return false;
     }
-    if (filters.typeFilter !== "All") {
-      const tt = options.transactionTypes.find((x) => x.id === t.type);
-      if (tt?.name !== filters.typeFilter && t.type !== filters.typeFilter) return false;
-    }
+    if (!transactionMatchesTypeFilters(t, filters.typeFilters, options.transactionTypes)) return false;
     if (filters.dateRangeStartISO && filters.dateRangeEndISO) {
       if (t.dateISO < filters.dateRangeStartISO || t.dateISO > filters.dateRangeEndISO) return false;
     } else if (
