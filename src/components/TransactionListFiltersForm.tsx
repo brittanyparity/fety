@@ -136,6 +136,7 @@ export default function TransactionListFiltersForm({
         >
           <option value="all">All statuses</option>
           <option value="upcoming">Upcoming</option>
+          <option value="pending">Pending</option>
           <option value="completed">Completed</option>
         </select>
       </div>

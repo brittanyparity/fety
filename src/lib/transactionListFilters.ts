@@ -8,7 +8,7 @@ export type TransactionListFilterState = {
   dateRangeStartISO: string;
   dateRangeEndISO: string;
   categoryFilter: string;
-  statusFilter: "all" | "upcoming" | "completed";
+  statusFilter: "all" | "upcoming" | "pending" | "completed";
   includeFutureDates: boolean;
 };
 
@@ -72,10 +72,11 @@ export function filterTransactionsList(
     if (filters.categoryFilter !== "all" && t.category !== filters.categoryFilter) return false;
     if (filters.statusFilter !== "all") {
       if (!isManualStoredTransaction(t)) {
-        if (filters.statusFilter === "upcoming") return false;
+        if (filters.statusFilter !== "upcoming") return false;
       } else {
         const kind = transactionStatusDisplayKind(t);
-        if (filters.statusFilter === "upcoming" && kind !== "upcoming" && kind !== "pending") return false;
+        if (filters.statusFilter === "upcoming" && kind !== "upcoming") return false;
+        if (filters.statusFilter === "pending" && kind !== "pending") return false;
         if (filters.statusFilter === "completed" && kind !== "completed") return false;
       }
     }
