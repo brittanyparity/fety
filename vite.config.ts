@@ -74,6 +74,17 @@ type FigmaSiteConfiguration = {
 
 /** Applies /.figma/make/site.json to the generated document shell. */
 function figmaSiteConfiguration(config: FigmaSiteConfiguration): Plugin {
+  /** Set in configResolved — Figma Make serves under FIGMA_PUBLIC_URL, not domain root. */
+  let viteBase = '/'
+
+  function publicAssetUrl(assetPath: string): string {
+    if (!assetPath) return assetPath
+    if (/^https?:\/\//i.test(assetPath) || assetPath.startsWith('data:')) return assetPath
+    const normalizedBase = viteBase.endsWith('/') ? viteBase : `${viteBase}/`
+    const trimmed = assetPath.replace(/^\//, '')
+    return `${normalizedBase}${trimmed}`
+  }
+
   function sanitizeHtmlValue(value: string | undefined): string {
     return value?.replace(/[^a-zA-Z0-9_-]/g, '') || ''
   }
@@ -99,6 +110,9 @@ function figmaSiteConfiguration(config: FigmaSiteConfiguration): Plugin {
 
   return {
     name: 'figma-site-configuration',
+    configResolved(resolved) {
+      viteBase = resolved.base
+    },
     configureServer(server) {
       server.middlewares.use((req, res, next) => {
         if (!robotsTxt || req.url?.split('?')[0] !== '/robots.txt') return next()
@@ -135,24 +149,41 @@ function figmaSiteConfiguration(config: FigmaSiteConfiguration): Plugin {
           tags.push({ tag: 'meta', attrs: { name: 'robots', content: 'noindex, nofollow' }, injectTo: 'head' })
         }
         if (favicon) {
-          tags.push({ tag: 'link', attrs: { rel: 'icon', href: favicon }, injectTo: 'head' })
+          const iconHref = publicAssetUrl(favicon)
+          tags.push({ tag: 'link', attrs: { rel: 'icon', href: iconHref }, injectTo: 'head' })
           const faviconType = favicon.endsWith('.png')
             ? 'image/png'
             : favicon.endsWith('.ico')
               ? 'image/x-icon'
               : 'image/svg+xml'
-          tags.push({ tag: 'link', attrs: { rel: 'icon', type: faviconType, href: favicon }, injectTo: 'head' })
+          tags.push({ tag: 'link', attrs: { rel: 'icon', type: faviconType, href: iconHref }, injectTo: 'head' })
           if (favicon.endsWith('.ico')) {
             tags.push(
-              { tag: 'link', attrs: { rel: 'icon', type: 'image/png', sizes: '32x32', href: '/favicon-32x32.png' }, injectTo: 'head' },
-              { tag: 'link', attrs: { rel: 'icon', type: 'image/png', sizes: '16x16', href: '/favicon-16x16.png' }, injectTo: 'head' },
+              {
+                tag: 'link',
+                attrs: { rel: 'icon', type: 'image/png', sizes: '32x32', href: publicAssetUrl('/favicon-32x32.png') },
+                injectTo: 'head',
+              },
+              {
+                tag: 'link',
+                attrs: { rel: 'icon', type: 'image/png', sizes: '16x16', href: publicAssetUrl('/favicon-16x16.png') },
+                injectTo: 'head',
+              },
             )
           }
         }
         if (appleTouchIcon) {
-          tags.push({ tag: 'link', attrs: { rel: 'apple-touch-icon', href: appleTouchIcon }, injectTo: 'head' })
+          tags.push({
+            tag: 'link',
+            attrs: { rel: 'apple-touch-icon', href: publicAssetUrl(appleTouchIcon) },
+            injectTo: 'head',
+          })
         }
-        tags.push({ tag: 'link', attrs: { rel: 'manifest', href: '/manifest.webmanifest' }, injectTo: 'head' })
+        tags.push({
+          tag: 'link',
+          attrs: { rel: 'manifest', href: publicAssetUrl('/manifest.webmanifest') },
+          injectTo: 'head',
+        })
         tags.push({ tag: 'meta', attrs: { name: 'theme-color', content: '#FAFAF9' }, injectTo: 'head' })
         if (title) {
           tags.push({ tag: 'meta', attrs: { property: 'og:title', content: title }, injectTo: 'head' })
