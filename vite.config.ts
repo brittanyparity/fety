@@ -136,7 +136,12 @@ function figmaSiteConfiguration(config: FigmaSiteConfiguration): Plugin {
         }
         if (favicon) {
           tags.push({ tag: 'link', attrs: { rel: 'icon', href: favicon }, injectTo: 'head' })
-          tags.push({ tag: 'link', attrs: { rel: 'icon', type: 'image/svg+xml', href: favicon }, injectTo: 'head' })
+          const faviconType = favicon.endsWith('.png')
+            ? 'image/png'
+            : favicon.endsWith('.ico')
+              ? 'image/x-icon'
+              : 'image/svg+xml'
+          tags.push({ tag: 'link', attrs: { rel: 'icon', type: faviconType, href: favicon }, injectTo: 'head' })
         }
         if (appleTouchIcon) {
           tags.push({ tag: 'link', attrs: { rel: 'apple-touch-icon', href: appleTouchIcon }, injectTo: 'head' })
