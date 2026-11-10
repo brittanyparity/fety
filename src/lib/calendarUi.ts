@@ -36,9 +36,16 @@ export function calDayBalanceColor(balance: number, dayEndBalance: number, whenS
 
 /** Net worth total: green positive, red negative, amber at zero. */
 export function calNetWorthColor(net: number): string {
+  if (isZeroEndingBalance(net)) return "var(--amber-dk)";
   if (net > 0) return "var(--clear-dk)";
-  if (net < 0) return "var(--trouble-dk)";
-  return "var(--amber-dk)";
+  return "var(--trouble-dk)";
+}
+
+/** Lighter net worth summary tile (green / red / yellow from value). */
+export function calNetWorthBg(net: number): string {
+  if (isZeroEndingBalance(net)) return YELLOW_TILE_STRONG;
+  if (net > 0) return GREEN_TILE_STRONG;
+  return RED_TILE_STRONG;
 }
 
 export function calDailyNetPositive(startBal: number, endBal: number): boolean {

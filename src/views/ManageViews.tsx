@@ -51,6 +51,7 @@ import { accountBalanceWithTransactions, accountActivityForAccount, accountBalan
 import CurrencyInput, { amountToEditString } from "../components/CurrencyInput";
 import { formatGoalByline, goalPaceStatus, goalTargetDateForDateInput } from "../lib/goalProgress";
 import { formatOrdinalDay } from "../lib/scheduleFormatting";
+import { calNetWorthBg, calNetWorthColor } from "../lib/calendarUi";
 
 const usd = (n: number) =>
   new Intl.NumberFormat("en-US", { style: "currency", currency: "USD", minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(n);
@@ -2240,15 +2241,15 @@ export function NetWorthManageView({
       <div className="fety-networth-summary-grid" style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(160px, 1fr))", gap: 12 }}>
         <div style={{ background: "var(--surface)", border: "1px solid var(--border)", borderRadius: 14, padding: "16px 18px" }}>
           <p className="fety-label" style={{ marginBottom: 6 }}>Assets</p>
-          <p style={{ fontSize: 22, fontWeight: 600, color: "var(--ink)" }}>{usdF(totals.assets)}</p>
+          <p style={{ fontSize: 22, fontWeight: 600, color: "var(--clear-dk)" }}>{usdF(totals.assets)}</p>
         </div>
         <div style={{ background: "var(--surface)", border: "1px solid var(--border)", borderRadius: 14, padding: "16px 18px" }}>
           <p className="fety-label" style={{ marginBottom: 6 }}>Debts</p>
           <p style={{ fontSize: 22, fontWeight: 600, color: "var(--trouble-dk)" }}>{usdF(totals.debts)}</p>
         </div>
-        <div style={{ background: "var(--paper)", border: "1px solid var(--border)", borderRadius: 14, padding: "16px 18px" }}>
+        <div style={{ background: calNetWorthBg(totals.net), border: "1px solid var(--border)", borderRadius: 14, padding: "16px 18px" }}>
           <p className="fety-label" style={{ marginBottom: 6 }}>Net worth</p>
-          <p style={{ fontSize: 22, fontWeight: 600, color: "var(--ink)" }}>{usdF(totals.net)}</p>
+          <p style={{ fontSize: 22, fontWeight: 600, color: calNetWorthColor(totals.net) }}>{usdF(totals.net)}</p>
         </div>
       </div>
 
