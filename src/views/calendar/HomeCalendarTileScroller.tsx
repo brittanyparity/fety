@@ -96,20 +96,37 @@ export default function HomeCalendarTileScroller({
     const ro = new ResizeObserver(refresh);
     ro.observe(el);
     const isMobileShell = document.documentElement.dataset.fetyMobileShell === "1";
+    const isDailyScroller = Boolean(className?.includes("fety-home-cal-tile-scroll-wrap--daily"));
     const blockWheel = (event: WheelEvent) => {
+      const target = scrollerRef.current;
+      if (!target) return;
+
+      const { overflowY } = window.getComputedStyle(target);
+      const scrollableY =
+        (overflowY === "auto" || overflowY === "scroll") && target.scrollHeight > target.clientHeight + 2;
+
+      if (!scrollableY) return;
+
+      const { deltaY } = event;
+      const atTop = target.scrollTop <= 0;
+      const atBottom = target.scrollTop + target.clientHeight >= target.scrollHeight - 2;
+
+      if (deltaY < 0 && atTop) return;
+      if (deltaY > 0 && atBottom) return;
+
       event.preventDefault();
       event.stopPropagation();
     };
-    if (!isMobileShell) {
+    if (!isMobileShell && !isDailyScroller) {
       el.addEventListener("wheel", blockWheel, { passive: false });
     }
     return () => {
       ro.disconnect();
-      if (!isMobileShell) {
+      if (!isMobileShell && !isDailyScroller) {
         el.removeEventListener("wheel", blockWheel);
       }
     };
-  }, [refresh, children]);
+  }, [refresh, children, className]);
 
   const scrollByStep = useCallback((direction: -1 | 1, smooth: boolean) => {
     const el = scrollerRef.current;

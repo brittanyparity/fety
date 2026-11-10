@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState, type ReactNode } from "react";
+import { useEffect, useMemo, useState, type CSSProperties, type ReactNode } from "react";
 import AddTransactionModal, {
   type AddTransactionModalActions,
   type AddTransactionPayload,
@@ -39,6 +39,65 @@ const usd = (n: number) =>
   new Intl.NumberFormat("en-US", { style: "currency", currency: "USD", maximumFractionDigits: 0 }).format(n);
 
 const HOME_AS_OF_MONTHS = ["Jan.", "Feb.", "Mar.", "Apr.", "May", "June", "July", "Aug.", "Sept.", "Oct.", "Nov.", "Dec."];
+
+const CALENDAR_FONT_SCALES = [0.85, 0.93, 1, 1.12, 1.24, 1.36, 1.48] as const;
+const CALENDAR_FONT_STEP_DEFAULT = 2;
+const CALENDAR_FONT_STEP_STORAGE = "fety-home-calendar-font-step";
+
+function readCalendarFontStep(): number {
+  if (typeof window === "undefined") return CALENDAR_FONT_STEP_DEFAULT;
+  const raw = window.localStorage.getItem(CALENDAR_FONT_STEP_STORAGE);
+  if (raw == null) return CALENDAR_FONT_STEP_DEFAULT;
+  const n = parseInt(raw, 10);
+  if (!Number.isFinite(n) || n < 0 || n >= CALENDAR_FONT_SCALES.length) return CALENDAR_FONT_STEP_DEFAULT;
+  return n;
+}
+
+function HomeCalendarTextSizeIcon() {
+  return (
+    <svg className="fety-home-cal-textsize-icon" viewBox="0 0 24 24" aria-hidden focusable="false">
+      <text x="3" y="17" fontSize="13" fontWeight="700" fill="currentColor">
+        A
+      </text>
+      <text x="14" y="19" fontSize="9" fontWeight="600" fill="currentColor">
+        A
+      </text>
+    </svg>
+  );
+}
+
+function HomeCalendarTextSizeControl({
+  step,
+  onStepChange,
+}: {
+  step: number;
+  onStepChange: (next: number) => void;
+}) {
+  const pctLabel = (scale: number) => `${Math.round(scale * 100)}%`;
+
+  return (
+    <div className="fety-home-cal-textsize" role="group" aria-label="Calendar text size">
+      <span className="fety-home-cal-textsize-mark" aria-hidden>
+        <HomeCalendarTextSizeIcon />
+      </span>
+      <label className="fety-home-cal-textsize-select-wrap">
+        <span className="fety-home-cal-textsize-select-sr">Text size</span>
+        <select
+          className="fety-home-cal-textsize-select"
+          value={step}
+          aria-label="Calendar text size percentage"
+          onChange={(e) => onStepChange(parseInt(e.target.value, 10))}
+        >
+          {CALENDAR_FONT_SCALES.map((scale, index) => (
+            <option key={scale} value={index}>
+              {pctLabel(scale)}
+            </option>
+          ))}
+        </select>
+      </label>
+    </div>
+  );
+}
 
 function formatHomeDateBadge(focusDateISO: string): string {
   const d = new Date(`${focusDateISO}T12:00:00`);
@@ -179,6 +238,17 @@ function HomeCalendarCard({
   const [calView, setCalView] = useState<CalView>("monthly");
   const [focusDate, setFocusDate] = useState(() => new Date(`${selectedDateISO}T12:00:00`));
   const [expandedWeekRow, setExpandedWeekRow] = useState<number | null>(null);
+  const [calendarFontStep, setCalendarFontStep] = useState(readCalendarFontStep);
+
+  const setCalendarFontStepPersisted = (next: number) => {
+    const clamped = Math.max(0, Math.min(CALENDAR_FONT_SCALES.length - 1, next));
+    setCalendarFontStep(clamped);
+    try {
+      window.localStorage.setItem(CALENDAR_FONT_STEP_STORAGE, String(clamped));
+    } catch {
+      /* storage unavailable */
+    }
+  };
 
   useEffect(() => {
     setFocusDate(new Date(`${selectedDateISO}T12:00:00`));
@@ -218,7 +288,11 @@ function HomeCalendarCard({
   };
 
   return (
-    <section className="fety-home-card fety-home-cell fety-home-span-2 fety-home-card--calendar" data-tour-id="home-calendar">
+    <section
+      className="fety-home-card fety-home-cell fety-home-cell--calendar fety-home-span-2 fety-home-card--calendar"
+      data-tour-id="home-calendar"
+      style={{ "--fety-cal-font-scale": CALENDAR_FONT_SCALES[calendarFontStep] } as CSSProperties}
+    >
       <header className="fety-home-card-header fety-home-card-header--calendar">
         <div className="fety-home-calendar-toolbar-nav">
           <button
@@ -260,64 +334,69 @@ function HomeCalendarCard({
             setCalView(view);
           }}
         />
-        <div className={`fety-home-calendar-scroll fety-home-calendar-scroll--${calView}`}>
-          {calView === "monthly" ? (
-            <HomeCalendarMonthGrid
-              year={y}
-              month={m}
-              calendarMap={calendarMap}
-              store={store}
-              selectedDateISO={selectedDateISO}
-              expandedWeekRow={expandedWeekRow}
-              onToggleWeekRow={setExpandedWeekRow}
-              onSelectDay={selectDay}
-              onOpenDay={openDayAtHome}
-              today={today}
-            />
-          ) : null}
-          {calView === "weekly" ? (
-            <HomeCalendarWeekGrid
-              anchor={focusDate}
-              days={7}
-              calendarMap={calendarMap}
-              store={store}
-              selectedDateISO={selectedDateISO}
-              onSelectDay={selectDay}
-              onOpenDay={openDayAtHome}
-              today={today}
-            />
-          ) : null}
-          {calView === "biweekly" ? (
-            <HomeCalendarWeekGrid
-              anchor={focusDate}
-              days={14}
-              calendarMap={calendarMap}
-              store={store}
-              selectedDateISO={selectedDateISO}
-              onSelectDay={selectDay}
-              onOpenDay={openDayAtHome}
-              today={today}
-            />
-          ) : null}
-          {calView === "daily" ? (
-            <HomeCalendarDailyGrid
-              date={focusDate}
-              calendarMap={calendarMap}
-              store={store}
-              selectedDateISO={selectedDateISO}
-              onSelectDay={selectDay}
-              today={today}
-              onUpdateTransaction={onUpdateTransaction}
-              onDeleteTransaction={onDeleteTransaction}
-              onCompleteTransaction={onCompleteTransaction}
-              onMarkTransactionUpcoming={onMarkTransactionUpcoming}
-              onAddCalendarNote={onAddCalendarNote}
-              onUpdateCalendarNote={onUpdateCalendarNote}
-              onDeleteCalendarNote={onDeleteCalendarNote}
-            />
-          ) : null}
+        <div className="fety-home-calendar-font-root">
+          <div className={`fety-home-calendar-scroll fety-home-calendar-scroll--${calView}`}>
+            {calView === "monthly" ? (
+              <HomeCalendarMonthGrid
+                year={y}
+                month={m}
+                calendarMap={calendarMap}
+                store={store}
+                selectedDateISO={selectedDateISO}
+                expandedWeekRow={expandedWeekRow}
+                onToggleWeekRow={setExpandedWeekRow}
+                onSelectDay={selectDay}
+                onOpenDay={openDayAtHome}
+                today={today}
+              />
+            ) : null}
+            {calView === "weekly" ? (
+              <HomeCalendarWeekGrid
+                anchor={focusDate}
+                days={7}
+                calendarMap={calendarMap}
+                store={store}
+                selectedDateISO={selectedDateISO}
+                onSelectDay={selectDay}
+                onOpenDay={openDayAtHome}
+                today={today}
+              />
+            ) : null}
+            {calView === "biweekly" ? (
+              <HomeCalendarWeekGrid
+                anchor={focusDate}
+                days={14}
+                calendarMap={calendarMap}
+                store={store}
+                selectedDateISO={selectedDateISO}
+                onSelectDay={selectDay}
+                onOpenDay={openDayAtHome}
+                today={today}
+              />
+            ) : null}
+            {calView === "daily" ? (
+              <HomeCalendarDailyGrid
+                date={focusDate}
+                calendarMap={calendarMap}
+                store={store}
+                selectedDateISO={selectedDateISO}
+                onSelectDay={selectDay}
+                today={today}
+                onUpdateTransaction={onUpdateTransaction}
+                onDeleteTransaction={onDeleteTransaction}
+                onCompleteTransaction={onCompleteTransaction}
+                onMarkTransactionUpcoming={onMarkTransactionUpcoming}
+                onAddCalendarNote={onAddCalendarNote}
+                onUpdateCalendarNote={onUpdateCalendarNote}
+                onDeleteCalendarNote={onDeleteCalendarNote}
+              />
+            ) : null}
+          </div>
         </div>
-        <HomeCalendarColorKey />
+        <div className="fety-home-calendar-footer">
+          <HomeCalendarColorKey />
+          <HomeCalendarTextSizeControl step={calendarFontStep} onStepChange={setCalendarFontStepPersisted} />
+        </div>
       </div>
       <AddTransactionModal
         open={addOpen}
@@ -522,28 +601,47 @@ export default function HomeView({
 
   return (
     <div className="fety-home">
-      <div className="fety-home-row fety-home-row--hero">
+      <div
+        className={`fety-home-row fety-home-row--hero${glanceOpen ? "" : " fety-home-row--glance-collapsed"}`}
+      >
         <HomeCard
           label="At a glance"
           titleMode="plain"
           className={`fety-home-cell fety-home-cell--glance${glanceOpen ? "" : " fety-home-cell--collapsed"}`}
           action={
-            <button
-              type="button"
-              className="fety-home-glance-toggle"
-              aria-expanded={glanceOpen}
-              onClick={() => setGlanceOpen((o) => !o)}
-            >
-              {glanceOpen ? "Collapse" : "Expand"}
-            </button>
+            glanceOpen ? (
+              <button
+                type="button"
+                className="fety-home-glance-toggle"
+                aria-expanded
+                aria-label="Collapse at a glance"
+                onClick={() => setGlanceOpen(false)}
+              >
+                Collapse
+              </button>
+            ) : undefined
           }
         >
           {glanceOpen ? (
             <HomeAtAGlance store={store} summary={glanceSummary} monthLabel={monthLabel} />
           ) : (
-            <p className="fety-home-glance-collapsed-hint">
-              Monthly budget and scheduled activity — expand to see category progress for the current month.
-            </p>
+            <>
+              <p className="fety-home-glance-collapsed-hint">
+                Monthly budget and scheduled activity — expand to see category progress for the current month.
+              </p>
+              <div className="fety-home-glance-rail">
+                <button
+                  type="button"
+                  className="fety-home-glance-toggle fety-home-glance-toggle--rail"
+                  aria-expanded={false}
+                  aria-label="Expand at a glance"
+                  onClick={() => setGlanceOpen(true)}
+                >
+                  Expand
+                </button>
+                <span className="fety-home-glance-rail-label">At a glance</span>
+              </div>
+            </>
           )}
         </HomeCard>
         <HomeCalendarCard

@@ -1,4 +1,5 @@
-import { useMemo, useState } from "react";
+import { useMemo, useRef, useState } from "react";
+import { useForwardWheelToMainScroll } from "../../hooks/useForwardWheelToMainScroll";
 import CalendarAccountsBreakdown from "../../components/CalendarAccountsBreakdown";
 import CalendarNoteIcon from "../../components/CalendarNoteIcon";
 import DayNotesPanel from "../../components/DayNotesPanel";
@@ -219,6 +220,8 @@ export function HomeCalendarDailyDetail({
   const txById = useMemo(() => new Map(store.transactions.map((t) => [t.id, t])), [store.transactions]);
   const [editOpen, setEditOpen] = useState(false);
   const [editingTransaction, setEditingTransaction] = useState<Transaction | null>(null);
+  const dailyRootRef = useRef<HTMLDivElement>(null);
+  useForwardWheelToMainScroll(dailyRootRef);
 
   const openEdit = (item: CalDayItem) => {
     const stored = txById.get(item.id);
@@ -237,7 +240,7 @@ export function HomeCalendarDailyDetail({
   };
 
   return (
-    <div className="fety-home-cal-period fety-home-cal-period--daily">
+    <div ref={dailyRootRef} className="fety-home-cal-period fety-home-cal-period--daily">
       <header className="fety-home-cal-period-header">
         <div>
           <p className="fety-label">What this day looks like</p>
