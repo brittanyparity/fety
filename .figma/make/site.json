@@ -2,7 +2,7 @@
   "title": "Fety",
   "description": "Streamline your budgeting process with an intuitive spreadsheet tool designed for personal finance management, helping users track expenses and savings effortlessly.",
   "icons": {
-    "icon": "/favicon.png",
+    "icon": "/favicon.ico",
     "appleTouchIcon": "/apple-touch-icon.png"
   },
   "robots": {
