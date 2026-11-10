@@ -7,7 +7,7 @@ import { buildCalendarMap, mergeCalendarMaps, todayISO } from "../lib/fetyCalcul
 import { calendarYearsForHomeView } from "../lib/calendarView";
 import type { FetyStore } from "../types/fety";
 import { HomeCalendarDailyDetail } from "../views/calendar/homeCalendarPeriodDetail";
-import MobileHomeDatePicker from "./MobileHomeDatePicker";
+import MobileFabAdd from "./MobileFabAdd";
 
 export default function MobileHomeTab({
   store,
@@ -50,22 +50,6 @@ export default function MobileHomeTab({
 
   return (
     <div className="fety-mobile-home fety-mobile-home--split">
-      <div className="fety-mobile-home-date-dock">
-        <div className="fety-mobile-home-top-bar">
-          <MobileHomeDatePicker
-            selectedISO={selectedDateISO}
-            onSelect={onSelectedDateChange}
-            endingBalanceForDate={endingBalanceForDate}
-          />
-          <button
-            type="button"
-            className="fety-mobile-floating-btn fety-mobile-floating-btn--emphasis"
-            onClick={() => setAddOpen(true)}
-          >
-            Add transaction
-          </button>
-        </div>
-      </div>
       <div className="fety-mobile-home-scroll">
         <div className="fety-mobile-home-day">
           <HomeCalendarDailyDetail
@@ -84,6 +68,7 @@ export default function MobileHomeTab({
           />
         </div>
       </div>
+      <MobileFabAdd onClick={() => setAddOpen(true)} />
       <AddTransactionModal
         open={addOpen}
         dateISO={selectedDateISO || todayISO()}

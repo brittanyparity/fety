@@ -3,8 +3,9 @@ import { FetyLogo } from "./FetyLogo";
 import { useFetyData } from "./hooks/useFetyData";
 import { calendarNotePreview, hasCalendarNote, noteForCalendarDay } from "./lib/calendarNotes";
 import { actualCashBalance } from "./lib/affordability";
-import { buildCalendarMap, computeSummary, dateToISOLocal, endingBalanceOnDate, endingBalancesForRange, formatNavDate, monthsSpending, categorySpendSharesForPeriod, todayISO, type BalanceChartPoint, type BalanceChartRange, type CategorySpendPeriod, type SpendTrendMonths } from "./lib/fetyCalculations";
+import { buildCalendarMap, computeSummary, dateToISOLocal, endingBalanceOnDate, endingBalancesBetweenISOs, formatNavDate, monthsSpending, categorySpendSharesForPeriod, todayISO, type BalanceChartPoint, type BalanceChartRange, type CategorySpendPeriod, type SpendTrendMonths } from "./lib/fetyCalculations";
 import {
+  accountBalanceProjectedThrough,
   accountBalanceWithTransactions,
   formatAccountBalanceDisplay,
   formatTransactionDetailLine,
@@ -32,6 +33,7 @@ import TransactionAccountFields from "./components/TransactionAccountFields";
 import TransactionCategorySelect from "./components/TransactionCategorySelect";
 import { toggleWidgetOnDashboard, WIDGET_SIZE_SECTIONS } from "./lib/widgetLayout";
 import { useIsNarrow } from "./hooks/useIsNarrow";
+import TransactionDateRangeFilter from "./components/TransactionDateRangeFilter";
 import WidgetPeriodFilter from "./components/WidgetPeriodFilter";
 import type { BudgetCategory, CalDay, CalendarMap, FetyStore, FetyTransactionType, FinanceSummary, Transaction, TransactionType } from "./types/fety";
 import {
@@ -64,7 +66,7 @@ import type { FetyActionTarget, FinancialAnalysis } from "./types/analysis";
 import type { FinancialAssessment } from "./types/widgets";
 import {
   AreaChart, Area, BarChart, Bar, Line,
-  XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer,
+  XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, ReferenceLine,
   PieChart, Pie, Cell,
 } from "recharts";
 import { nextBillOccurrenceOnOrAfter } from "./lib/billScheduling";
@@ -237,10 +239,10 @@ const MONTHS = ["January","February","March","April","May","June","July","August
 const DAYS_SHORT = ["Sun","Mon","Tue","Wed","Thu","Fri","Sat"];
 
 const NAV_ITEMS: { id: Page; label: string }[] = [
-  { id: "dashboard", label: "Home"         },
-  { id: "spending",  label: "Transactions" },
-  { id: "budget",    label: "Budget"       },
-  { id: "goals",     label: "Goals"        },
+  { id: "dashboard", label: "Home" },
+  { id: "budget", label: "Budget" },
+  { id: "spending", label: "Spending" },
+  { id: "goals", label: "Goals" },
 ];
 
 type LiveWidgetBundle = { store: FetyStore; summary: FinanceSummary; focusDateISO: string };
@@ -464,11 +466,13 @@ function ScrollableChart({
   pointCount,
   height,
   minPointWidth = 36,
+  contentKey,
   children,
 }: {
   pointCount: number;
   height: number;
   minPointWidth?: number;
+  contentKey?: string;
   children: (width: number) => React.ReactNode;
 }) {
   const narrow = useIsNarrow();
@@ -493,7 +497,11 @@ function ScrollableChart({
   const chartWidth = Math.max(availableWidth, minWidth);
   return (
     <div className="fety-chart-scroll" ref={scrollerRef}>
-      <div className="fety-chart-scroll-inner" style={{ width: chartWidth, minWidth, height }}>
+      <div
+        key={contentKey}
+        className="fety-chart-scroll-inner"
+        style={{ width: chartWidth, minWidth, height }}
+      >
         {children(chartWidth)}
       </div>
     </div>
@@ -554,37 +562,159 @@ function enrichBalanceChartSeries(points: BalanceChartPoint[]) {
       balPositive: positive ? p.bal : bridgePositive ? 0 : null,
       balZero: zero ? p.bal : null,
       balNegative: negative ? p.bal : bridgeNegative ? 0 : null,
+      balFillAbove: p.bal > 0.005 ? p.bal : 0,
+      balFillBelow: p.bal < -0.005 ? p.bal : 0,
     };
   });
 }
 
-function BalanceChartWidget() {
-  const { store, summary: s, focusDateISO } = widgetLive();
-  const chartRef = useMemo(() => new Date(`${focusDateISO}T12:00:00`), [focusDateISO]);
-  const [range, setRange] = useState<BalanceChartRange>("7d");
+function balanceChartYExtent(points: BalanceChartPoint[]): { min: number; max: number } {
+  let min = 0;
+  let max = 0;
+  for (const p of points) {
+    if (p.bal < min) min = p.bal;
+    if (p.bal > max) max = p.bal;
+  }
+  return { min, max };
+}
+
+function balanceChartYDomain(points: BalanceChartPoint[]): [number, number] {
+  const { min, max } = balanceChartYExtent(points);
+  const span = max - min || Math.max(Math.abs(max), Math.abs(min), 500);
+  const pad = span * 0.06;
+  return [min - pad, max + pad];
+}
+
+function formatBalanceYAxisTick(v: number, extent: { min: number; max: number }): string {
+  const mag = Math.max(Math.abs(extent.min), Math.abs(extent.max), 1);
+  if (mag < 1000) {
+    return `$${Math.round(v)}`;
+  }
+  if (mag < 10000) {
+    const k = v / 1000;
+    return Math.abs(k) >= 10 ? `$${Math.round(k)}k` : `$${k.toFixed(1).replace(/\.0$/, "")}k`;
+  }
+  return `$${Math.round(v / 1000)}k`;
+}
+
+function formatBalanceAxisDate(iso: string, pointCount: number): string {
+  const d = new Date(`${iso}T12:00:00`);
+  if (pointCount <= 7) {
+    return d.toLocaleDateString("en-US", { weekday: "short", day: "numeric" });
+  }
+  return `${d.getMonth() + 1}/${d.getDate()}`;
+}
+
+function dayBeforeISO(iso: string): string {
+  const d = new Date(`${iso}T12:00:00`);
+  d.setDate(d.getDate() - 1);
+  return dateToISOLocal(d);
+}
+
+const BALANCE_CHART_MAX_DAYS = 30;
+
+function balanceAmountColor(bal: number): string {
+  if (bal < -0.005) return "var(--trouble-dk)";
+  if (bal > 0.005) return "var(--clear-dk)";
+  return "var(--amber-dk)";
+}
+
+function clampRangeToMaxDays(startISO: string, endISO: string, maxDays: number): { start: string; end: string } {
+  const next = coalesceBalanceRangeISO(startISO, endISO);
+  const lo = new Date(`${next.start}T12:00:00`);
+  const hi = new Date(`${next.end}T12:00:00`);
+  const span = Math.floor((hi.getTime() - lo.getTime()) / 86400000) + 1;
+  if (span <= maxDays) return next;
+  const capped = new Date(lo);
+  capped.setDate(capped.getDate() + maxDays - 1);
+  return { start: next.start, end: dateToISOLocal(capped) };
+}
+
+function BalanceChartTooltip({
+  active,
+  payload,
+}: {
+  active?: boolean;
+  payload?: Array<{ payload?: { dateLabel?: string; bal?: number; startBal?: number } }>;
+}) {
+  if (!active || !payload?.length) return null;
+  const row = payload[0]?.payload;
+  if (!row) return null;
+  return (
+    <div className="fety-balance-chart-tooltip">
+      <p className="fety-balance-chart-tooltip-date">{row.dateLabel}</p>
+      <p className="fety-balance-chart-tooltip-line">
+        Start balance{" "}
+        <span style={{ color: balanceAmountColor(row.startBal ?? 0) }}>{usdF(row.startBal ?? 0)}</span>
+      </p>
+      <p className="fety-balance-chart-tooltip-line">
+        End balance <span style={{ color: balanceAmountColor(row.bal ?? 0) }}>{usdF(row.bal ?? 0)}</span>
+      </p>
+    </div>
+  );
+}
+
+function defaultBalanceChartRange(): { start: string; end: string } {
+  const end = todayISO();
+  const endDate = new Date(`${end}T12:00:00`);
+  const startDate = new Date(endDate);
+  startDate.setDate(startDate.getDate() - 6);
+  return { start: dateToISOLocal(startDate), end };
+}
+
+function coalesceBalanceRangeISO(startISO: string, endISO: string): { start: string; end: string } {
+  const fb = todayISO();
+  const start = startISO || endISO || fb;
+  const end = endISO || startISO || fb;
+  return end >= start ? { start, end } : { start: end, end: start };
+}
+
+function BalanceChartWidget({
+  store: storeProp,
+  summary: summaryProp,
+}: {
+  store?: FetyStore;
+  summary?: FinanceSummary;
+} = {}) {
+  const { store, summary: s } =
+    storeProp && summaryProp ? { store: storeProp, summary: summaryProp } : widgetLive();
+  const [chartStartISO, setChartStartISO] = useState(() => defaultBalanceChartRange().start);
+  const [chartEndISO, setChartEndISO] = useState(() => defaultBalanceChartRange().end);
+  const chartRange = useMemo(
+    () => coalesceBalanceRangeISO(chartStartISO, chartEndISO),
+    [chartStartISO, chartEndISO],
+  );
   const [accountId, setAccountId] = useState<string>("all");
   const selectedAccount = accountId === "all" ? null : accountId;
-  const weekData = endingBalancesForRange(store, range, chartRef, selectedAccount);
-  const chartData = useMemo(() => enrichBalanceChartSeries(weekData), [weekData]);
+  const weekData = endingBalancesBetweenISOs(
+    store,
+    chartRange.start,
+    chartRange.end,
+    selectedAccount,
+  );
+  const chartData = useMemo(() => {
+    const openingBal = (iso: string) =>
+      selectedAccount
+        ? accountBalanceProjectedThrough(store, selectedAccount, iso)
+        : endingBalanceOnDate(store, iso);
+    return enrichBalanceChartSeries(weekData).map((p, i) => ({
+      ...p,
+      d: formatBalanceAxisDate(p.dateISO, weekData.length),
+      startBal: i > 0 ? weekData[i - 1]!.bal : openingBal(dayBeforeISO(p.dateISO)),
+    }));
+  }, [weekData, selectedAccount, store]);
+  const windowEndISO = weekData[weekData.length - 1]?.dateISO ?? chartRange.end;
   const endBal = weekData[weekData.length - 1]?.bal ?? (selectedAccount ? 0 : s.balance);
-  const endColor =
-    endBal < -0.005 ? "var(--trouble-dk)" : endBal > 0.005 ? "var(--ink)" : "var(--amber-dk)";
-  const subtitle =
-    range === "7d"
-      ? "Last 7 days"
-      : range === "14d"
-        ? "Last 14 days"
-        : range === "30d"
-          ? "Last 30 days"
-          : "Month to date";
-  const accountLabel =
-    accountId === "all"
-      ? "All cash"
-      : store.accounts.find((a) => a.id === accountId)?.name ?? "Account";
-  const balanceChartHeight = 168;
-  const balanceTickFontSize = range === "7d" ? 9 : weekData.length <= 14 ? 9 : 8;
-  const [accountsBreakdownOpen, setAccountsBreakdownOpen] = useState(false);
-  const breakdownThroughISO = focusDateISO;
+  const endColor = balanceAmountColor(endBal);
+  const balanceChartHeight = 160;
+  const balanceTickFontSize = weekData.length <= 7 ? 9 : weekData.length <= 14 ? 8 : 7;
+  const balanceYExtent = useMemo(() => balanceChartYExtent(weekData), [weekData]);
+  const balanceYDomain = useMemo(() => balanceChartYDomain(weekData), [weekData]);
+  const chartEndingBalance = useCallback(
+    (dateISO: string) => endingBalanceOnDate(store, dateISO),
+    [store],
+  );
+  const breakdownThroughISO = windowEndISO;
   const accountBreakdown = useMemo(
     () =>
       store.accounts.map((a) => ({
@@ -594,55 +724,61 @@ function BalanceChartWidget() {
     [store, breakdownThroughISO],
   );
   const breakdownTotal = useMemo(
-    () => (selectedAccount ? endBal : netWorthTotalsOnDate(store, breakdownThroughISO).net),
-    [selectedAccount, endBal, store, breakdownThroughISO],
+    () => netWorthTotalsOnDate(store, breakdownThroughISO).net,
+    [store, breakdownThroughISO],
   );
-  const today = todayISO();
-  const showActualVsPlanned = !selectedAccount && focusDateISO > today;
-  const actualBalanceToday = useMemo(() => actualCashBalance(store), [store]);
 
   return (
     <div>
-      <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: 12, marginBottom: 10, flexWrap: "wrap" }}>
-        <div>
-          <p style={{ fontSize: 11, color: "var(--ink-3)", margin: 0 }}>
-            {accountLabel} · {subtitle}
-            {showActualVsPlanned ? (
-              <span className="fety-balance-actual-planned-inline">
-                {" "}
-                · Actual today {usd(actualBalanceToday)} · Planned {formatNavDate(focusDateISO)} {usd(endBal)}
-              </span>
-            ) : null}
-          </p>
-        </div>
-        <p style={{ fontSize: 22, fontWeight: 400, color: endColor, letterSpacing: "-0.8px", fontFamily: "var(--font-sans)", margin: 0 }}>
-          {showActualVsPlanned ? (
-            <span title="Planned ending balance on the selected date">{usd(endBal)}</span>
-          ) : (
-            usd(endBal)
-          )}
+      <div className="fety-balance-chart-head">
+        <p
+          className="fety-balance-chart-amount"
+          style={{ color: endColor }}
+          title={`Ending balance on ${weekData[weekData.length - 1]?.dateLabel ?? chartEndISO}`}
+        >
+          {usd(endBal)}
         </p>
+        <div className="fety-widget-filters fety-balance-chart-head-filters">
+          <TransactionDateRangeFilter
+            rangeStartISO={chartStartISO}
+            rangeEndISO={chartEndISO}
+            onRangeChange={(start, end) => {
+              const next = clampRangeToMaxDays(start, end, BALANCE_CHART_MAX_DAYS);
+              setChartStartISO(next.start);
+              setChartEndISO(next.end);
+            }}
+            endingBalanceForDate={chartEndingBalance}
+            appearance="widget"
+            fieldLabel="Dates"
+            showClearAll={false}
+            maxRangeDays={BALANCE_CHART_MAX_DAYS}
+            menuClassName="fety-balance-chart-date-menu"
+          />
+          <label className="fety-widget-account-filter">
+            <span className="fety-label">Account</span>
+            <select value={accountId} onChange={(e) => setAccountId(e.target.value)} aria-label="Balance account">
+              <option value="all">All cash</option>
+              {store.accounts.map((a) => (
+                <option key={a.id} value={a.id}>
+                  {a.icon} {a.name}
+                </option>
+              ))}
+            </select>
+          </label>
+        </div>
       </div>
-      <div className="fety-widget-filters">
-        <WidgetPeriodFilter options={BALANCE_RANGE_OPTIONS} value={range} onChange={setRange} ariaLabel="Balance period" />
-        <label className="fety-widget-account-filter">
-          <span className="fety-label">Account</span>
-          <select value={accountId} onChange={(e) => setAccountId(e.target.value)} aria-label="Balance account">
-            <option value="all">All cash</option>
-            {store.accounts.map((a) => (
-              <option key={a.id} value={a.id}>
-                {a.icon} {a.name}
-              </option>
-            ))}
-          </select>
-        </label>
-      </div>
-      <div className="fety-chart-fit" style={{ height: balanceChartHeight }}>
-        <ResponsiveContainer width="100%" height={balanceChartHeight}>
-          <AreaChart
-            data={chartData}
-            margin={{ top: 4, right: 2, left: 0, bottom: 8 }}
-          >
+      <div className="fety-balance-chart-graph">
+        <ScrollableChart
+          pointCount={weekData.length}
+          height={balanceChartHeight}
+          minPointWidth={weekData.length <= 7 ? 44 : weekData.length <= 14 ? 36 : 28}
+        >
+          {(chartWidth) => (
+            <ResponsiveContainer width={chartWidth} height={balanceChartHeight}>
+              <AreaChart
+                data={chartData}
+                margin={{ top: 4, right: 2, left: 0, bottom: 8 }}
+              >
               <CartesianGrid strokeDasharray="3 3" stroke="var(--border-soft)" vertical={false} />
               <XAxis
                 dataKey="d"
@@ -656,18 +792,23 @@ function BalanceChartWidget() {
                 interval={0}
                 minTickGap={0}
               />
-              <YAxis tick={{ fontSize: 10, fill: "var(--ink-3)", fontFamily: "var(--font-sans)" }} axisLine={false} tickLine={false} tickFormatter={(v) => `$${Number(v) / 1000}k`} width={36} />
+              <YAxis
+                domain={balanceYDomain}
+                tick={{ fontSize: 9, fill: "var(--ink-3)", fontFamily: "var(--font-sans)" }}
+                axisLine={false}
+                tickLine={false}
+                tickFormatter={(v) => formatBalanceYAxisTick(Number(v), balanceYExtent)}
+                width={40}
+              />
+              <ReferenceLine y={0} stroke="var(--border)" strokeWidth={1} />
               <Tooltip
-                labelFormatter={(_, items) => {
-                  const row = items?.[0]?.payload as { dateLabel?: string; d?: string } | undefined;
-                  return row?.dateLabel ?? row?.d ?? "";
-                }}
-                formatter={(v: unknown) => [usdF(Number(v)), "Balance"]}
-                contentStyle={{ fontSize: 11, borderRadius: 8, border: "1px solid var(--border)", fontFamily: "var(--font-sans)" }}
+                content={(props) => <BalanceChartTooltip {...props} />}
+                cursor={{ stroke: "var(--border-soft)", strokeWidth: 1, fill: "color-mix(in srgb, var(--ink) 5%, transparent)" }}
+                wrapperStyle={{ outline: "none" }}
               />
               <Area
                 type="monotone"
-                dataKey="balPositive"
+                dataKey="balFillAbove"
                 stroke="none"
                 fill="var(--clear)"
                 fillOpacity={0.45}
@@ -678,50 +819,69 @@ function BalanceChartWidget() {
               />
               <Area
                 type="monotone"
-                dataKey="balNegative"
+                dataKey="balFillBelow"
                 stroke="none"
                 fill="var(--trouble)"
-                fillOpacity={0.4}
+                fillOpacity={0.42}
                 baseValue={0}
                 dot={false}
                 connectNulls
                 isAnimationActive={false}
               />
-              <Line type="monotone" dataKey="balZero" stroke="var(--amber-dk)" strokeWidth={2.5} dot={false} connectNulls isAnimationActive={false} />
-              <Line type="monotone" dataKey="balPositive" stroke="var(--clear-dk)" strokeWidth={2.5} dot={false} connectNulls isAnimationActive={false} />
-              <Line type="monotone" dataKey="balNegative" stroke="var(--trouble-dk)" strokeWidth={2.5} dot={false} connectNulls isAnimationActive={false} />
-            </AreaChart>
-        </ResponsiveContainer>
+              <Line
+                type="monotone"
+                dataKey="balZero"
+                stroke="var(--ink-3)"
+                strokeWidth={2.5}
+                dot={false}
+                activeDot={false}
+                connectNulls
+                isAnimationActive={false}
+              />
+              <Line
+                type="monotone"
+                dataKey="balPositive"
+                stroke="var(--clear-dk)"
+                strokeWidth={2.5}
+                dot={false}
+                activeDot={false}
+                connectNulls
+                isAnimationActive={false}
+              />
+              <Line
+                type="monotone"
+                dataKey="balNegative"
+                stroke="var(--trouble-dk)"
+                strokeWidth={2.5}
+                dot={false}
+                activeDot={false}
+                connectNulls
+                isAnimationActive={false}
+              />
+              </AreaChart>
+            </ResponsiveContainer>
+          )}
+        </ScrollableChart>
       </div>
-      {!selectedAccount && store.accounts.length > 0 ? (
+      {store.accounts.length > 0 ? (
         <div className="fety-balance-account-breakdown">
-          <button
-            type="button"
-            className="fety-balance-account-breakdown-toggle"
-            aria-expanded={accountsBreakdownOpen}
-            onClick={() => setAccountsBreakdownOpen((o) => !o)}
-          >
-            <span>Ending balance by account</span>
-            <span aria-hidden>{accountsBreakdownOpen ? "▾" : "▸"}</span>
-          </button>
-          {accountsBreakdownOpen ? (
-            <ul className="fety-balance-account-breakdown-list">
-              {accountBreakdown.map(({ account, balance }) => (
-                <li key={account.id} className="fety-balance-account-breakdown-row">
-                  <span>
-                    {account.icon} {account.name}
-                  </span>
-                  <span className={isDebtAccount(account) ? "fety-balance-account-breakdown--debt" : undefined}>
-                    {formatAccountBalanceDisplay(account, balance)}
-                  </span>
-                </li>
-              ))}
-              <li className="fety-balance-account-breakdown-row fety-balance-account-breakdown-row--total">
-                <span>Total</span>
-                <span>{usdF(breakdownTotal)}</span>
+          <p className="fety-balance-account-breakdown-title">Ending balance by account</p>
+          <ul className="fety-balance-account-breakdown-list">
+            {accountBreakdown.map(({ account, balance }) => (
+              <li key={account.id} className="fety-balance-account-breakdown-row">
+                <span>
+                  {account.icon} {account.name}
+                </span>
+                <span className={isDebtAccount(account) ? "fety-balance-account-breakdown--debt" : undefined}>
+                  {formatAccountBalanceDisplay(account, balance)}
+                </span>
               </li>
-            </ul>
-          ) : null}
+            ))}
+            <li className="fety-balance-account-breakdown-row fety-balance-account-breakdown-row--total">
+              <span>Total</span>
+              <span>{usdF(breakdownTotal)}</span>
+            </li>
+          </ul>
         </div>
       ) : null}
     </div>
@@ -2424,7 +2584,7 @@ function DashboardView({
   const [focusDateISO, setFocusDateISO] = useState(todayISO);
   const focusDate = useMemo(() => new Date(`${focusDateISO}T12:00:00`), [focusDateISO]);
   const summary = useMemo(() => computeSummary(store, focusDate), [store, focusDate]);
-  const glanceSummary = useMemo(
+  const todaySummary = useMemo(
     () => computeSummary(store, new Date(`${todayISO()}T12:00:00`)),
     [store],
   );
@@ -2434,7 +2594,7 @@ function DashboardView({
     <HomeView
       store={store}
       summary={summary}
-      glanceSummary={glanceSummary}
+      glanceSummary={todaySummary}
       analysis={analysis}
       focusDateISO={focusDateISO}
       onFocusDateChange={setFocusDateISO}
@@ -2448,7 +2608,7 @@ function DashboardView({
       onAddCalendarNote={onAddCalendarNote}
       onUpdateCalendarNote={onUpdateCalendarNote}
       onDeleteCalendarNote={onDeleteCalendarNote}
-      balanceChart={<BalanceChartWidget />}
+      balanceChart={<BalanceChartWidget store={store} summary={todaySummary} />}
     />
   );
 }
@@ -2456,7 +2616,7 @@ function DashboardView({
 // ─── Page Header ───────────────────────────────────────────────────────────────
 const PAGE_META: Record<Page, { title: string; sub: string }> = {
   dashboard: { title: "Home", sub: "Calendar, cash flow, and what to focus on next." },
-  spending:  { title: "Transactions", sub: "Every dollar in and out of your accounts." },
+  spending:  { title: "Spending", sub: "Every dollar in and out of your accounts." },
   budget:    { title: "Budget", sub: "Tracks are ink; coral marks the category that's over." },
   goals:     { title: "Goals", sub: "Money you're holding for later." },
   profile:   { title: "Profile Settings", sub: "Personal info and data preferences." },
@@ -2789,7 +2949,9 @@ export default function App() {
     );
   }
 
-  liveWidgets = { store, summary, focusDateISO: todayISO() };
+  if (page !== "dashboard") {
+    liveWidgets = { store, summary, focusDateISO: todayISO() };
+  }
 
   const mobileData = {
     addTransaction,

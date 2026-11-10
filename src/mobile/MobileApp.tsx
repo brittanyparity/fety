@@ -1,11 +1,13 @@
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { FetyLogo } from "../FetyLogo";
 import UndoToast from "../components/UndoToast";
-import { todayISO } from "../lib/fetyCalculations";
+import { endingBalanceOnDate, mergeCalendarMaps, todayISO } from "../lib/fetyCalculations";
+import { calendarYearsForHomeView } from "../lib/calendarView";
 import type { FinanceSummary, FetyStore, Transaction } from "../types/fety";
 import type { AddTransactionModalActions, AddTransactionPayload } from "../components/AddTransactionModal";
 import { NetWorthManageView, ProfileSettingsView } from "../views/ManageViews";
-import { MobileSettingsIcon } from "./MobileNavIcons";
+import { MobileFilterIcon, MobileSettingsIcon } from "./MobileNavIcons";
+import MobileHeaderDatePicker from "./MobileHeaderDatePicker";
 import MobileTabBar from "./MobileTabBar";
 import MobileHomeTab from "./MobileHomeTab";
 import MobileTransactionsTab from "./MobileTransactionsTab";
@@ -67,6 +69,10 @@ export default function MobileApp({
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [settingsSection, setSettingsSection] = useState<SettingsSection>("profile");
   const [transactionsAccountFilter, setTransactionsAccountFilter] = useState<string | null>(null);
+  const [txnFiltersOpen, setTxnFiltersOpen] = useState(false);
+  const [txnFiltersActive, setTxnFiltersActive] = useState(false);
+  const [insightsStartISO, setInsightsStartISO] = useState(todayISO);
+  const [insightsEndISO, setInsightsEndISO] = useState(todayISO);
 
   useEffect(() => {
     document.documentElement.dataset.fetyMobileShell = "1";
@@ -90,16 +96,20 @@ export default function MobileApp({
     manage,
   } = data;
 
-  const pageTitle =
-    tab === "home"
-      ? "Daily review"
-      : tab === "transactions"
-        ? "Transactions"
-        : tab === "budget"
-          ? "Budget"
-          : tab === "insights"
-            ? "Insights"
-            : "Goals";
+  const homeEndingBalanceForDate = useCallback(
+    (dateISO: string) => {
+      const focusDate = new Date(`${dateISO}T12:00:00`);
+      const years = calendarYearsForHomeView("monthly", focusDate);
+      const map = mergeCalendarMaps(store, years);
+      return map.get(dateISO)?.endBal ?? endingBalanceOnDate(store, dateISO);
+    },
+    [store],
+  );
+
+  const insightsEndingBalance = useCallback(
+    (dateISO: string) => endingBalanceOnDate(store, dateISO),
+    [store],
+  );
 
   const openTransactionsForAccount = (accountId: string) => {
     setTransactionsAccountFilter(accountId);
@@ -109,11 +119,42 @@ export default function MobileApp({
 
   return (
     <div className="fety-mobile-shell">
-      <header className="fety-mobile-header">
+      <header className="fety-mobile-header fety-mobile-header--frosted">
         <div className="fety-mobile-header-slot fety-mobile-header-slot--left">
           <FetyLogo />
         </div>
-        <h1 className="fety-mobile-header-title">{pageTitle}</h1>
+        <div className="fety-mobile-header-center">
+          {tab === "home" ? (
+            <MobileHeaderDatePicker
+              selectedISO={selectedDateISO}
+              onSelect={setSelectedDateISO}
+              endingBalanceForDate={homeEndingBalanceForDate}
+            />
+          ) : null}
+          {tab === "transactions" ? (
+            <button
+              type="button"
+              className={`fety-mobile-header-tool-btn${txnFiltersActive ? " fety-mobile-header-tool-btn--active" : ""}`}
+              aria-label="Filter transactions"
+              aria-expanded={txnFiltersOpen}
+              onClick={() => setTxnFiltersOpen(true)}
+            >
+              <MobileFilterIcon />
+            </button>
+          ) : null}
+          {tab === "insights" ? (
+            <MobileHeaderDatePicker
+              mode="range"
+              rangeStartISO={insightsStartISO}
+              rangeEndISO={insightsEndISO}
+              onRangeChange={(start, end) => {
+                setInsightsStartISO(start);
+                setInsightsEndISO(end);
+              }}
+              endingBalanceForDate={insightsEndingBalance}
+            />
+          ) : null}
+        </div>
         <div className="fety-mobile-header-slot fety-mobile-header-slot--right">
           <button
             type="button"
@@ -158,10 +199,15 @@ export default function MobileApp({
             onCompleteTransaction={completeTransaction}
             onMarkTransactionUpcoming={markTransactionUpcoming}
             accountFilter={transactionsAccountFilter}
+            filtersOpen={txnFiltersOpen}
+            onFiltersOpenChange={setTxnFiltersOpen}
+            onFiltersActiveChange={setTxnFiltersActive}
           />
         ) : null}
         {tab === "budget" ? <MobileBudgetTab summary={summary} store={store} actions={manage} /> : null}
-        {tab === "insights" ? <MobileInsightsTab store={store} focusDateISO={selectedDateISO} /> : null}
+        {tab === "insights" ? (
+          <MobileInsightsTab store={store} rangeStartISO={insightsStartISO} rangeEndISO={insightsEndISO} />
+        ) : null}
         {tab === "goals" ? <MobileGoalsTab store={store} actions={manage} /> : null}
       </main>
 

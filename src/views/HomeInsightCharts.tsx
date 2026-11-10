@@ -1,6 +1,6 @@
 import { useMemo, useState } from "react";
 import WidgetPeriodFilter from "../components/WidgetPeriodFilter";
-import { formatDisplayDate } from "../lib/fetyCalculations";
+import { categoryActualSpendBetween, formatDisplayDate, ledgerCashFlowsBetween } from "../lib/fetyCalculations";
 import {
   computeSpendingMixInsight,
   goalsContributionForPeriod,
@@ -12,7 +12,12 @@ import {
 import type { FinancialAnalysis } from "../types/analysis";
 import type { FinanceSummary, FetyStore } from "../types/fety";
 import { formatUsd } from "../lib/scheduleAmounts";
-import { CategoryMixChart, IncomeAllocationChart, categoryMixPieData } from "./InsightsBriefing";
+import {
+  CategoryMixChart,
+  IncomeAllocationChart,
+  actualSpendMixSlices,
+  categoryMixPieData,
+} from "./InsightsBriefing";
 
 type InsightChartTab = "picture" | "mix" | "power";
 
@@ -174,21 +179,55 @@ function SpendingPowerPanel({
   );
 }
 
+function formatInsightsRangeLabel(startISO: string, endISO: string): string {
+  if (startISO === endISO) return formatDisplayDate(startISO);
+  const start = new Date(`${startISO}T12:00:00`);
+  const end = new Date(`${endISO}T12:00:00`);
+  const sameYear = start.getFullYear() === end.getFullYear();
+  const a = start.toLocaleDateString("en-US", {
+    month: "short",
+    day: "numeric",
+    ...(sameYear ? {} : { year: "numeric" }),
+  });
+  const b = end.toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" });
+  return `${a} – ${b}`;
+}
+
 export default function HomeInsightCharts({
   analysis,
   summary,
   store,
   focusDateISO,
+  rangeStartISO,
+  rangeEndISO,
   layout = "tabs",
 }: {
   analysis: FinancialAnalysis;
   summary: FinanceSummary;
   store: FetyStore;
   focusDateISO: string;
+  rangeStartISO?: string;
+  rangeEndISO?: string;
   layout?: "tabs" | "tiles";
 }) {
   const [tab, setTab] = useState<InsightChartTab>("picture");
-  const mixLegend = useMemo(() => categoryMixPieData(analysis), [analysis]);
+  const rangeStart = rangeStartISO ?? focusDateISO;
+  const rangeEnd = rangeEndISO ?? focusDateISO;
+  const rangeMode = rangeStart !== rangeEnd;
+  const periodLabel = rangeMode ? formatInsightsRangeLabel(rangeStart, rangeEnd) : formatDisplayDate(focusDateISO);
+
+  const mixLegend = useMemo(() => {
+    if (rangeMode) {
+      return actualSpendMixSlices(categoryActualSpendBetween(store, rangeStart, rangeEnd));
+    }
+    return categoryMixPieData(analysis);
+  }, [analysis, rangeMode, rangeStart, rangeEnd, store]);
+
+  const rangeFlows = useMemo(
+    () => (rangeMode ? ledgerCashFlowsBetween(store, rangeStart, rangeEnd) : null),
+    [rangeMode, rangeStart, rangeEnd, store],
+  );
+
   const empty = analysis.missing.income && analysis.missing.obligations && analysis.missing.flexible;
   const dayLabel = formatDisplayDate(focusDateISO);
 
@@ -200,7 +239,9 @@ export default function HomeInsightCharts({
 
   const pictureLede = empty
     ? "Once you add income or regular bills, we'll walk through how money coming in compares to what's already spoken for."
-    : `Here's the monthly story as of ${dayLabel}: you're tracking about ${formatUsd(analysis.expectedMonthlyIncome)} in income, ${formatUsd(analysis.regularObligations)} in regular expenses${goalsMonthly > 0 ? `, and ${formatUsd(goalsMonthly)} toward goals` : ""}. Your ending balance that day is ${formatUsd(summary.balance)}.`;
+    : rangeMode && rangeFlows
+      ? `From ${periodLabel}, completed activity shows ${formatUsd(rangeFlows.inflows)} in and ${formatUsd(rangeFlows.outflows)} out. Your ending balance as of ${dayLabel} is ${formatUsd(summary.balance)}. Monthly planning still tracks about ${formatUsd(analysis.expectedMonthlyIncome)} in income and ${formatUsd(analysis.regularObligations)} in regular expenses.`
+      : `Here's the monthly story as of ${dayLabel}: you're tracking about ${formatUsd(analysis.expectedMonthlyIncome)} in income, ${formatUsd(analysis.regularObligations)} in regular expenses${goalsMonthly > 0 ? `, and ${formatUsd(goalsMonthly)} toward goals` : ""}. Your ending balance that day is ${formatUsd(summary.balance)}.`;
 
   const mixBudgetTotal = useMemo(
     () => mixLegend.reduce((s, d) => s + d.amount, 0),
@@ -208,9 +249,13 @@ export default function HomeInsightCharts({
   );
   const mixLede =
     mixLegend.length === 0
-      ? "Create budget categories with monthly caps and we'll show how your plan splits across them."
+      ? rangeMode
+        ? "No category spending was recorded in this period."
+        : "Create budget categories with monthly caps and we'll show how your plan splits across them."
       : mixBudgetTotal > 0
-        ? `You have ${mixLegend.length} categories totaling ${formatUsd(mixBudgetTotal)} per month — here's how that plan is divided as of ${dayLabel}.`
+        ? rangeMode
+          ? `Spending from ${periodLabel} across ${mixLegend.length} categories — ${formatUsd(mixBudgetTotal)} total.`
+          : `You have ${mixLegend.length} categories totaling ${formatUsd(mixBudgetTotal)} per month — here's how that plan is divided as of ${dayLabel}.`
         : "Add monthly amounts to your categories and this chart will show where your budget weight sits.";
 
   const incomePanel = (
@@ -219,12 +264,12 @@ export default function HomeInsightCharts({
         <p className="fety-home-insight-lede">{pictureLede}</p>
         <dl className="fety-analysis-stats fety-analysis-stats--compact fety-analysis-stats--picture-grid">
           <div>
-            <dt>Income</dt>
-            <dd>{formatUsd(analysis.expectedMonthlyIncome)}</dd>
+            <dt>{rangeMode ? "Money in" : "Income"}</dt>
+            <dd>{formatUsd(rangeMode && rangeFlows ? rangeFlows.inflows : analysis.expectedMonthlyIncome)}</dd>
           </div>
           <div>
-            <dt>Expenses</dt>
-            <dd>{formatUsd(analysis.regularObligations)}</dd>
+            <dt>{rangeMode ? "Money out" : "Expenses"}</dt>
+            <dd>{formatUsd(rangeMode && rangeFlows ? rangeFlows.outflows : analysis.regularObligations)}</dd>
           </div>
           <div>
             <dt>Goals</dt>
@@ -261,7 +306,14 @@ export default function HomeInsightCharts({
         </ul>
       </div>
       <div className="fety-home-insight-visual fety-home-insight-visual--center">
-        <CategoryMixChart analysis={analysis} size={layout === "tiles" ? 168 : 200} />
+        <CategoryMixChart
+          analysis={rangeMode ? undefined : analysis}
+          slices={rangeMode ? mixLegend : undefined}
+          size={layout === "tiles" ? 168 : 200}
+          emptyMessage={
+            rangeMode ? "No category spending in this period." : "Add budget categories with monthly amounts to see how your plan is divided."
+          }
+        />
       </div>
     </div>
   );

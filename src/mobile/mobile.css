@@ -8,8 +8,7 @@
   background: var(--paper);
   overflow: hidden;
   --fety-mobile-tab-bar-clearance: calc(76px + env(safe-area-inset-bottom, 0px));
-  --fety-mobile-home-top-float-clearance: calc(10px + 40px + 10px);
-  --fety-mobile-txn-toolbar-clearance: var(--fety-mobile-home-top-float-clearance);
+  --fety-mobile-fab-clearance: calc(56px + 12px);
 }
 
 .fety-mobile-header {
@@ -19,8 +18,15 @@
   align-items: center;
   gap: 8px;
   padding: 10px 14px;
-  border-bottom: 1px solid var(--border);
-  background: var(--surface);
+  border-bottom: 1px solid color-mix(in srgb, var(--border) 70%, transparent);
+  background: color-mix(in srgb, var(--surface) 58%, transparent);
+  backdrop-filter: blur(14px);
+  -webkit-backdrop-filter: blur(14px);
+  z-index: 20;
+}
+
+.fety-mobile-header--frosted .fety-mobile-header-settings {
+  background: color-mix(in srgb, var(--paper) 75%, transparent);
 }
 
 .fety-mobile-header-slot {
@@ -43,15 +49,46 @@
   font-size: 28px;
 }
 
-.fety-mobile-header-title {
+.fety-mobile-header-center {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 0;
+}
+
+.fety-mobile-header-tool-btn {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 40px;
+  height: 40px;
   margin: 0;
-  font-size: 15px;
-  font-weight: 600;
+  padding: 0;
+  border: none;
+  border-radius: 50%;
+  background: color-mix(in srgb, var(--surface) 88%, transparent);
   color: var(--ink);
-  text-align: center;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
+  cursor: pointer;
+  box-shadow: 0 2px 12px color-mix(in srgb, var(--ink) 8%, transparent);
+}
+
+.fety-mobile-header-tool-btn--active::after {
+  content: "";
+  position: absolute;
+  top: 3px;
+  right: 3px;
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--ink);
+  box-shadow: 0 0 0 2px var(--surface);
+}
+
+.fety-mobile-date-picker-trigger--header {
+  max-width: min(58vw, 260px);
+  background: color-mix(in srgb, var(--surface) 88%, transparent);
+  box-shadow: 0 2px 12px color-mix(in srgb, var(--ink) 8%, transparent);
 }
 
 .fety-mobile-header-settings {
@@ -130,7 +167,7 @@
   overscroll-behavior-y: contain;
   touch-action: pan-y;
   scrollbar-width: none;
-  padding: var(--fety-mobile-home-top-float-clearance) 14px var(--fety-mobile-tab-bar-clearance);
+  padding: 12px 14px calc(var(--fety-mobile-tab-bar-clearance) + var(--fety-mobile-fab-clearance));
 }
 
 .fety-mobile-home-scroll::-webkit-scrollbar {
@@ -344,8 +381,8 @@
   bottom: 5px;
   left: 0;
   border-radius: 999px;
-  background: var(--bg);
-  box-shadow: 0 1px 3px color-mix(in srgb, var(--ink) 6%, transparent);
+  background: var(--ink);
+  box-shadow: 0 2px 8px color-mix(in srgb, var(--ink) 35%, transparent);
   transition:
     transform 0.28s cubic-bezier(0.4, 0, 0.2, 1),
     width 0.28s cubic-bezier(0.4, 0, 0.2, 1),
@@ -374,7 +411,32 @@
 }
 
 .fety-mobile-tab-bar-btn--active {
-  color: var(--ink);
+  color: #fff;
+}
+
+.fety-mobile-fab-add {
+  position: fixed;
+  right: 16px;
+  bottom: calc(var(--fety-mobile-tab-bar-clearance) - 6px);
+  z-index: 35;
+  width: 52px;
+  height: 52px;
+  margin: 0;
+  padding: 0;
+  border: none;
+  border-radius: 50%;
+  background: var(--ink);
+  color: #fff;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  box-shadow: 0 8px 28px color-mix(in srgb, var(--ink) 38%, transparent);
+}
+
+.fety-mobile-fab-add:active {
+  opacity: 0.92;
+  transform: scale(0.97);
 }
 
 .fety-mobile-tab-bar-icon {
@@ -447,7 +509,7 @@
   overscroll-behavior-y: contain;
   touch-action: pan-y;
   scrollbar-width: none;
-  padding: var(--fety-mobile-txn-toolbar-clearance) 10px var(--fety-mobile-tab-bar-clearance);
+  padding: 12px 10px calc(var(--fety-mobile-tab-bar-clearance) + var(--fety-mobile-fab-clearance));
 }
 
 .fety-mobile-transactions-scroll::-webkit-scrollbar {
@@ -944,6 +1006,12 @@ html[data-fety-mobile-shell="1"] .fety-home-cal-period-section--notes .fety-day-
   font-size: 16px;
 }
 
+.fety-mobile-insights {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
 .fety-mobile-insights-lede {
   font-size: 12px;
   color: var(--ink-2);
@@ -965,6 +1033,14 @@ html[data-fety-mobile-shell="1"] .fety-home-cal-period-section--notes .fety-day-
   border: 1px solid var(--border);
   border-radius: 16px;
   padding: 14px 16px 16px;
+}
+
+.fety-mobile-insight-tile--glance .fety-home-glance {
+  margin: 0;
+}
+
+.fety-mobile-insight-tile--glance .fety-home-stat-label {
+  font-size: 11px;
 }
 
 .fety-mobile-insight-tile-title {

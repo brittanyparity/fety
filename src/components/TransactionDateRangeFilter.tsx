@@ -29,6 +29,14 @@ type TransactionDateRangeFilterProps = {
   rangeEndISO: string;
   onRangeChange: (startISO: string, endISO: string) => void;
   endingBalanceForDate?: (dateISO: string) => number;
+  menuClassName?: string;
+  triggerClassName?: string;
+  showClearAll?: boolean;
+  pillTrigger?: boolean;
+  appearance?: "default" | "widget";
+  fieldLabel?: string;
+  /** Inclusive day count cap when completing a range (optional). */
+  maxRangeDays?: number;
 };
 
 export default function TransactionDateRangeFilter({
@@ -36,6 +44,13 @@ export default function TransactionDateRangeFilter({
   rangeEndISO,
   onRangeChange,
   endingBalanceForDate,
+  menuClassName = "",
+  triggerClassName = "",
+  showClearAll = true,
+  pillTrigger = false,
+  appearance = "default",
+  fieldLabel = "Dates",
+  maxRangeDays,
 }: TransactionDateRangeFilterProps) {
   const rootRef = useRef<HTMLDivElement>(null);
   const [open, setOpen] = useState(false);
@@ -87,11 +102,21 @@ export default function TransactionDateRangeFilter({
     }
     const ordered =
       diffCalendarDays(pickStart, d) >= 0 ? { start: pickStart, end: d } : { start: d, end: pickStart };
-    setPickStart(ordered.start);
-    setPickEnd(ordered.end);
+    const lo = ordered.start <= ordered.end ? ordered.start : ordered.end;
+    const hi = ordered.start <= ordered.end ? ordered.end : ordered.start;
+    let endDay = hi;
+    if (maxRangeDays != null && maxRangeDays > 0) {
+      const span = diffCalendarDays(lo, hi) + 1;
+      if (span > maxRangeDays) {
+        endDay = new Date(lo);
+        endDay.setDate(endDay.getDate() + maxRangeDays - 1);
+      }
+    }
+    setPickStart(lo);
+    setPickEnd(endDay);
     setHoverDay(null);
-    const startISO = dateToISOLocal(ordered.start);
-    const endISO = dateToISOLocal(ordered.end);
+    const startISO = dateToISOLocal(lo);
+    const endISO = dateToISOLocal(endDay);
     window.setTimeout(() => {
       onRangeChange(startISO, endISO);
       setOpen(false);
@@ -106,17 +131,43 @@ export default function TransactionDateRangeFilter({
     setOpen(false);
   };
 
-  return (
-    <div ref={rootRef} className="fety-txn-date-range-menu">
+  const trigger =
+    appearance === "widget" ? (
+      <span className="fety-widget-account-filter fety-widget-date-filter">
+        <span className="fety-label">{fieldLabel}</span>
+        <button
+          type="button"
+          className="fety-widget-date-filter-trigger"
+          onClick={() => setOpen((o) => !o)}
+          aria-expanded={open}
+          aria-haspopup="dialog"
+        >
+          {label}
+        </button>
+      </span>
+    ) : (
       <button
         type="button"
-        className="fety-txn-date-range-trigger"
+        className={`fety-txn-date-range-trigger${triggerClassName ? ` ${triggerClassName}` : ""}`}
         onClick={() => setOpen((o) => !o)}
         aria-expanded={open}
         aria-haspopup="dialog"
       >
         <span className="fety-txn-date-range-trigger-label">{label}</span>
+        {pillTrigger ? (
+          <svg width="12" height="12" viewBox="0 0 12 12" fill="none" aria-hidden className="fety-home-section-date-caret">
+            <path d="M3 4.5 6 7.5 9 4.5" stroke="currentColor" strokeWidth="1.25" strokeLinecap="round" strokeLinejoin="round" />
+          </svg>
+        ) : null}
       </button>
+    );
+
+  return (
+    <div
+      ref={rootRef}
+      className={`fety-txn-date-range-menu${appearance === "widget" ? " fety-widget-date-filter-menu" : ""}${menuClassName ? ` ${menuClassName}` : ""}`}
+    >
+      {trigger}
       {open ? (
         <div className="fety-cal-period-menu-panel fety-txn-date-range-panel">
           <div className="fety-cal-period-picker fety-txn-date-range-picker" role="dialog" aria-label="Choose date range">
@@ -138,11 +189,13 @@ export default function TransactionDateRangeFilter({
                 onHoverDay={setHoverDay}
               />
             </div>
-            <div className="fety-txn-date-range-actions">
-              <button type="button" className="fety-txn-date-range-clear" onClick={clearRange}>
-                All dates
-              </button>
-            </div>
+            {showClearAll ? (
+              <div className="fety-txn-date-range-actions">
+                <button type="button" className="fety-txn-date-range-clear" onClick={clearRange}>
+                  All dates
+                </button>
+              </div>
+            ) : null}
           </div>
         </div>
       ) : null}

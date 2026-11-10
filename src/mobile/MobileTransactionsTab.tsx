@@ -15,7 +15,7 @@ import {
   type TransactionListFilterState,
 } from "../lib/transactionListFilters";
 import type { FetyStore, Transaction } from "../types/fety";
-import { MobileFilterIcon } from "./MobileNavIcons";
+import MobileFabAdd from "./MobileFabAdd";
 
 export default function MobileTransactionsTab({
   store,
@@ -24,6 +24,9 @@ export default function MobileTransactionsTab({
   onUpdate,
   onDelete,
   accountFilter,
+  filtersOpen,
+  onFiltersOpenChange,
+  onFiltersActiveChange,
 }: {
   store: FetyStore;
   onAdd: (input: AddTransactionPayload) => void;
@@ -38,9 +41,11 @@ export default function MobileTransactionsTab({
   onCompleteTransaction?: (id: string, completedAtISO?: string) => void;
   onMarkTransactionUpcoming?: (id: string) => void;
   accountFilter?: string | null;
+  filtersOpen: boolean;
+  onFiltersOpenChange: (open: boolean) => void;
+  onFiltersActiveChange?: (active: boolean) => void;
 }) {
   const [addOpen, setAddOpen] = useState(false);
-  const [filtersOpen, setFiltersOpen] = useState(false);
   const [editTxn, setEditTxn] = useState<Transaction | null>(null);
   const [filters, setFilters] = useState<TransactionListFilterState>(() =>
     defaultTransactionListFilters(accountFilter),
@@ -56,7 +61,7 @@ export default function MobileTransactionsTab({
   useEffect(() => {
     if (!filtersOpen) return;
     const onKey = (e: KeyboardEvent) => {
-      if (e.key === "Escape") setFiltersOpen(false);
+      if (e.key === "Escape") onFiltersOpenChange(false);
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
@@ -68,6 +73,10 @@ export default function MobileTransactionsTab({
   );
 
   const filtersActive = transactionListFiltersActive(filters, filterBaseline);
+
+  useEffect(() => {
+    onFiltersActiveChange?.(filtersActive);
+  }, [filtersActive, onFiltersActiveChange]);
 
   const shown = useMemo(
     () =>
@@ -89,28 +98,6 @@ export default function MobileTransactionsTab({
 
   return (
     <div className="fety-mobile-transactions fety-mobile-transactions--split">
-      <div className="fety-mobile-transactions-toolbar-dock">
-        <div className="fety-mobile-home-top-bar fety-mobile-home-top-bar--end">
-          <div className="fety-mobile-toolbar-actions">
-            <button
-              type="button"
-              className={`fety-mobile-floating-icon-btn${filtersActive ? " fety-mobile-floating-icon-btn--active" : ""}`}
-              aria-label="Filter transactions"
-              aria-expanded={filtersOpen}
-              onClick={() => setFiltersOpen(true)}
-            >
-              <MobileFilterIcon />
-            </button>
-            <button
-              type="button"
-              className="fety-mobile-floating-btn fety-mobile-floating-btn--emphasis"
-              onClick={() => setAddOpen(true)}
-            >
-              Add transaction
-            </button>
-          </div>
-        </div>
-      </div>
       <div className="fety-mobile-transactions-scroll">
         <div className="fety-mobile-txn-list">
           {groups.length === 0 ? (
@@ -142,6 +129,7 @@ export default function MobileTransactionsTab({
           )}
         </div>
       </div>
+      <MobileFabAdd onClick={() => setAddOpen(true)} />
       {filtersOpen
         ? createPortal(
             <div className="fety-modal fety-modal--mobile-sheet" role="dialog" aria-modal="true" aria-labelledby="fety-mobile-txn-filters-title">
@@ -149,14 +137,14 @@ export default function MobileTransactionsTab({
                 type="button"
                 className="fety-modal-backdrop"
                 aria-label="Close filters"
-                onClick={() => setFiltersOpen(false)}
+                onClick={() => onFiltersOpenChange(false)}
               />
               <div className="fety-modal-panel fety-modal-panel--mobile-filters">
                 <header className="fety-modal-header">
                   <h2 id="fety-mobile-txn-filters-title" className="fety-modal-title">
                     Filters
                   </h2>
-                  <button type="button" className="fety-modal-close" aria-label="Close" onClick={() => setFiltersOpen(false)}>
+                  <button type="button" className="fety-modal-close" aria-label="Close" onClick={() => onFiltersOpenChange(false)}>
                     ×
                   </button>
                 </header>
@@ -180,7 +168,7 @@ export default function MobileTransactionsTab({
                   >
                     Reset
                   </button>
-                  <button type="button" className="fety-modal-btn-primary" onClick={() => setFiltersOpen(false)}>
+                  <button type="button" className="fety-modal-btn-primary" onClick={() => onFiltersOpenChange(false)}>
                     Done
                   </button>
                 </div>

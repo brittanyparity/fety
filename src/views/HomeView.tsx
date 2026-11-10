@@ -1,12 +1,20 @@
-import { useEffect, useMemo, useState, type CSSProperties, type ReactNode } from "react";
+import { useCallback, useEffect, useMemo, useState, type CSSProperties, type ReactNode } from "react";
 import AddTransactionModal, {
   type AddTransactionModalActions,
   type AddTransactionPayload,
 } from "../components/AddTransactionModal";
 import { CalendarPeriodMenu } from "../components/CalendarPeriodMenu";
-import { dateToISOLocal } from "../lib/fetyCalculations";
+import {
+  categoryActualSpendBetween,
+  computeSummary,
+  dateToISOLocal,
+  endingBalanceOnDate,
+  mergeCalendarMaps,
+  todayISO,
+} from "../lib/fetyCalculations";
 import { calendarYearsForHomeView, shiftFocusDate, type CalView } from "../lib/calendarView";
-import { endingBalanceOnDate, mergeCalendarMaps, todayISO } from "../lib/fetyCalculations";
+import { analyzeStore } from "../lib/financialAnalysis";
+import HomeSectionDateRangePicker from "../components/HomeSectionDateRangePicker";
 import {
   HomeCalendarDailyGrid,
   HomeCalendarMonthGrid,
@@ -127,6 +135,14 @@ function formatHomeNear(focusDateISO: string): string {
 
 function formatHomeBy(focusDateISO: string): string {
   return `by ${formatHomeDateContext(focusDateISO)}`;
+}
+
+function coalesceSectionRangeISO(startISO: string, endISO: string, fallbackISO: string): { start: string; end: string } {
+  const fb = fallbackISO || todayISO();
+  if (!startISO && !endISO) return { start: fb, end: fb };
+  const start = startISO || endISO || fb;
+  const end = endISO || startISO || fb;
+  return end >= start ? { start, end } : { start: end, end: start };
 }
 
 type HomeCardTitleMode = "dated" | "plain" | "asOf" | "near" | "by";
@@ -513,28 +529,42 @@ function HomeScheduledProgressRow({ row }: { row: ScheduledKindProgressRow }) {
   );
 }
 
-function HomeAtAGlance({
+export function HomeAtAGlance({
   store,
   summary,
-  monthLabel,
+  rangeStartISO,
+  rangeEndISO,
 }: {
   store: FetyStore;
   summary: FinanceSummary;
-  monthLabel: string;
+  rangeStartISO: string;
+  rangeEndISO: string;
 }) {
-  const focusDate = useMemo(() => new Date(), [monthLabel]);
-  const scheduledProgress = useMemo(() => computeScheduledKindProgress(store, focusDate), [store, focusDate]);
-  const budgetCategories = useMemo(
-    () => summary.categoriesWithSpent.filter((c) => c.name.trim().toLowerCase() !== "housing"),
-    [summary.categoriesWithSpent],
+  const rangeMode = rangeStartISO !== rangeEndISO;
+  const focusDate = useMemo(
+    () => new Date(`${(rangeEndISO >= rangeStartISO ? rangeEndISO : rangeStartISO)}T12:00:00`),
+    [rangeStartISO, rangeEndISO],
   );
-
+  const scheduledProgress = useMemo(() => computeScheduledKindProgress(store, focusDate), [store, focusDate]);
+  const rangeSpendByCategory = useMemo(() => {
+    if (!rangeMode) return null;
+    const rows = categoryActualSpendBetween(store, rangeStartISO, rangeEndISO);
+    return new Map(rows.map((r) => [r.name, r.amount]));
+  }, [rangeMode, rangeStartISO, rangeEndISO, store]);
+  const budgetCategories = useMemo(
+    () =>
+      summary.categoriesWithSpent
+        .filter((c) => c.name.trim().toLowerCase() !== "housing")
+        .map((c) =>
+          rangeSpendByCategory
+            ? { ...c, spent: rangeSpendByCategory.get(c.name) ?? 0 }
+            : c,
+        ),
+    [summary.categoriesWithSpent, rangeSpendByCategory],
+  );
   return (
     <div className="fety-home-glance">
       <div className="fety-home-stat fety-home-stat--budget">
-        <div className="fety-home-stat-head">
-          <p className="fety-home-stat-label">This month ({monthLabel})</p>
-        </div>
         <div className="fety-home-budget-scroll">
           {scheduledProgress.map((row) => (
             <HomeScheduledProgressRow key={row.kind} row={row} />
@@ -594,56 +624,54 @@ export default function HomeView({
   balanceChart: ReactNode;
 }) {
   const [glanceOpen, setGlanceOpen] = useState(true);
-  const monthLabel = useMemo(() => {
-    const d = new Date();
-    return d.toLocaleDateString("en-US", { month: "short", year: "numeric" });
-  }, []);
+  const [notesOpen, setNotesOpen] = useState(true);
+  const [upcomingOpen, setUpcomingOpen] = useState(true);
+  const [balanceOpen, setBalanceOpen] = useState(true);
+  const [insightsOpen, setInsightsOpen] = useState(true);
+  const sectionDefaultISO = todayISO();
+  const [glanceStartISO, setGlanceStartISO] = useState(sectionDefaultISO);
+  const [glanceEndISO, setGlanceEndISO] = useState(sectionDefaultISO);
+  const [insightsStartISO, setInsightsStartISO] = useState(sectionDefaultISO);
+  const [insightsEndISO, setInsightsEndISO] = useState(sectionDefaultISO);
+  const upcomingAnchorISO = todayISO();
+
+  const glanceRange = coalesceSectionRangeISO(glanceStartISO, glanceEndISO, sectionDefaultISO);
+  const insightsRange = coalesceSectionRangeISO(insightsStartISO, insightsEndISO, sectionDefaultISO);
+  const { start: glanceStartSafe, end: glanceEndSafe } = glanceRange;
+  const { start: insightsStartSafe, end: insightsEndSafe } = insightsRange;
+  const glanceFocusISO = glanceEndSafe;
+  const insightsFocusISO = insightsEndSafe;
+
+  const glanceFocusDate = useMemo(() => new Date(`${glanceFocusISO}T12:00:00`), [glanceFocusISO]);
+  const insightsFocusDate = useMemo(() => new Date(`${insightsFocusISO}T12:00:00`), [insightsFocusISO]);
+  const glanceSummaryForRange = useMemo(
+    () => computeSummary(store, glanceFocusDate),
+    [store, glanceFocusDate],
+  );
+  const insightsSummaryForRange = useMemo(
+    () => computeSummary(store, insightsFocusDate),
+    [store, insightsFocusDate],
+  );
+  const insightsAnalysisForRange = useMemo(
+    () => analyzeStore(store, insightsFocusDate),
+    [store, insightsFocusDate],
+  );
+
+  const sectionEndingBalance = useCallback(
+    (dateISO: string) => endingBalanceOnDate(store, dateISO),
+    [store],
+  );
+
+  const collapsePairedPanel = (collapseSelf: () => void, neighborOpen: boolean, expandNeighbor: () => void) => {
+    if (!neighborOpen) expandNeighbor();
+    collapseSelf();
+  };
 
   return (
     <div className="fety-home">
       <div
-        className={`fety-home-row fety-home-row--hero${glanceOpen ? "" : " fety-home-row--glance-collapsed"}`}
+        className={`fety-home-row fety-home-row--hero${notesOpen ? "" : " fety-home-row--notes-collapsed"}`}
       >
-        <HomeCard
-          label="At a glance"
-          titleMode="plain"
-          className={`fety-home-cell fety-home-cell--glance${glanceOpen ? "" : " fety-home-cell--collapsed"}`}
-          action={
-            glanceOpen ? (
-              <button
-                type="button"
-                className="fety-home-glance-toggle"
-                aria-expanded
-                aria-label="Collapse at a glance"
-                onClick={() => setGlanceOpen(false)}
-              >
-                Collapse
-              </button>
-            ) : undefined
-          }
-        >
-          {glanceOpen ? (
-            <HomeAtAGlance store={store} summary={glanceSummary} monthLabel={monthLabel} />
-          ) : (
-            <>
-              <p className="fety-home-glance-collapsed-hint">
-                Monthly budget and scheduled activity — expand to see category progress for the current month.
-              </p>
-              <div className="fety-home-glance-rail">
-                <button
-                  type="button"
-                  className="fety-home-glance-toggle fety-home-glance-toggle--rail"
-                  aria-expanded={false}
-                  aria-label="Expand at a glance"
-                  onClick={() => setGlanceOpen(true)}
-                >
-                  Expand
-                </button>
-                <span className="fety-home-glance-rail-label">At a glance</span>
-              </div>
-            </>
-          )}
-        </HomeCard>
         <HomeCalendarCard
           store={store}
           selectedDateISO={focusDateISO}
@@ -658,35 +686,258 @@ export default function HomeView({
           onUpdateCalendarNote={onUpdateCalendarNote}
           onDeleteCalendarNote={onDeleteCalendarNote}
         />
+        <HomeCard
+          label="Notes"
+          focusDateISO={focusDateISO}
+          className={`fety-home-cell fety-home-cell--notes${notesOpen ? "" : " fety-home-cell--collapsed"}`}
+          action={
+            notesOpen ? (
+              <button
+                type="button"
+                className="fety-home-panel-toggle"
+                aria-expanded
+                aria-label="Collapse notes"
+                onClick={() => setNotesOpen(false)}
+              >
+                Collapse
+              </button>
+            ) : undefined
+          }
+        >
+          {notesOpen ? (
+            <NotesPanel
+              store={store}
+              focusDateISO={focusDateISO}
+              onAddNote={onAddCalendarNote}
+              onUpdateNote={onUpdateCalendarNote}
+              onDeleteNote={onDeleteCalendarNote}
+            />
+          ) : (
+            <>
+              <p className="fety-home-panel-collapsed-hint">
+                Day notes for the selected date — expand to view or add notes.
+              </p>
+              <div className="fety-home-notes-rail">
+                <button
+                  type="button"
+                  className="fety-home-panel-toggle fety-home-panel-toggle--rail fety-home-panel-toggle--rail-right"
+                  aria-expanded={false}
+                  aria-label="Expand notes"
+                  onClick={() => setNotesOpen(true)}
+                >
+                  Expand
+                </button>
+                <span className="fety-home-notes-rail-label">Notes</span>
+              </div>
+            </>
+          )}
+        </HomeCard>
       </div>
 
-      <div className="fety-home-row">
-        <HomeCard label="Balance" focusDateISO={focusDateISO} titleMode="by" className="fety-home-cell fety-home-span-2">
-          {balanceChart}
+      <div
+        className={`fety-home-row fety-home-row--balance${balanceOpen ? "" : " fety-home-row--balance-collapsed"}${upcomingOpen ? "" : " fety-home-row--upcoming-collapsed"}`}
+      >
+        <HomeCard
+          label="Balance"
+          titleMode="plain"
+          className={`fety-home-cell fety-home-cell--balance fety-home-span-2${balanceOpen ? "" : " fety-home-cell--collapsed"}`}
+          action={
+            balanceOpen ? (
+              <button
+                type="button"
+                className="fety-home-panel-toggle"
+                aria-expanded
+                aria-label="Collapse balance"
+                onClick={() => collapsePairedPanel(() => setBalanceOpen(false), upcomingOpen, () => setUpcomingOpen(true))}
+              >
+                Collapse
+              </button>
+            ) : undefined
+          }
+        >
+          {balanceOpen ? (
+            balanceChart
+          ) : (
+            <>
+              <p className="fety-home-panel-collapsed-hint">
+                Ending balance and account breakdown — expand to view the chart.
+              </p>
+              <div className="fety-home-balance-rail">
+                <button
+                  type="button"
+                  className="fety-home-panel-toggle fety-home-panel-toggle--rail"
+                  aria-expanded={false}
+                  aria-label="Expand balance"
+                  onClick={() => setBalanceOpen(true)}
+                >
+                  Expand
+                </button>
+                <span className="fety-home-balance-rail-label">Balance</span>
+              </div>
+            </>
+          )}
         </HomeCard>
-        <HomeCard label="Upcoming expenses" focusDateISO={focusDateISO} titleMode="near" className="fety-home-cell">
-          <UpcomingExpensesPanel store={store} onAction={onAction} focusDateISO={focusDateISO} />
+        <HomeCard
+          label="Upcoming expenses"
+          titleMode="plain"
+          className={`fety-home-cell fety-home-cell--upcoming${upcomingOpen ? "" : " fety-home-cell--collapsed"}`}
+          action={
+            upcomingOpen ? (
+              <button
+                type="button"
+                className="fety-home-panel-toggle"
+                aria-expanded
+                aria-label="Collapse upcoming expenses"
+                onClick={() => collapsePairedPanel(() => setUpcomingOpen(false), balanceOpen, () => setBalanceOpen(true))}
+              >
+                Collapse
+              </button>
+            ) : undefined
+          }
+        >
+          {upcomingOpen ? (
+            <UpcomingExpensesPanel store={store} onAction={onAction} focusDateISO={upcomingAnchorISO} />
+          ) : (
+            <>
+              <p className="fety-home-panel-collapsed-hint">
+                Bills and recurring charges ahead — expand to review what&apos;s coming up.
+              </p>
+              <div className="fety-home-upcoming-rail">
+                <button
+                  type="button"
+                  className="fety-home-panel-toggle fety-home-panel-toggle--rail fety-home-panel-toggle--rail-right"
+                  aria-expanded={false}
+                  aria-label="Expand upcoming expenses"
+                  onClick={() => setUpcomingOpen(true)}
+                >
+                  Expand
+                </button>
+                <span className="fety-home-upcoming-rail-label">Upcoming</span>
+              </div>
+            </>
+          )}
         </HomeCard>
       </div>
 
-      <div className="fety-home-row">
-        <HomeCard label="Notes" focusDateISO={focusDateISO} className="fety-home-cell">
-          <NotesPanel
-            store={store}
-            focusDateISO={focusDateISO}
-            onAddNote={onAddCalendarNote}
-            onUpdateNote={onUpdateCalendarNote}
-            onDeleteNote={onDeleteCalendarNote}
-          />
+      <div
+        className={`fety-home-row fety-home-row--insights${glanceOpen ? "" : " fety-home-row--glance-collapsed"}${insightsOpen ? "" : " fety-home-row--insights-collapsed"}`}
+      >
+        <HomeCard
+          label="At a glance"
+          titleMode="plain"
+          className={`fety-home-cell fety-home-cell--glance${glanceOpen ? "" : " fety-home-cell--collapsed"}`}
+          action={
+            glanceOpen ? (
+              <div className="fety-home-card-header-actions">
+                <HomeSectionDateRangePicker
+                  rangeStartISO={glanceStartISO}
+                  rangeEndISO={glanceEndISO}
+                  onRangeChange={(start, end) => {
+                    const next = coalesceSectionRangeISO(start, end, sectionDefaultISO);
+                    setGlanceStartISO(next.start);
+                    setGlanceEndISO(next.end);
+                  }}
+                  endingBalanceForDate={sectionEndingBalance}
+                />
+                <button
+                  type="button"
+                  className="fety-home-panel-toggle"
+                  aria-expanded
+                  aria-label="Collapse at a glance"
+                  onClick={() => collapsePairedPanel(() => setGlanceOpen(false), insightsOpen, () => setInsightsOpen(true))}
+                >
+                  Collapse
+                </button>
+              </div>
+            ) : undefined
+          }
+        >
+          {glanceOpen ? (
+            <HomeAtAGlance
+              store={store}
+              summary={glanceSummaryForRange}
+              rangeStartISO={glanceStartSafe}
+              rangeEndISO={glanceEndSafe}
+            />
+          ) : (
+            <>
+              <p className="fety-home-panel-collapsed-hint">
+                Monthly budget and scheduled activity — expand to see category progress for the current month.
+              </p>
+              <div className="fety-home-glance-rail">
+                <button
+                  type="button"
+                  className="fety-home-panel-toggle fety-home-panel-toggle--rail"
+                  aria-expanded={false}
+                  aria-label="Expand at a glance"
+                  onClick={() => setGlanceOpen(true)}
+                >
+                  Expand
+                </button>
+                <span className="fety-home-glance-rail-label">At a glance</span>
+              </div>
+            </>
+          )}
         </HomeCard>
         <HomeCard
           label="Insights"
-          focusDateISO={focusDateISO}
-          titleMode="asOf"
-          className="fety-home-cell fety-home-span-2"
+          titleMode="plain"
+          className={`fety-home-cell fety-home-cell--insights fety-home-span-2${insightsOpen ? "" : " fety-home-cell--collapsed"}`}
           bodyClassName="fety-home-card-body--insights"
+          action={
+            insightsOpen ? (
+              <div className="fety-home-card-header-actions">
+                <HomeSectionDateRangePicker
+                  rangeStartISO={insightsStartISO}
+                  rangeEndISO={insightsEndISO}
+                  onRangeChange={(start, end) => {
+                    const next = coalesceSectionRangeISO(start, end, sectionDefaultISO);
+                    setInsightsStartISO(next.start);
+                    setInsightsEndISO(next.end);
+                  }}
+                  endingBalanceForDate={sectionEndingBalance}
+                />
+                <button
+                  type="button"
+                  className="fety-home-panel-toggle"
+                  aria-expanded
+                  aria-label="Collapse insights"
+                  onClick={() => collapsePairedPanel(() => setInsightsOpen(false), glanceOpen, () => setGlanceOpen(true))}
+                >
+                  Collapse
+                </button>
+              </div>
+            ) : undefined
+          }
         >
-          <HomeInsightCharts analysis={analysis} summary={summary} store={store} focusDateISO={focusDateISO} />
+          {insightsOpen ? (
+            <HomeInsightCharts
+              analysis={insightsAnalysisForRange}
+              summary={insightsSummaryForRange}
+              store={store}
+              focusDateISO={insightsFocusISO}
+              rangeStartISO={insightsStartSafe}
+              rangeEndISO={insightsEndSafe}
+            />
+          ) : (
+            <>
+              <p className="fety-home-panel-collapsed-hint">
+                Income, budget mix, and affordability — expand to view charts.
+              </p>
+              <div className="fety-home-insights-rail">
+                <button
+                  type="button"
+                  className="fety-home-panel-toggle fety-home-panel-toggle--rail fety-home-panel-toggle--rail-right"
+                  aria-expanded={false}
+                  aria-label="Expand insights"
+                  onClick={() => setInsightsOpen(true)}
+                >
+                  Expand
+                </button>
+                <span className="fety-home-insights-rail-label">Insights</span>
+              </div>
+            </>
+          )}
         </HomeCard>
       </div>
     </div>

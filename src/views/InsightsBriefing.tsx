@@ -153,6 +153,19 @@ export type CategoryMixSlice = {
   fill: string;
 };
 
+export function actualSpendMixSlices(
+  rows: { name: string; amount: number }[],
+): CategoryMixSlice[] {
+  const total = rows.reduce((s, r) => s + r.amount, 0);
+  if (total <= 0.005) return [];
+  return rows.map((r, i) => ({
+    name: r.name,
+    amount: r.amount,
+    pct: Math.round((r.amount / total) * 100),
+    fill: SLICE_COLORS[i % SLICE_COLORS.length],
+  }));
+}
+
 export function categoryMixPieData(analysis: FinancialAnalysis): CategoryMixSlice[] {
   const categoryRows = analysis.budgetCategoryShares.map((d, i) => ({
     name: d.name,
@@ -294,13 +307,23 @@ export function IncomeAllocationBars({ analysis }: { analysis: FinancialAnalysis
   );
 }
 
-export function CategoryMixChart({ analysis, size = 200 }: { analysis: FinancialAnalysis; size?: number }) {
-  const legend = categoryMixPieData(analysis);
+export function CategoryMixChart({
+  analysis,
+  slices,
+  size = 200,
+  emptyMessage = "Add budget categories with monthly amounts to see how your plan is divided.",
+}: {
+  analysis?: FinancialAnalysis;
+  slices?: CategoryMixSlice[];
+  size?: number;
+  emptyMessage?: string;
+}) {
+  const legend = slices ?? (analysis ? categoryMixPieData(analysis) : []);
   const data = legend.filter((d) => d.amount > 0.005);
   if (legend.length === 0 || data.length === 0) {
     return (
       <div className="fety-insights-chart-empty">
-        <p>Add budget categories with monthly amounts to see how your plan is divided.</p>
+        <p>{emptyMessage}</p>
       </div>
     );
   }

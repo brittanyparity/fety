@@ -380,7 +380,7 @@ export type BalanceChartRange = "7d" | "14d" | "30d" | "month";
 export type SpendTrendMonths = 3 | 6 | 12;
 export type CategorySpendPeriod = "week" | "month" | "30d" | "90d";
 
-function daysInBalanceRange(range: BalanceChartRange, ref: Date): number {
+export function daysInBalanceRange(range: BalanceChartRange, ref: Date): number {
   if (range === "7d") return 7;
   if (range === "14d") return 14;
   if (range === "30d") return 30;
@@ -410,6 +410,8 @@ export type BalanceChartPoint = {
   bal: number;
   /** Full calendar date for chart tooltips. */
   dateLabel: string;
+  /** YYYY-MM-DD for axis formatting and panning. */
+  dateISO: string;
 };
 
 function formatBalanceChartTooltipDate(d: Date): string {
@@ -448,13 +450,53 @@ export function endingBalancesForRange(
     } else {
       label = labelForBalancePoint(d, range);
     }
-    out.push({ d: label, bal, dateLabel: formatBalanceChartTooltipDate(d) });
+    out.push({ d: label, bal, dateLabel: formatBalanceChartTooltipDate(d), dateISO: key });
   }
   return out;
 }
 
 export function last7DayEndingBalances(store: FetyStore, ref = new Date()): { d: string; bal: number }[] {
   return endingBalancesForRange(store, "7d", ref);
+}
+
+/** Daily ending balances for each calendar day from startISO through endISO (inclusive). */
+export function endingBalancesBetweenISOs(
+  store: FetyStore,
+  startISO: string,
+  endISO: string,
+  accountId?: string | null,
+): BalanceChartPoint[] {
+  const a = new Date(`${startISO}T12:00:00`);
+  const b = new Date(`${endISO}T12:00:00`);
+  const lo = a <= b ? a : b;
+  const hi = a <= b ? b : a;
+  const out: BalanceChartPoint[] = [];
+  const cursor = new Date(lo);
+  const monthsSeenOnChart = new Set<string>();
+  const spanDays =
+    Math.floor((hi.getTime() - lo.getTime()) / 86400000) + 1;
+  while (cursor.getTime() <= hi.getTime()) {
+    const key = calKey(cursor);
+    const bal = accountId
+      ? accountBalanceProjectedThrough(store, accountId, key)
+      : endingBalanceOnDate(store, key);
+    let label: string;
+    if (spanDays > 30) {
+      const monthKey = `${cursor.getFullYear()}-${cursor.getMonth()}`;
+      const firstDayOfMonthOnChart = !monthsSeenOnChart.has(monthKey);
+      if (firstDayOfMonthOnChart) monthsSeenOnChart.add(monthKey);
+      label = labelForBalancePoint30d(cursor, firstDayOfMonthOnChart);
+    } else if (spanDays <= 7) {
+      label = labelForBalancePoint(cursor, "7d");
+    } else if (spanDays <= 14) {
+      label = labelForBalancePoint(cursor, "14d");
+    } else {
+      label = labelForBalancePoint(cursor, "30d");
+    }
+    out.push({ d: label, bal, dateLabel: formatBalanceChartTooltipDate(cursor), dateISO: key });
+    cursor.setDate(cursor.getDate() + 1);
+  }
+  return out;
 }
 
 /** Monthly outflow totals for the last N calendar months (inclusive of current). */
@@ -540,4 +582,45 @@ export function categorySpendSharesForPeriod(
 
 export function categorySpendShares(store: FetyStore, ref = new Date()): { name: string; value: number }[] {
   return categorySpendSharesForPeriod(store, "month", ref);
+}
+
+function isoRangeToDates(startISO: string, endISO: string): { start: Date; end: Date } {
+  const a = new Date(`${startISO}T12:00:00`);
+  const b = new Date(`${endISO}T12:00:00`);
+  return a <= b ? { start: a, end: b } : { start: b, end: a };
+}
+
+/** Completed ledger inflows and outflows between two dates (inclusive). */
+export function ledgerCashFlowsBetween(
+  store: FetyStore,
+  startISO: string,
+  endISO: string,
+): { inflows: number; outflows: number } {
+  const { start, end } = isoRangeToDates(startISO, endISO);
+  const asOf = balanceAsOfISO(store);
+  let inflows = 0;
+  let outflows = 0;
+  for (const t of store.transactions) {
+    if (!transactionCountsInActualLedger(t)) continue;
+    const ledgerISO = transactionLedgerDateISO(t);
+    if (ledgerISO < asOf || !inRange(ledgerISO, start, end)) continue;
+    if (isInflow(t, store)) inflows += t.amount;
+    else if (isOutflow(t, store)) outflows += Math.abs(t.amount);
+  }
+  return { inflows, outflows };
+}
+
+export function categoryActualSpendBetween(
+  store: FetyStore,
+  startISO: string,
+  endISO: string,
+): { name: string; amount: number }[] {
+  const { start, end } = isoRangeToDates(startISO, endISO);
+  return filterBudgetCategories(store.categories)
+    .map((c) => ({
+      name: c.name,
+      amount: categorySpentInRange(store, c.name, start, end),
+    }))
+    .filter((c) => c.amount > 0.005)
+    .sort((a, b) => b.amount - a.amount);
 }

@@ -4,8 +4,8 @@ import type { MobileTab } from "./types";
 
 const TABS: { id: MobileTab; label: string }[] = [
   { id: "home", label: "Home" },
-  { id: "transactions", label: "Transactions" },
   { id: "budget", label: "Budget" },
+  { id: "transactions", label: "Spending" },
   { id: "insights", label: "Insights" },
   { id: "goals", label: "Goals" },
 ];
