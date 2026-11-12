@@ -18,10 +18,10 @@
   align-items: center;
   gap: 8px;
   padding: 10px 14px;
+  /* Opaque fill + safe-area so Home Screen PWAs don’t frost under the status bar. */
+  padding-top: calc(10px + env(safe-area-inset-top, 0px));
   border-bottom: 1px solid color-mix(in srgb, var(--border) 70%, transparent);
-  background: color-mix(in srgb, var(--surface) 58%, transparent);
-  backdrop-filter: blur(14px);
-  -webkit-backdrop-filter: blur(14px);
+  background: var(--paper);
   z-index: 20;
 }
 
